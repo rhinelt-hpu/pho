@@ -9,7 +9,7 @@ Pho 是一个**无服务端**的照片查看与同步应用：
 - **Flutter 客户端**（`lib/`）：UI、状态管理、gRPC 客户端
 - **嵌入式 Go 后端**（`server/`）：通过 gomobile 编译进 app，提供 gRPC 控制接口 + HTTP 文件传输
 - 手机**直连** SMB / WebDAV / NFS 存储，无数据库、无中间服务器，存储文件系统即数据库（按 `YYYY/MM/DD/` 组织）
-- 本仓库为开源版，仅含核心查看与同步功能（SMB/WebDAV/NFS）
+- 本项目完全开源，支持通过 SMB / WebDAV / NFS 等协议直接访问私有存储
 
 ## 环境要求
 
@@ -85,7 +85,7 @@ make apk                             # release APK
 - **Dart**：遵循 `analysis_options.yaml`（`package:flutter_lints`），提交前运行 `flutter analyze` 确认无新增告警
 - **Go**：`gofmt` 格式化，遵循现有包结构与命名（`ImgManager`、`StorageDrive` 接口等）
 - **注释**：使用中文
-- **不要**修改生成代码、不要引入无必要的第三方依赖、不要动与开源版无关的 Pro 功能逻辑
+- **不要**修改生成代码、不要引入无必要的第三方依赖
 
 ## 测试
 

@@ -12,27 +12,22 @@ Pho - 一个用于查看和上传照片的无服务端应用
 </p>
 
 ### 安装
-
-**开源版**（仅 Android APK）：
-- [下载 APK](https://github.com/fregie/pho/releases) — 仅含 SMB / WebDAV / NFS，无 Pro 功能
-
-**Pro 版**（含全部功能，需付费）：
-- [App Store](https://apps.apple.com/cn/app/pho-%E5%90%8C%E6%AD%A5%E7%85%A7%E7%89%87%E5%88%B0nas-%E7%BD%91%E7%9B%98/id6451428709) — iOS 版，支持 AES 加密、并行上传、筛选器、百度网盘等
-- [Google Play](https://play.google.com/store/apps/details?id=com.fregie.pho) — Android 版，支持 AES 加密、并行上传、筛选器、百度网盘等
-
-> 开源仓库仅提供 APK 下载。iOS 用户请前往 App Store、Android 用户请前往 Google Play 下载 Pro 版（支持免费试用基础功能后购买 Pro）。
+- [GitHub Releases 下载安装包](https://github.com/fregie/pho/releases)
+- 支持源码构建 Android APK 与 iOS IPA（构建步骤详见下方说明）
 
 ### 介绍
 该应用的目的是替代手机上的自带相册应用,并且能够将照片同步到网络储存.  
 功能简单,只是用于查看照片以及同步照片到网络储存.试图做到优秀的体验.
 
 ### 功能
-* 本地照片查看
-* 云端照片查看
+* 本地照片与视频查看 (支持 Live Photo 实况照片回放)
+* 云端照片与视频查看
 * 增量同步照片到云端
-* 后台定期同步
+* 后台定期自动同步
+* AES-256-GCM / AES-128-CFB 端到端加密 (加密视频支持 Range 在线播放)
 * 无数据库,无服务端
-* 以时间组织云端存储的目录结构
+* 以时间组织云端存储的目录结构 (支持自定义目录组织格式)
+* 自定义主题配色
 
 ### 支持的网络储存
 - [x] Samba
@@ -42,20 +37,6 @@ Pho - 一个用于查看和上传照片的无服务端应用
 - [ ] oneDrive
 - [ ] google drive
 - [ ] google photo
-
-### 与 Pro 版本差异
-本仓库为 Pho 开源版,仅包含核心的照片查看与同步功能.以下功能仅在 Pro 版本中提供(未开源):
-
-- AES 加密上传(支持 AES-128-CFB 与 AES-256-GCM,加密视频支持 Range 播放)
-- 并行上传调优(多文件并发上传)
-- 文件筛选器(按类型/日期等条件过滤同步)
-- 目录结构配置(可选 `YYYY/MM/DD` 或 `YYYYMMDD` 组织方式)
-- 主题色自定义
-- 百度网盘支持
-
-开源版仅支持 Samba / WebDAV / NFS 三种网络储存.
-
-Pro 版在 App Store 和 Google Play 提供： [App Store](https://apps.apple.com/cn/app/id6451428709) / [Google Play](https://play.google.com/store/apps/details?id=com.fregie.pho)
 
 ### Screenshots
 <p align="left">

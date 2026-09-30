@@ -20,18 +20,3 @@ class FinishGettingLocal {
 class FinishGettingRemote {
   FinishGettingRemote();
 }
-
-class BuyProEvent {
-  BuyProEvent();
-}
-
-class IAPPendingEvent {
-  IAPPendingEvent();
-}
-
-class IAPErrorEvent {
-  IAPErrorEvent(
-    this.err,
-  );
-  String? err;
-}

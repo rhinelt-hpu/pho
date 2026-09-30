@@ -3,8 +3,8 @@
 // 由 AppDelegate 的 BGProcessingTask handle 创建 headless engine 后通过
 // `@pragma('vm:entry-point')` 调起。复用与 UI 相同的 Dart 全局（setting /
 // asset / state / storage 等），但仅做后台同步所需的最小初始化：
-//   - 不调用顶层全局初始化流程（会触发 IAP / 周期定时器 / UI 副作用）
-//   - 不跑自动同步定时器重载、退款检查、订阅状态检查、标题缓存加载
+//   - 不调用顶层全局初始化流程（会触发周期定时器 / UI 副作用）
+//   - 不跑自动同步定时器重载、标题缓存加载
 //   - 不调 stateModel.setSyncProgress（后台无 UI 监听）
 //   - 不直接 invoke sendLocalNotification channel，用 LocalNotifier 封装
 //   - 不调 keepScreenOn
@@ -140,6 +140,7 @@ void backgroundSyncEntrypoint() async {
     storage: storageClient,
     assets: assetModel.localAssets,
     uploadedIds: uploadedIds,
+    // TODO(open-source): 并行上传调优 (原会员功能，待开源实现): 可根据用户设置支持多线程并发
     parallelCount: 1,
     shouldStop: () => cancelFlag,
     refreshUnSync: true,

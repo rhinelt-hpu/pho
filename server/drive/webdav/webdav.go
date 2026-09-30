@@ -107,14 +107,10 @@ func (d *Webdav) Download(path string) (io.ReadCloser, int64, error) {
 	}
 	fullPath := filepath.Join(d.rootPath, path)
 	fullPath = filepath.ToSlash(fullPath)
-	reader, size, err := d.cli.ReadStreamSized(fullPath)
+	reader, err := d.cli.ReadStream(fullPath)
 	if err != nil {
 		return nil, 0, err
 	}
-	if size >= 0 {
-		return reader, size, nil
-	}
-	// extra Stat call when server omits Content-Length — gowebdav library limitation
 	info, err := d.cli.Stat(fullPath)
 	if err != nil {
 		reader.Close()
@@ -142,12 +138,9 @@ func (d *Webdav) DownloadWithOffset(path string, offset int64) (io.ReadCloser, i
 	}
 	fullPath := filepath.Join(d.rootPath, path)
 	fullPath = filepath.ToSlash(fullPath)
-	reader, size, err := d.cli.ReadStreamRangeSized(fullPath, offset, -1)
+	reader, err := d.cli.ReadStreamRange(fullPath, offset, -1)
 	if err != nil {
 		return nil, 0, err
-	}
-	if size >= 0 {
-		return reader, size, nil
 	}
 	info, err := d.cli.Stat(fullPath)
 	if err != nil {

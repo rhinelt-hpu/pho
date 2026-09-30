@@ -70,6 +70,10 @@ class SettingStorageRouteBodyState extends State<SettingStorageRouteBody> {
       case Drive.nfs:
         form = const NFSForm();
         break;
+      // TODO(open-source): 补齐更多云存储类型 (原会员功能，待开源实现):
+      // case Drive.baiduNetdisk:
+      //   form = const BaiduNetdiskForm(); // 百度网盘 OAuth 授权与存储表单
+      //   break;
       default:
         form = const Text('Not implemented');
     }

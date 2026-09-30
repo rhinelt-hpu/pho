@@ -16,12 +16,6 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  /// Pro 功能的皇冠图标金色 (#EACD76)
-  static const Color proCrownColor = Color.fromARGB(255, 234, 205, 118);
-
-  /// 购买页背景绿色 (#00A385)
-  static const Color buyPageBackground = Color.fromARGB(255, 0, 163, 133);
-
   /// 视频路线页背景灰色 (#525252)
   static const Color videoRouteBg = Color.fromARGB(255, 82, 82, 82);
 }

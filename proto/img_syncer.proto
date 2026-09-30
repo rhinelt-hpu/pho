@@ -19,6 +19,9 @@ service ImgSyncer {
   // NFS Drive
   rpc SetDriveNFS (SetDriveNFSRequest) returns (SetDriveNFSResponse) {}
   rpc ListDriveNFSDir (ListDriveNFSDirRequest) returns (ListDriveNFSDirResponse) {}
+  // TODO(open-source): 补齐更多公有云盘后端 (待开源实现):
+  // rpc SetDriveBaiduNetDisk (SetDriveBaiduNetDiskRequest) returns (SetDriveBaiduNetDiskResponse) {}
+  // rpc StartBaiduNetdiskLogin (StartBaiduNetdiskLoginRequest) returns (StartBaiduNetdiskLoginResponse) {}
   // Ping
   rpc Ping (PingRequest) returns (PingResponse) {}
 }

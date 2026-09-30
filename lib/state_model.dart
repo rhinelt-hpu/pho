@@ -21,12 +21,15 @@ SettingModel settingModel = SettingModel();
 AssetModel assetModel = AssetModel();
 StateModel stateModel = StateModel();
 
+// TODO(open-source): 网络存储拓展 (待开源补齐百度网盘/OneDrive/Alist等):
+// enum Drive { smb, webDav, nfs, baiduNetdisk }
 enum Drive { smb, webDav, nfs }
 
 Map<Drive, String> driveName = {
   Drive.smb: 'SMB',
   Drive.webDav: 'WebDAV',
   Drive.nfs: 'NFS',
+  // Drive.baiduNetdisk: 'BaiduNetdisk',
 };
 
 enum EncryptionType { none, aesCfb, aesGcm }
@@ -80,6 +83,15 @@ class SettingModel extends ChangeNotifier {
     encryptionPassword = password;
     notifyListeners();
   }
+
+  // TODO(open-source): 补齐筛选器与高级配置状态模型 (原会员功能，待开源实现):
+  // 1. bool filterSwitch = false;          // 筛选器总开关
+  // 2. bool filterNoVideo = false;         // 过滤视频（只同步照片）
+  // 3. bool filterNoImage = false;         // 过滤图片（只同步视频）
+  // 4. DateTime? filterAfter;              // 只同步该日期之后的照片
+  // 5. DateTime? filterBefore;             // 只同步该日期之前的照片
+  // 6. Map<String, bool> filterTypeMap = {}; // 扩展名白名单/黑名单
+  // 7. int parallelCount = 1;              // 并发上传线程数 (1~8)
 }
 
 class transmitState {

@@ -192,15 +192,12 @@ func (d *Nfs) Download(path string) (io.ReadCloser, int64, error) {
 		d.cleanLastConnTime()
 		return nil, 0, fmt.Errorf("open file error: %v", err)
 	}
-	length := file.FileSize()
-	if length < 0 {
-		info, _, err := d.cli.Lookup(fullPath)
-		if err != nil {
-			file.Close()
-			return nil, 0, fmt.Errorf("lookup file info error: %v", err)
-		}
-		length = int64(info.Size())
+	info, _, err := d.cli.Lookup(fullPath)
+	if err != nil {
+		file.Close()
+		return nil, 0, fmt.Errorf("lookup file info error: %v", err)
 	}
+	length := int64(info.Size())
 	d.updateLastConnTime()
 	return file, length, nil
 }
@@ -218,15 +215,12 @@ func (d *Nfs) DownloadWithOffset(path string, offset int64) (io.ReadCloser, int6
 		d.cleanLastConnTime()
 		return nil, 0, fmt.Errorf("open file error: %v", err)
 	}
-	length := file.FileSize()
-	if length < 0 {
-		info, _, err := d.cli.Lookup(fullPath)
-		if err != nil {
-			file.Close()
-			return nil, 0, fmt.Errorf("lookup file info error: %v", err)
-		}
-		length = int64(info.Size())
+	info, _, err := d.cli.Lookup(fullPath)
+	if err != nil {
+		file.Close()
+		return nil, 0, fmt.Errorf("lookup file info error: %v", err)
 	}
+	length := int64(info.Size())
 	if length > 0 && offset >= length {
 		file.Close()
 		return nil, length, fmt.Errorf("offset is out of range")

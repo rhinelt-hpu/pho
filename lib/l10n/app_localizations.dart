@@ -542,12 +542,6 @@ abstract class AppLocalizations {
   /// **'Only camera'**
   String get onlyCamera;
 
-  /// No description provided for @unlockAllAdvancedFeatures.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlock all features'**
-  String get unlockAllAdvancedFeatures;
-
   /// No description provided for @browseInRecents.
   ///
   /// In en, this message translates to:
@@ -817,78 +811,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Utilities'**
   String get settingsUtilities;
-
-  /// No description provided for @monthlyPlan.
-  ///
-  /// In en, this message translates to:
-  /// **'Monthly'**
-  String get monthlyPlan;
-
-  /// No description provided for @yearlyPlan.
-  ///
-  /// In en, this message translates to:
-  /// **'Yearly'**
-  String get yearlyPlan;
-
-  /// No description provided for @lifetimePlan.
-  ///
-  /// In en, this message translates to:
-  /// **'Lifetime'**
-  String get lifetimePlan;
-
-  /// No description provided for @perMonth.
-  ///
-  /// In en, this message translates to:
-  /// **'{price}/mo'**
-  String perMonth(Object price);
-
-  /// No description provided for @perYear.
-  ///
-  /// In en, this message translates to:
-  /// **'{price}/yr'**
-  String perYear(Object price);
-
-  /// No description provided for @oneTime.
-  ///
-  /// In en, this message translates to:
-  /// **'One-time'**
-  String get oneTime;
-
-  /// No description provided for @savePercent.
-  ///
-  /// In en, this message translates to:
-  /// **'Save {percent}%'**
-  String savePercent(Object percent);
-
-  /// No description provided for @recommended.
-  ///
-  /// In en, this message translates to:
-  /// **'Recommended'**
-  String get recommended;
-
-  /// No description provided for @bestValue.
-  ///
-  /// In en, this message translates to:
-  /// **'Best value'**
-  String get bestValue;
-
-  /// No description provided for @mostFlexible.
-  ///
-  /// In en, this message translates to:
-  /// **'Most flexible'**
-  String get mostFlexible;
-
-  /// No description provided for @subscribe.
-  ///
-  /// In en, this message translates to:
-  /// **'Subscribe'**
-  String get subscribe;
-
-  /// No description provided for @termsOfUse.
-  ///
-  /// In en, this message translates to:
-  /// **'Terms of Use'**
-  String get termsOfUse;
 
   /// No description provided for @iosBackgroundSyncDescription.
   ///

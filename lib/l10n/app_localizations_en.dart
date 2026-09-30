@@ -236,9 +236,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onlyCamera => 'Only camera';
 
   @override
-  String get unlockAllAdvancedFeatures => 'Unlock all features';
-
-  @override
   String get browseInRecents => 'You can browse in recents';
 
   @override
@@ -380,48 +377,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsUtilities => 'Utilities';
-
-  @override
-  String get monthlyPlan => 'Monthly';
-
-  @override
-  String get yearlyPlan => 'Yearly';
-
-  @override
-  String get lifetimePlan => 'Lifetime';
-
-  @override
-  String perMonth(Object price) {
-    return '$price/mo';
-  }
-
-  @override
-  String perYear(Object price) {
-    return '$price/yr';
-  }
-
-  @override
-  String get oneTime => 'One-time';
-
-  @override
-  String savePercent(Object percent) {
-    return 'Save $percent%';
-  }
-
-  @override
-  String get recommended => 'Recommended';
-
-  @override
-  String get bestValue => 'Best value';
-
-  @override
-  String get mostFlexible => 'Most flexible';
-
-  @override
-  String get subscribe => 'Subscribe';
-
-  @override
-  String get termsOfUse => 'Terms of Use';
 
   @override
   String get iosBackgroundSyncDescription =>

@@ -40,7 +40,15 @@ class SyncCallbacks {
 
 /// 统一的同步判定：同步的三个位置（计数、上传、展示）必须使用相同逻辑。
 /// 提取为顶层函数以便测试与跨调用方复用（sync_body / sync_timer / background_runner）。
-/// 开源版仅检查是否已上传；Pro 版过滤逻辑已移除。
+/// 检查资产是否已上传。
+///
+/// TODO(open-source): 补齐文件筛选器功能 (原会员功能，待开源实现):
+/// 1. 是否跳过视频: settingModel.filterNoVideo && asset.isVideo() -> return false
+/// 2. 是否跳过图片: settingModel.filterNoImage && !asset.isVideo() -> return false
+/// 3. 起始日期过滤: settingModel.filterAfter != null && asset.dateCreated().isBefore(filterAfter) -> return false
+/// 4. 截止日期过滤: settingModel.filterBefore != null && asset.dateCreated().isAfter(filterBefore) -> return false
+/// 5. 文件扩展名白名单/黑名单: settingModel.filterTypeMap[extensionStr.toLowerCase()] == false -> return false
+/// 注: test/widget/sync_body_test.dart 已编写了相关过滤逻辑的单元测试契约。
 bool shouldSyncAsset(
     Asset asset, String id, Map<String, bool> uploadedIds, String extensionStr) {
   if (uploadedIds[id] == true) {

@@ -239,6 +239,8 @@ class SyncBodyState extends State<SyncBody> {
       storage: storageClient,
       assets: all,
       uploadedIds: uploadedIds,
+      // TODO(open-source): 并行上传调优 (原会员功能，待开源实现):
+      // 当前硬编码为 1。后期可在高级设置中提供滑动条 (1~8 并发)，从 settingModel.parallelCount 获取。
       parallelCount: 1,
       callbacks: SyncCallbacks(
         onProgress: (completed, total, failed) {

@@ -65,6 +65,8 @@ Future<void> reloadAutoSyncTimer() async {
       storage: storageClient,
       assets: all,
       uploadedIds: uploadedIds,
+      // TODO(open-source): 并行上传调优 (原会员功能，待开源实现):
+      // 定时后台同步默认单线程以保障弱网稳定性，但可允许用户根据网络条件自定义并发数。
       parallelCount: 1,
       shouldStop: () => stateModel.needStopSync,
       refreshUnSync: true,

@@ -9,8 +9,7 @@ import 'package:img_syncer/setting_storage_route.dart';
 import 'package:img_syncer/global.dart';
 import 'package:photo_manager/photo_manager.dart';
 
-/// 简化版设置页：选择相册、云存储、后台同步、清除缓存、关于。
-/// 开源版本，无 Pro 功能门控、无购买入口。
+/// 设置页：选择相册、云存储、后台同步、清除缓存、关于。
 class SettingsRoute extends StatefulWidget {
   const SettingsRoute({Key? key}) : super(key: key);
 
@@ -61,6 +60,19 @@ class SettingsRouteState extends State<SettingsRoute> {
                 ),
               ),
             ),
+          // TODO(open-source): 补齐高级功能与偏好设置页面入口 (原会员功能，待开源实现):
+          // 1. 目录结构配置 (Directory Structure):
+          //    - 选项: 按日期多层级 (YYYY/MM/DD) vs 按日期单层级 (YYYYMMDD)
+          //    - 调用: storage.cli.setDirectoryType() (后端 RPC 与 l10n.dirType01/dirType02 已实现)
+          // 2. AES 端到端加密设置 (Encryption Settings):
+          //    - 选项: 启用加密开关、选择加密算法 (AES_256_GCM / AES_128_CFB)、设置/修改密码
+          //    - 调用: settingModel.setEncryptSwitch() / setEncryptionType() / setEncryptionPassword()
+          // 3. 主题配色自定义 (Theme Color Picker):
+          //    - 选项: 选择 theme.dart 中的 seedThemeColors 预置配色，写入 prefs.setInt('seed_color')
+          // 4. 并行上传调优 (Parallel Upload Count):
+          //    - 选项: 1~8 线程并发上传滑动条，保存到 prefs.setInt('parallel_count')
+          // 5. 同步筛选器 (Sync Filters):
+          //    - 选项: 跳过视频/跳过图片、按拍摄起止日期过滤、文件扩展名黑白名单
           const Divider(),
           tile(
             Icons.cleaning_services,
@@ -164,8 +176,7 @@ class SettingsRouteState extends State<SettingsRoute> {
   }
 }
 
-/// 简化版关于页：显示应用名与版本（来自 pubspec）。
-/// 开源版无 package_info_plus 依赖，无隐藏日志入口。
+/// 关于页：显示应用名与版本（来自 pubspec）。
 class AboutRoute extends StatelessWidget {
   const AboutRoute({Key? key}) : super(key: key);
 

@@ -12,35 +12,28 @@ Pho - A serverless application for viewing and uploading photos
 </p>
 
 ### Installation
-
-**Open Source Edition** (Android APK only):
-- [Download APK](https://github.com/fregie/pho/releases) — SMB / WebDAV / NFS only, no Pro features
-
-**Pro Edition** (all features, paid):
-- [App Store](https://apps.apple.com/cn/app/pho-%E5%90%8C%E6%AD%A5%E7%85%A7%E7%89%87%E5%88%B0nas-%E7%BD%91%E7%9B%98/id6451428709) — iOS, with AES encryption, parallel upload, filters, Baidu Netdisk, and more
-- [Google Play](https://play.google.com/store/apps/details?id=com.fregie.pho) — Android, with AES encryption, parallel upload, filters, Baidu Netdisk, and more
-
-> This open-source repo only provides APK downloads. iOS users should download the Pro edition from the App Store, and Android users from Google Play (free to try basic features, then purchase Pro).
-
+- [GitHub Releases](https://github.com/fregie/pho/releases)
+- Supports building from source for Android APK and iOS IPA (see build steps below)
 
 ### Introduction
 The primary objective of this application is to serve as a replacement for the native photo gallery application on smartphones. It also offers the capability to synchronize photos with online storage.  
 Pho is a simple app designed for viewing and synchronizing photos to cloud storage. It aims to provide an excellent user experience.
 
 ### Features
-* Local photo browsing
-* Cloud photo browsing
+* Local photo and video browsing (including Live Photo playback)
+* Cloud photo and video browsing
 * Incremental photo synchronization to the cloud
 * Background periodic synchronization
+* AES-256-GCM / AES-128-CFB end-to-end encryption (encrypted video supports Range online playback)
 * No database, no server-side
 * Organizing cloud storage directory structure by date
+* Custom theme colors
 
 ### Supported Cloud Storage
 - [x] Samba
 - [x] Webdav
 - [x] NFS
 - [ ] Alibaba Cloud Drive
-- [ ] baidu netdisk
 - [ ] oneDrive
 - [ ] google drive
 - [ ] google photo

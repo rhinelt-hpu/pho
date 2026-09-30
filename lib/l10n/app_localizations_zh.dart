@@ -232,9 +232,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get onlyCamera => '仅相机拍摄';
 
   @override
-  String get unlockAllAdvancedFeatures => '解锁所有高级功能';
-
-  @override
   String get browseInRecents => '请在Recents中浏览';
 
   @override
@@ -369,48 +366,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsUtilities => '实用工具';
-
-  @override
-  String get monthlyPlan => '月订阅';
-
-  @override
-  String get yearlyPlan => '年订阅';
-
-  @override
-  String get lifetimePlan => '终身买断';
-
-  @override
-  String perMonth(Object price) {
-    return '$price/月';
-  }
-
-  @override
-  String perYear(Object price) {
-    return '$price/年';
-  }
-
-  @override
-  String get oneTime => '一次付费';
-
-  @override
-  String savePercent(Object percent) {
-    return '省 $percent%';
-  }
-
-  @override
-  String get recommended => '推荐';
-
-  @override
-  String get bestValue => '最划算';
-
-  @override
-  String get mostFlexible => '最灵活';
-
-  @override
-  String get subscribe => '订阅';
-
-  @override
-  String get termsOfUse => '使用条款';
 
   @override
   String get iosBackgroundSyncDescription => 'iOS 后台同步由系统在充电时自动调度，无需手动设置间隔';
