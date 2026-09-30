@@ -1,14 +1,23 @@
 name: Build Android APK & iOS IPA
 
 on:
+  # 1. 仅在推送版本标签时自动触发构建（如 git push origin v1.0.0）
   push:
-    branches: [ "master", "main" ]
     tags:
       - "v*"
-  pull_request:
-    branches: [ "master", "main" ]
+
+  # 2. 支持在 GitHub Actions 页面手动按需触发
   workflow_dispatch:
     inputs:
+      platform:
+        description: 'Target platform to build (选择构建的目标平台)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - android
+          - ios
       ios_bundle_id:
         description: 'Custom iOS Bundle Identifier (Optional, e.g. com.yourname.pho)'
         required: false
@@ -21,6 +30,7 @@ jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'android' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -98,6 +108,7 @@ jobs:
   build-ios:
     name: Build iOS IPA (Sideloading Unsigned)
     runs-on: macos-14
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'ios' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
