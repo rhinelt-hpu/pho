@@ -33,6 +33,9 @@ type ImgSyncerClient interface {
 	// NFS Drive
 	SetDriveNFS(ctx context.Context, in *SetDriveNFSRequest, opts ...grpc.CallOption) (*SetDriveNFSResponse, error)
 	ListDriveNFSDir(ctx context.Context, in *ListDriveNFSDirRequest, opts ...grpc.CallOption) (*ListDriveNFSDirResponse, error)
+	// TODO(open-source): 补齐更多公有云盘后端 (待开源实现):
+	// rpc SetDriveBaiduNetDisk (SetDriveBaiduNetDiskRequest) returns (SetDriveBaiduNetDiskResponse) {}
+	// rpc StartBaiduNetdiskLogin (StartBaiduNetdiskLoginRequest) returns (StartBaiduNetdiskLoginResponse) {}
 	// Ping
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 }
@@ -203,6 +206,9 @@ type ImgSyncerServer interface {
 	// NFS Drive
 	SetDriveNFS(context.Context, *SetDriveNFSRequest) (*SetDriveNFSResponse, error)
 	ListDriveNFSDir(context.Context, *ListDriveNFSDirRequest) (*ListDriveNFSDirResponse, error)
+	// TODO(open-source): 补齐更多公有云盘后端 (待开源实现):
+	// rpc SetDriveBaiduNetDisk (SetDriveBaiduNetDiskRequest) returns (SetDriveBaiduNetDiskResponse) {}
+	// rpc StartBaiduNetdiskLogin (StartBaiduNetdiskLoginRequest) returns (StartBaiduNetdiskLoginResponse) {}
 	// Ping
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	mustEmbedUnimplementedImgSyncerServer()

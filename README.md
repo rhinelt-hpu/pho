@@ -56,12 +56,13 @@ Pho - 一个用于查看和上传照片的无服务端应用
 
 ### 构建
 #### 环境要求
-- Flutter: 3.41.4 (stable), Dart: 3.11.1
-- Go: 1.25 (toolchain go1.25.4)
+- Flutter: >= 3.44.0 (推荐 3.47.x stable), Dart: >= 3.12.0
+- Go: 1.25.x / 1.26.x (toolchain go1.25.4)
 - JDK: 17
 - Android SDK: compileSdk 36
-- Android NDK: 用于构建嵌入式 Go 服务端 (gomobile bind)
+- Android NDK: 28.2.13676358 (用于构建嵌入式 Go 服务端 gomobile bind 及 CGO)
 - protoc + 插件: protoc-gen-go@v1.27.1, protoc-gen-go-grpc@v1.1.0, protoc_plugin@21.1.2 (Dart)
+
 
 #### 构建步骤
 ```bash

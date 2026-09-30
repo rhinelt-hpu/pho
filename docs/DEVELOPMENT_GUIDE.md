@@ -10,16 +10,49 @@
 
 | 组件 | 推荐版本 | 检查命令 | 作用 |
 | :--- | :--- | :--- | :--- |
-| **Flutter** | 3.41.4 (Channel stable) | `flutter --version` | UI 与应用框架 |
-| **Dart** | 3.11.1 | `dart --version` | 语言运行时 |
-| **Go** | 1.25.x | `go version` | 嵌入式核心服务端 |
+| **Flutter** | >= 3.44.0 (推荐 3.47.x stable) | `flutter --version` | UI 与应用框架 (`pubspec.lock` 硬性约束 >= 3.44.0) |
+| **Dart** | >= 3.12.0 < 4.0.0 | `dart --version` | 语言运行时 |
+| **Go** | 1.25.x / 1.26.x | `go version` | 嵌入式核心服务端 |
 | **Gomobile** | latest | `gomobile version` | Go 编译为 Android AAR / iOS Framework |
-| **JDK** | OpenJDK 17 | `java -version` | Android Gradle 构建 |
+| **JDK** | OpenJDK 17 | `java -version` | Android Gradle 构建 (JVM 17 锁定) |
 | **Android SDK** | API 36 (compileSdk) | `sdkmanager --list` | Android 原生构建 |
-| **Android NDK** | 25+ | - | Gomobile 交叉编译 CGO/Android 库 |
+| **Android NDK** | 28.2.13676358 (r28c) | `ls $ANDROID_HOME/ndk` | Flutter 3.47+ 默认要求版本，用于本地代码交叉编译 |
 | **Xcode** (仅 macOS) | 15+ / 16+ | `xcodebuild -version`| iOS 编译打包与模拟器 |
-| **Protoc** | 3.x+ | `protoc --version` | Protobuf 代码生成工具 |
+| **Protoc** | 3.x+ / 29.x | `protoc --version` | Protobuf 代码生成工具 |
 | **Docker & Compose** | latest | `docker compose version` | 运行 SMB/WebDAV/NFS 自动化测试容器 |
+
+### 1.1 推荐环境变量配置速查 (~/.bashrc)
+将以下环境变量加入 `~/.bashrc`（请替换相应路径）：
+```bash
+# 开发工具链 (JDK 17, Android SDK & NDK, Flutter, Protoc, Go)
+export JAVA_HOME="$HOME/development/jdk-17"
+export ANDROID_HOME="$HOME/development/android-sdk"
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+
+# 必须将 cmdline-tools, platform-tools, flutter, protoc, go/bin 及 pub-cache/bin 加入 PATH
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$HOME/development/flutter/bin:$HOME/development/protoc/bin:$HOME/go/bin:$HOME/.pub-cache/bin:$PATH"
+```
+
+### 1.2 网络代理与构建避坑指南 (重要实战经验)
+
+- **Gradle 独立代理配置**：
+  Gradle 运行在独立 JVM 进程中，**默认不会继承终端 Shell 的 `http_proxy` / `https_proxy` 环境变量**！
+  若在国内网络环境下构建 Android 应用，下载 Maven 依赖或触发 SDK/NDK 自动下载时容易超时卡死。必须在 `~/.gradle/gradle.properties`（全局）显式配置 JVM 系统代理：
+  ```properties
+  systemProp.http.proxyHost=127.0.0.1
+  systemProp.http.proxyPort=10808
+  systemProp.https.proxyHost=127.0.0.1
+  systemProp.https.proxyPort=10808
+  systemProp.http.nonProxyHosts=localhost|127.0.0.1|*.local|mirrors.tuna.tsinghua.edu.cn|mirrors.aliyun.com
+  systemProp.https.nonProxyHosts=localhost|127.0.0.1|*.local|mirrors.tuna.tsinghua.edu.cn|mirrors.aliyun.com
+  ```
+
+- **SDK/NDK 大文件下载断点续传**：
+  通过代理下载 Flutter SDK 或 Android NDK 等 1GB+ 大文件时，偶遇网络波动断流，推荐使用断点续传与低速重试机制：
+  ```bash
+  curl -C - -L --speed-limit 500000 --speed-time 10 -O "<URL>"
+  ```
+
 
 ---
 
@@ -156,3 +189,20 @@ make test
 ### Q4: 提示 `Listen on all port failed`
 - **原因**：本机 10000 到 20000 之间的可用端口耗尽，或者权限受限无法绑定回环地址。
 - **排查**：检查防火墙软件或 VPN 是否阻断了 `127.0.0.1` 的 TCP 绑定。
+
+### Q5: 执行 `make apk` 或 Gradle 构建时卡在下载依赖无响应
+- **原因**：Gradle 守护进程（JVM）默认不继承终端的 Shell 代理环境变量，导致下载 Google Maven 构件或 AGP 依赖时直连超时。
+- **解决**：检查并配置 `~/.gradle/gradle.properties`，添加 `systemProp.http.proxyHost` 与 `systemProp.https.proxyHost`（参见 1.2 节）。
+
+### Q6: 首次构建时 Gradle 频繁静默下载 1GB+ 的 NDK 导致构建极慢
+- **原因**：`android/app/build.gradle.kts` 中配置了 `ndkVersion = flutter.ndkVersion`。新版 Flutter（3.47+）默认要求 NDK 28.2.13676358。本地若无该版本，AGP 会触发后台自动下载。
+- **解决**：提前使用 `sdkmanager "ndk;28.2.13676358"` 下载并解压就位，避免构建时后台阻塞。
+
+### Q7: 执行 `make prebuild` 或 `make protobuf` 报错 `protoc-gen-dart: command not found`
+- **原因**：`dart pub global activate` 安装的二进制文件在 `~/.pub-cache/bin`，该目录未加入系统的 `PATH` 环境变量。
+- **解决**：在 `~/.bashrc` 中将 `$HOME/.pub-cache/bin` 加入 `PATH`，并重新 `source ~/.bashrc`。
+
+### Q8: 执行 `flutter pub get` 报错 SDK 版本不满足约束
+- **原因**：`pubspec.lock` 硬性锁定了 `flutter: ">=3.44.0"`，若安装的 Flutter 属于更早的旧版本（如 3.41.4）将无法解析。
+- **解决**：升级 Flutter SDK 至 3.44.0 以上（推荐 3.47.x 稳定版）。
+
