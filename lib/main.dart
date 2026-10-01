@@ -45,16 +45,17 @@ void main() async {
   // 清除 adaptive_theme 持久化的旧暗色模式，强制浅色
   final prefs = await SharedPreferences.getInstance();
   await prefs.remove('adaptive_theme');
-  Global.init().then((e) => runApp(
-        MultiProvider(
-          providers: [
-            ChangeNotifierProvider(create: (context) => settingModel),
-            ChangeNotifierProvider(create: (context) => assetModel),
-            ChangeNotifierProvider(create: (context) => stateModel),
-          ],
-          child: const MyApp(),
-        ),
-      ));
+  await Global.init();
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => settingModel),
+        ChangeNotifierProvider(create: (context) => assetModel),
+        ChangeNotifierProvider(create: (context) => stateModel),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class _AppEntryPoint extends StatefulWidget {

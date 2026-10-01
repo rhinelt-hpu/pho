@@ -31,52 +31,29 @@ class Global {
       }
       return true;
     }());
-    runServer().then((portsStr) async {
-      final ports = portsStr.split(",");
-      if (ports.length != 2) {
-        logger.addLog("grpc server start failed");
-        return;
-      }
-      httpBaseUrl = "http://127.0.0.1:${ports[1]}";
-      grpcPort = int.parse(ports[0]);
-      httpPort = int.parse(ports[1]);
-      storage = RemoteStorage("127.0.0.1", int.parse(ports[0]));
-      if (useRemoteServer) {
-        httpBaseUrl = "http://192.168.100.213:8000";
-        storage = RemoteStorage("192.168.100.213", 50051);
-      }
+    final portsStr = await runServer();
+    final ports = portsStr.split(",");
+    if (ports.length != 2) {
+      logger.addLog("grpc server start failed");
+      return;
+    }
+    httpBaseUrl = "http://127.0.0.1:${ports[1]}";
+    grpcPort = int.parse(ports[0]);
+    httpPort = int.parse(ports[1]);
+    storage = RemoteStorage("127.0.0.1", int.parse(ports[0]));
+    if (useRemoteServer) {
+      httpBaseUrl = "http://192.168.100.213:8000";
+      storage = RemoteStorage("192.168.100.213", 50051);
+    }
+    lastAliveTime = DateTime.now();
 
-      final prefs = await SharedPreferences.getInstance();
-      if (isDesktop()) {
-        final galleryColumCount = prefs.getInt("galleryColumCount");
-        if (galleryColumCount != null) {
-          settingModel.setGalleryColumCount(galleryColumCount);
-        } else {
-          settingModel.setGalleryColumCount(10);
-        }
-        var enableEncrypt = prefs.getBool("enable_encrypt");
-        // 从旧 key (enalble_encrypt) 迁移
-        if (enableEncrypt == null) {
-          enableEncrypt = prefs.getBool("enalble_encrypt");
-          if (enableEncrypt != null) {
-            prefs.setBool("enable_encrypt", enableEncrypt);
-            prefs.remove("enalble_encrypt");
-          }
-        }
-        if (enableEncrypt != null) {
-          settingModel.setEncryptSwitch(enableEncrypt);
-        }
-        final encryptionType = prefs.getInt("encryption_type");
-        if (encryptionType != null) {
-          settingModel.setEncryptionType(EncryptionType.values[encryptionType]);
-        }
-        final encPassword = prefs.getString("encryption_password");
-        if (encPassword != null) {
-          settingModel.setEncryptionPassword(encPassword);
-        }
-        await settingModel.loadSettings(prefs);
-        await initDrive();
-        return;
+    final prefs = await SharedPreferences.getInstance();
+    if (isDesktop()) {
+      final galleryColumCount = prefs.getInt("galleryColumCount");
+      if (galleryColumCount != null) {
+        settingModel.setGalleryColumCount(galleryColumCount);
+      } else {
+        settingModel.setGalleryColumCount(10);
       }
       var enableEncrypt = prefs.getBool("enable_encrypt");
       // 从旧 key (enalble_encrypt) 迁移
@@ -98,54 +75,77 @@ class Global {
       if (encPassword != null) {
         settingModel.setEncryptionPassword(encPassword);
       }
-      final seedColorValue = prefs.getInt("seed_color");
-      if (seedColorValue != null) {
-        seedColor = Color(seedColorValue);
-      }
-      final galleryColumCount = prefs.getInt("galleryColumCount");
-      if (galleryColumCount != null) {
-        settingModel.setGalleryColumCount(galleryColumCount);
-      }
-
-      final localFolder = prefs.getString("localFolder");
-      if (localFolder != null && localFolder != "") {
-        settingModel.setLocalFolder(localFolder);
-        if (localFolder != "") {
-          eventBus.fire(LocalRefreshEvent(refreshUnSync: false));
-        }
-      } else {
-        await requestPermission(alert: false);
-        if (Platform.isIOS) {
-          settingModel.setLocalFolder("Recents");
-          await prefs.setString("localFolder", "Recents");
-          eventBus.fire(LocalRefreshEvent(refreshUnSync: true));
-        } else {
-          final List<AssetPathEntity> paths =
-              await PhotoManager.getAssetPathList(
-                  type: RequestType.common, hasAll: true);
-          final Map<AssetPathEntity, int> assetCountMap = {
-            for (final p in paths) p: await p.assetCountAsync,
-          };
-          paths.sort((a, b) =>
-              (assetCountMap[b] ?? 0).compareTo(assetCountMap[a] ?? 0));
-          if (paths.isNotEmpty) {
-            settingModel.setLocalFolder(paths[0].name);
-            await prefs.setString("localFolder", paths[0].name);
-            eventBus.fire(LocalRefreshEvent(refreshUnSync: true));
-          }
-        }
-      }
-      final lastRefreshUnsyncTime = prefs.getInt("last_refersh_unsync");
-      if (lastRefreshUnsyncTime != null) {
-        stateModel.updateLastRefreshUnsyncTime(
-            DateTime.fromMillisecondsSinceEpoch(lastRefreshUnsyncTime));
-      }
       await settingModel.loadSettings(prefs);
-      await assetModel.loadTitleCache();
-      await loadUnsynchronizedPhotos();
       await initDrive();
-      reloadAutoSyncTimer();
-    });
+      return;
+    }
+    var enableEncrypt = prefs.getBool("enable_encrypt");
+    // 从旧 key (enalble_encrypt) 迁移
+    if (enableEncrypt == null) {
+      enableEncrypt = prefs.getBool("enalble_encrypt");
+      if (enableEncrypt != null) {
+        prefs.setBool("enable_encrypt", enableEncrypt);
+        prefs.remove("enalble_encrypt");
+      }
+    }
+    if (enableEncrypt != null) {
+      settingModel.setEncryptSwitch(enableEncrypt);
+    }
+    final encryptionType = prefs.getInt("encryption_type");
+    if (encryptionType != null) {
+      settingModel.setEncryptionType(EncryptionType.values[encryptionType]);
+    }
+    final encPassword = prefs.getString("encryption_password");
+    if (encPassword != null) {
+      settingModel.setEncryptionPassword(encPassword);
+    }
+    final seedColorValue = prefs.getInt("seed_color");
+    if (seedColorValue != null) {
+      seedColor = Color(seedColorValue);
+    }
+    final galleryColumCount = prefs.getInt("galleryColumCount");
+    if (galleryColumCount != null) {
+      settingModel.setGalleryColumCount(galleryColumCount);
+    }
+
+    final localFolder = prefs.getString("localFolder");
+    if (localFolder != null && localFolder != "") {
+      settingModel.setLocalFolder(localFolder);
+      if (localFolder != "") {
+        eventBus.fire(LocalRefreshEvent(refreshUnSync: false));
+      }
+    } else {
+      await requestPermission(alert: false);
+      if (Platform.isIOS) {
+        settingModel.setLocalFolder("Recents");
+        await prefs.setString("localFolder", "Recents");
+        eventBus.fire(LocalRefreshEvent(refreshUnSync: true));
+      } else {
+        final List<AssetPathEntity> paths =
+            await PhotoManager.getAssetPathList(
+                type: RequestType.common, hasAll: true);
+        final Map<AssetPathEntity, int> assetCountMap = {
+          for (final p in paths) p: await p.assetCountAsync,
+        };
+        paths.sort((a, b) =>
+            (assetCountMap[b] ?? 0).compareTo(assetCountMap[a] ?? 0));
+        if (paths.isNotEmpty) {
+          settingModel.setLocalFolder(paths[0].name);
+          await prefs.setString("localFolder", paths[0].name);
+          eventBus.fire(LocalRefreshEvent(refreshUnSync: true));
+        }
+      }
+    }
+    final lastRefreshUnsyncTime = prefs.getInt("last_refersh_unsync");
+    if (lastRefreshUnsyncTime != null) {
+      stateModel.updateLastRefreshUnsyncTime(
+          DateTime.fromMillisecondsSinceEpoch(lastRefreshUnsyncTime));
+    }
+    await settingModel.loadSettings(prefs);
+    await assetModel.loadTitleCache();
+    await loadUnsynchronizedPhotos();
+    await initDrive();
+    reloadAutoSyncTimer();
   }
 }
 
@@ -159,7 +159,7 @@ Future<void> checkServer() async {
     return;
   }
   try {
-    await storage.cli.ping(PingRequest());
+    await storage.cli.ping(PingRequest()).timeout(const Duration(seconds: 3));
     lastAliveTime = DateTime.now();
   } catch (e) {
     logger.addLog("ping 127.0.0.1:$grpcPort failed: $e");
@@ -175,6 +175,7 @@ Future<void> checkServer() async {
     httpPort = int.parse(ports[1]);
     storage = RemoteStorage("127.0.0.1", int.parse(ports[0]));
     await initDrive();
+    lastAliveTime = DateTime.now();
   }
 }
 

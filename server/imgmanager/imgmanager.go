@@ -682,7 +682,18 @@ func isYearOrDateDir(name string) bool {
 }
 
 func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.Time) []dirInfo {
-	year, month, day := date.Date()
+	maxYear := 9999
+	maxMonth := 12
+	maxDay := 31
+	loc := time.Local
+	if !date.IsZero() {
+		y, m, d := date.Date()
+		maxYear = y
+		maxMonth = int(m)
+		maxDay = d
+		loc = date.Location()
+	}
+
 	dirInfos := make([]dirInfo, 0)
 	yDir, err := im.listDir(d, baseDir)
 	if err != nil {
@@ -700,11 +711,11 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 	// type 02 (YYYYMMDD)
 	for _, yinfo := range yDir {
 		if len(yinfo.Name()) == 8 {
-			dirDate, err := time.ParseInLocation("20060102", yinfo.Name(), date.Location())
+			dirDate, err := time.ParseInLocation("20060102", yinfo.Name(), loc)
 			if err != nil {
 				continue
 			}
-			if !dirDate.After(date) {
+			if date.IsZero() || !dirDate.After(date) {
 				dirInfos = append(dirInfos, dirInfo{
 					date: dirDate,
 					dir:  joinPath(yinfo.Name()),
@@ -719,7 +730,7 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 			continue
 		}
 		yNum, err := strconv.Atoi(yinfo.Name())
-		if err != nil || yNum > year {
+		if err != nil || yNum > maxYear {
 			continue
 		}
 		mDir, err := im.listDir(d, joinPath(yinfo.Name()))
@@ -734,7 +745,7 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 			if err != nil {
 				continue
 			}
-			if yNum == year && mNum > int(month) {
+			if yNum == maxYear && mNum > maxMonth {
 				continue
 			}
 			dDir, err := im.listDir(d, joinPath(yinfo.Name(), minfo.Name()))
@@ -749,12 +760,12 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 				if err != nil {
 					continue
 				}
-				if yNum == year && mNum == int(month) && dNum > day {
+				if yNum == maxYear && mNum == maxMonth && dNum > maxDay {
 					continue
 				}
 				dirPath := joinPath(yinfo.Name(), minfo.Name(), dinfo.Name())
-				dirDate := time.Date(yNum, time.Month(mNum), dNum, 0, 0, 0, 0, date.Location())
-				if !dirDate.After(date) {
+				dirDate := time.Date(yNum, time.Month(mNum), dNum, 0, 0, 0, 0, loc)
+				if date.IsZero() || !dirDate.After(date) {
 					dirInfos = append(dirInfos, dirInfo{
 						date: dirDate,
 						dir:  dirPath,
@@ -845,16 +856,13 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 
 	defaultName := im.GetDefaultAlbum()
 	albumNames := make([]string, 0)
-	hasDefault := false
 
 	for _, entry := range entries {
 		if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
 			continue
 		}
 		name := entry.Name()
-		if name == defaultName {
-			hasDefault = true
-		} else {
+		if name != defaultName {
 			albumNames = append(albumNames, name)
 		}
 	}
@@ -895,7 +903,7 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 		}
 
 		// 若为默认相册且此时根目录下存在存量照片，也一并计入统计
-		if name == defaultName && !hasDefault {
+		if name == defaultName {
 			rootInfos := im.collectDirInfos(d, ".", time.Time{})
 			sort.Sort(dirDesc(rootInfos))
 			for _, di := range rootInfos {
