@@ -42,11 +42,17 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 	for i := 0; i < 3; i++ {
 		resp, err = t.base.RoundTrip(req)
-		if err == nil && resp.StatusCode == http.StatusTooManyRequests {
-			GlobalStats.Record(req.Method, req.URL.Path, resp.StatusCode, time.Since(start).Milliseconds())
-			resp.Body.Close()
-			time.Sleep(time.Duration(1<<i) * 1000 * time.Millisecond)
-			continue
+		if err == nil {
+			if resp.StatusCode == http.StatusTooManyRequests {
+				GlobalStats.Record(req.Method, req.URL.Path, resp.StatusCode, time.Since(start).Milliseconds())
+				resp.Body.Close()
+				time.Sleep(time.Duration(1<<i) * 1000 * time.Millisecond)
+				continue
+			}
+			// 413 是服务器限制请求体体积，重试无意义，立即退出避免无效重发
+			if resp.StatusCode == http.StatusRequestEntityTooLarge {
+				break
+			}
 		}
 		break
 	}

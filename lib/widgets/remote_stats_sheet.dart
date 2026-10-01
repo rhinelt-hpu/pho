@@ -207,6 +207,29 @@ class _RemoteStatsSheetState extends State<RemoteStatsSheet> {
                       ),
                     ],
 
+                    if (_stats!.byStatus.entries.any((e) => e.key.contains("413") || e.key.contains("large"))) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: EdgeInsets.all(AppSpacing.paddingStandard),
+                        decoration: BoxDecoration(
+                          color: colorScheme.errorContainer.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(AppRadius.small),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline, color: colorScheme.error),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "检测到 HTTP 413 (文件体积超限)：有视频体积超过了远端 WebDAV 服务器限制。请调大远端 Nginx 的 client_max_body_size 配置，或在设置中开启【跳过视频】。",
+                                style: textTheme.bodySmall?.copyWith(color: colorScheme.onErrorContainer),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
                     Text("请求方法分布", style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
@@ -249,7 +272,9 @@ class _RemoteStatsSheetState extends State<RemoteStatsSheet> {
                     else
                       ..._stats!.recentLogs.map((log) {
                         final mColor = _methodColor(log.method, colorScheme);
-                        final isError = log.status >= 400;
+                        final isMkcol405 = log.method == 'MKCOL' && log.status == 405;
+                        final is413 = log.status == 413;
+                        final isError = log.status >= 400 && !isMkcol405;
                         return Card(
                           margin: const EdgeInsets.only(bottom: 6),
                           elevation: 0,
@@ -291,13 +316,26 @@ class _RemoteStatsSheetState extends State<RemoteStatsSheet> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: (isError ? colorScheme.error : Colors.green).withOpacity(0.15),
+                                    color: (isMkcol405
+                                            ? Colors.grey
+                                            : is413 || isError
+                                                ? colorScheme.error
+                                                : Colors.green)
+                                        .withOpacity(0.15),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    '${log.status}',
+                                    isMkcol405
+                                        ? '405(已存在)'
+                                        : is413
+                                            ? '413(文件超限)'
+                                            : '${log.status}',
                                     style: TextStyle(
-                                      color: isError ? colorScheme.error : Colors.green[800],
+                                      color: isMkcol405
+                                          ? colorScheme.onSurfaceVariant
+                                          : isError || is413
+                                              ? colorScheme.error
+                                              : Colors.green[800],
                                       fontWeight: FontWeight.bold,
                                       fontSize: 11,
                                     ),

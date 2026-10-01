@@ -54,6 +54,10 @@ func (sc *StatsCollector) Record(method, path string, status int, durationMs int
 	if statusKey == "" {
 		statusKey = string(rune(status))
 	}
+	// WebDAV RFC 4918 规范：MKCOL 作用于已存在目录必须返回 405，标记为已存在，避免用户误判为故障
+	if method == "MKCOL" && status == http.StatusMethodNotAllowed {
+		statusKey = "collection exists (405)"
+	}
 	sc.byStatus[strings.ToLower(statusKey)]++
 	if status == http.StatusTooManyRequests {
 		sc.rateLimitHits++

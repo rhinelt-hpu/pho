@@ -259,6 +259,14 @@ class RemoteStorage implements RemoteStorageClient {
         succeeded = true;
       } catch (e) {
         stateModel.finishUpload(asset.id, false);
+        final errStr = e.toString();
+        if (errStr.contains("413") || errStr.contains("Request Entity Too Large") || errStr.contains("Broken pipe")) {
+          final sizeMB = (totalLen / (1024 * 1024)).toStringAsFixed(1);
+          final friendlyError = Exception(
+              "文件体积 (${sizeMB}MB) 超过远端 WebDAV 服务器大小限制 (HTTP 413)。请调大远端 Nginx client_max_body_size 配置，或在设置中开启【跳过视频】。");
+          logger.addLog("upload $name failed: $friendlyError");
+          throw friendlyError;
+        }
         retryCount++;
         if (retryCount >= maxRetries) {
           logger.addLog("upload $name failed: $e");
