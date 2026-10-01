@@ -3,17 +3,62 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:talker_flutter/talker_flutter.dart';
+
+final talker = TalkerFlutter.init(
+  settings: TalkerSettings(
+    enabled: false,
+    useHistory: true,
+    maxHistoryItems: 1000,
+  ),
+);
 
 final logger = LoggerService();
 
 class LoggerService {
   final List<String> _logs = [];
 
+  void setEnabled(bool enabled) {
+    talker.configure(settings: talker.settings.copyWith(enabled: enabled));
+  }
+
+  bool get isEnabled => talker.settings.enabled;
+
   void addLog(String log) {
-    DateFormat format = DateFormat("yyyy-MM-dd HH:mm:ss");
+    final format = DateFormat("yyyy-MM-dd HH:mm:ss");
     final logStr = "[${format.format(DateTime.now())}] $log";
     _logs.add(logStr);
+    if (_logs.length > 500) {
+      _logs.removeAt(0);
+    }
     print(logStr);
+
+    if (talker.settings.enabled) {
+      final lower = log.toLowerCase();
+      if (lower.contains('fail') ||
+          lower.contains('error') ||
+          lower.contains('exception') ||
+          lower.contains('fatal')) {
+        talker.error(log);
+      } else if (lower.contains('warn')) {
+        talker.warning(log);
+      } else {
+        talker.info(log);
+      }
+    }
+  }
+
+  void handle(Object exception, [StackTrace? stackTrace, String? msg]) {
+    if (talker.settings.enabled) {
+      talker.handle(exception, stackTrace, msg);
+    } else {
+      addLog('Exception: $exception${msg != null ? " ($msg)" : ""}');
+    }
+  }
+
+  void cleanHistory() {
+    _logs.clear();
+    talker.cleanHistory();
   }
 
   List<String> get logs => _logs;
@@ -30,39 +75,12 @@ class LoggerRoute extends StatefulWidget {
   const LoggerRoute({Key? key}) : super(key: key);
 
   @override
-  _LoggerRouteState createState() => _LoggerRouteState();
+  State<LoggerRoute> createState() => _LoggerRouteState();
 }
 
 class _LoggerRouteState extends State<LoggerRoute> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Log'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.copy),
-            onPressed: () async {
-              final logs = logger.logs.join('\n');
-              await Clipboard.setData(ClipboardData(text: logs));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Copied to clipboard'),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: ListView.builder(
-        itemCount: logger.logs.length,
-        itemBuilder: (context, index) {
-          return Container(
-            padding: EdgeInsets.fromLTRB(10, 1, 10, 1),
-            child: Text(logger.logs[index]),
-          );
-        },
-      ),
-    );
+    return TalkerScreen(talker: talker);
   }
 }

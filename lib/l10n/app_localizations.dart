@@ -1123,6 +1123,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please paste pho://storage link or config text here'**
   String get pasteHint;
+
+  /// No description provided for @debugMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug Mode'**
+  String get debugMode;
+
+  /// No description provided for @debugModeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Record detailed sync, network, and runtime logs'**
+  String get debugModeDesc;
+
+  /// No description provided for @openDebugConsole.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Debug Console'**
+  String get openDebugConsole;
+
+  /// No description provided for @openDebugConsoleDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Inspect live logs, filter by level, view stack traces, and export'**
+  String get openDebugConsoleDesc;
+
+  /// No description provided for @clearDebugLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Debug Logs'**
+  String get clearDebugLogs;
+
+  /// No description provided for @debugLogsCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug logs cleared'**
+  String get debugLogsCleared;
 }
 
 class _AppLocalizationsDelegate

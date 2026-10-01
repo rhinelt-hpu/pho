@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 26.10.1+9
+version: 26.10.1+10
 
 environment:
   sdk: '>=2.19.1 <4.0.0'
@@ -74,12 +74,15 @@ dependencies:
   package_info_plus: ^4.2.0
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.2
+  talker: 4.1.2
+  talker_flutter: 4.1.2
 
 dependency_overrides:
   win32: ^5.11.0
   win32_registry: 1.1.1
   archive: ^3.6.1
   flutter_image_compress_common: 1.0.6
+  talker_logger: 4.1.2
 
 
 dev_dependencies:

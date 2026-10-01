@@ -551,4 +551,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pasteHint => 'Please paste pho://storage link or config text here';
+
+  @override
+  String get debugMode => 'Debug Mode';
+
+  @override
+  String get debugModeDesc => 'Record detailed sync, network, and runtime logs';
+
+  @override
+  String get openDebugConsole => 'Open Debug Console';
+
+  @override
+  String get openDebugConsoleDesc =>
+      'Inspect live logs, filter by level, view stack traces, and export';
+
+  @override
+  String get clearDebugLogs => 'Clear Debug Logs';
+
+  @override
+  String get debugLogsCleared => 'Debug logs cleared';
 }

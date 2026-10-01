@@ -172,5 +172,11 @@
   "configImportFailed": "连接失败，无法导入该配置",
   "invalidConfig": "无法识别的配置格式",
   "clipboardEmpty": "剪贴板中未发现 Pho 存储配置",
-  "pasteHint": "请在此粘贴 pho://storage 链接或配置文本"
+  "pasteHint": "请在此粘贴 pho://storage 链接或配置文本",
+  "debugMode": "调试模式",
+  "debugModeDesc": "启用后记录详细同步、网络与运行日志",
+  "openDebugConsole": "打开调试控制台",
+  "openDebugConsoleDesc": "查看实时日志、分类过滤、异常栈与系统分享导出",
+  "clearDebugLogs": "清空调试日志",
+  "debugLogsCleared": "调试日志已清空"
 }

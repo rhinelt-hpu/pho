@@ -123,6 +123,26 @@ class SettingModel extends ChangeNotifier {
   DateTime? filterBefore; // 只同步该日期之前的照片
   Map<String, bool> filterTypeMap = {}; // 扩展名白名单/黑名单
 
+  // 3. 调试模式 (Debug Mode / Talker)
+  bool _debugMode = false;
+  bool get debugMode => _debugMode;
+  set debugMode(bool value) => setDebugMode(value);
+
+  void setDebugMode(bool enabled) {
+    if (_debugMode == enabled) return;
+    _debugMode = enabled;
+    logger.setEnabled(enabled);
+    notifyListeners();
+    _saveDebugMode();
+  }
+
+  Future<void> _saveDebugMode() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('debug_mode', _debugMode);
+    } catch (_) {}
+  }
+
   /// 兼容旧命名与测试用例 (enableFilter)
   bool get enableFilter => filterSwitch;
   set enableFilter(bool enable) => setFilterSwitch(enable);
@@ -204,6 +224,7 @@ class SettingModel extends ChangeNotifier {
   Future<void> saveSettings() async {
     await _saveParallelCount();
     await _saveFilterSettings();
+    await _saveDebugMode();
   }
 
   Future<void> loadSettings([SharedPreferences? sharedPrefs]) async {
@@ -224,6 +245,8 @@ class SettingModel extends ChangeNotifier {
       if (beforeMs != null) {
         filterBefore = DateTime.fromMillisecondsSinceEpoch(beforeMs);
       }
+      _debugMode = prefs.getBool('debug_mode') ?? false;
+      logger.setEnabled(_debugMode);
       final typeMapJson = prefs.getString('filter_type_map');
       if (typeMapJson != null) {
         try {

@@ -172,5 +172,11 @@
   "configImportFailed": "Connection failed, cannot import this configuration",
   "invalidConfig": "Unrecognized configuration format",
   "clipboardEmpty": "No Pho storage configuration found in clipboard",
-  "pasteHint": "Please paste pho://storage link or config text here"
+  "pasteHint": "Please paste pho://storage link or config text here",
+  "debugMode": "Debug Mode",
+  "debugModeDesc": "Record detailed sync, network, and runtime logs",
+  "openDebugConsole": "Open Debug Console",
+  "openDebugConsoleDesc": "Inspect live logs, filter by level, view stack traces, and export",
+  "clearDebugLogs": "Clear Debug Logs",
+  "debugLogsCleared": "Debug logs cleared"
 }

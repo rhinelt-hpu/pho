@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:img_syncer/desktop/home_page.dart';
 import 'package:img_syncer/event_bus.dart';
 import 'package:img_syncer/global.dart';
+import 'package:img_syncer/logger/logger.dart';
 import 'package:img_syncer/util.dart';
 import 'package:provider/provider.dart';
 import 'package:img_syncer/state_model.dart';
@@ -27,6 +29,19 @@ import 'background_sync_entrypoint.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    if (talker.settings.enabled) {
+      talker.handle(
+          details.exception, details.stack, details.summary.toString());
+    }
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (talker.settings.enabled) {
+      talker.handle(error, stack);
+    }
+    return false;
+  };
   // 清除 adaptive_theme 持久化的旧暗色模式，强制浅色
   final prefs = await SharedPreferences.getInstance();
   await prefs.remove('adaptive_theme');

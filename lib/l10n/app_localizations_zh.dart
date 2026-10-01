@@ -530,4 +530,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pasteHint => '请在此粘贴 pho://storage 链接或配置文本';
+
+  @override
+  String get debugMode => '调试模式';
+
+  @override
+  String get debugModeDesc => '启用后记录详细同步、网络与运行日志';
+
+  @override
+  String get openDebugConsole => '打开调试控制台';
+
+  @override
+  String get openDebugConsoleDesc => '查看实时日志、分类过滤、异常栈与系统分享导出';
+
+  @override
+  String get clearDebugLogs => '清空调试日志';
+
+  @override
+  String get debugLogsCleared => '调试日志已清空';
 }

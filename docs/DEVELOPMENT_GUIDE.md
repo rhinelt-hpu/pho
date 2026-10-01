@@ -184,6 +184,65 @@ Android 11 及以上系统（如澎湃 OS / MIUI / 原生 Android）提供了无
    - 检查已连接设备列表：`adb devices -l` 或 `flutter devices`。
    - 无线推送安装应用：`adb install -r build/app/outputs/flutter-apk/app-release.apk`。
 
+### 4.4 真机模拟操作与 UI 调试：结构树与视觉走查双轨制
+
+在真机联调或自动化功能验证过程中，避免盲目依赖屏幕截图去目测坐标点击，应遵循**双轨制调试原则**：
+
+| 调试场景 | 推荐方式 | 核心优势 | 执行方式 |
+| :--- | :--- | :--- | :--- |
+| **常规功能验证**（点击开关、按钮跳转、输入、状态变更） | **UI 结构树精准定位 (`uiautomator dump`)** | **毫秒级、100% 精准无点偏、零 I/O 截图开销** | 读取 Flutter 无障碍/语义树 XML，直接解析组件 `bounds` 并自动求中心点 `input tap` |
+| **UI 视觉效果走查**（多选高对比度边框、暗浅色主题、蒙层对比度） | **按需单次拉取屏幕截图 (`screencap`)** | 验证真机物理屏幕的最终视觉质感与排版 | 仅在有视觉核验诉求时生成，保存至本地临时目录（必须忽略 Git） |
+
+#### 结构树精准查找与自动点击示例 (Python 一键执行)
+利用 Android `uiautomator dump` 获取当前界面的语义节点树，根据文字或描述自动求出绝对坐标完成点击：
+```python
+import subprocess, re
+
+adb_cmd = ["adb", "shell"]
+
+def tap_ui_node(keyword, prefer_right=False):
+    # 1. 导出当前界面的结构树并读取
+    subprocess.run(adb_cmd + ["uiautomator", "dump", "/sdcard/ui_tree.xml"], stdout=subprocess.DEVNULL)
+    res = subprocess.run(adb_cmd + ["cat", "/sdcard/ui_tree.xml"], capture_output=True, text=True)
+    xml_data = res.stdout
+
+    # 2. 正则查找匹配包含目标文本的 node 节点及其边界
+    for match in re.finditer(r"<node ([^>]+)>", xml_data):
+        node = match.group(1)
+        desc = re.search(r"content-desc=\"([^\"]*)\"", node)
+        text = re.search(r"text=\"([^\"]*)\"", node)
+        bounds = re.search(r"bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"", node)
+        node_text = f"{text.group(1) if text else ''} {desc.group(1) if desc else ''}"
+        
+        if keyword in node_text and bounds:
+            x1, y1, x2, y2 = map(int, bounds.groups())
+            # Switch 类开关点击偏右侧滑块，普通按钮点击几何中心
+            tx = x2 - (x2 - x1) // 8 if prefer_right else (x1 + x2) // 2
+            ty = (y1 + y2) // 2
+            subprocess.run(adb_cmd + ["input", "tap", str(tx), str(ty)])
+            print(f"已精准命中 [{node_text.strip()}]，点击坐标 ({tx}, {ty})")
+            return True
+    print(f"未找到包含 [{keyword}] 的组件")
+    return False
+
+# 示例：点击调试模式开关、点击打开控制台
+tap_ui_node("调试模式", prefer_right=True)
+tap_ui_node("打开调试控制台")
+```
+
+### 4.5 应用内 Talker 调试面板使用指南
+
+应用已全面集成现代化轻量级调试套件 `talker_flutter`：
+- **入口路径**：打开【设置】-> 点击底部【应用信息】(`AboutRoute`)。
+- **开闭控制 (开箱即关，零开销)**：
+  - **默认状态**：调试模式处于关闭状态，Talker 不做任何堆栈捕获与历史缓存，完全不消耗额外 CPU 与内存；
+  - **开启状态**：轻触【调试模式】开关，即时激活日志捕获与全局未捕获异常监控；
+- **核心能力**：
+  1. **动态控制台入口**：开启开关后，页面立即动态展开【打开调试控制台】与【清空调试日志】；
+  2. **日志分类与色彩分级**：全应用 30+ 处 `logger.addLog` 无缝桥接，错误自动标红（`error`）、警告标黄（`warning`）、普通信息标蓝（`info`）；
+  3. **实时排错与导出**：控制台内置关键字搜索、等级过滤器，右上角支持一键复制与调用系统分享面板，将完整排障日志直接导出给开发者；
+  4. **异常监控**：自动挂载 `FlutterError.onError` 与 `PlatformDispatcher.instance.onError`，任何后台任务与 UI 线程抛错均能完整查看调用栈。
+
 ---
 
 ## 5. 自动化测试执行

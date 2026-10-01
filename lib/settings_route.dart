@@ -8,9 +8,12 @@ import 'package:img_syncer/design_tokens.dart';
 import 'package:img_syncer/setting_storage_route.dart';
 import 'package:img_syncer/filter_setting_route.dart';
 import 'package:img_syncer/global.dart';
+import 'package:img_syncer/logger/logger.dart';
 import 'package:img_syncer/state_model.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:provider/provider.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
 /// 设置页：选择相册、云存储、后台同步、清除缓存、关于。
 class SettingsRoute extends StatefulWidget {
@@ -303,26 +306,120 @@ class _AboutRouteState extends State<AboutRoute> {
 
   @override
   Widget build(BuildContext context) {
+    initI18n(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.about),
       ),
-      body: ListView(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.paddingSmall,
-                vertical: AppSpacing.xs),
-            child: ListTile(
-              title: Text(l10n.appVersion,
-                  style: Theme.of(context).textTheme.titleLarge),
-              subtitle: Text(
-                'Pho - $_version',
-                style: TextStyle(color: Theme.of(context).colorScheme.primary),
+      body: Consumer<SettingModel>(
+        builder: (context, settingModel, child) {
+          final colorScheme = Theme.of(context).colorScheme;
+          final textTheme = Theme.of(context).textTheme;
+          return ListView(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.paddingSmall,
+                    vertical: AppSpacing.xs),
+                child: ListTile(
+                  title: Text(l10n.appVersion,
+                      style: textTheme.titleLarge),
+                  subtitle: Text(
+                    'Pho - $_version',
+                    style: TextStyle(color: colorScheme.primary),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+              const Divider(height: 1),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.paddingSmall,
+                    vertical: AppSpacing.xs),
+                child: SwitchListTile(
+                  secondary: Icon(
+                    Icons.bug_report_outlined,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    l10n.debugMode,
+                    style: textTheme.titleLarge,
+                  ),
+                  subtitle: Text(
+                    l10n.debugModeDesc,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  value: settingModel.debugMode,
+                  onChanged: (bool value) {
+                    settingModel.setDebugMode(value);
+                  },
+                ),
+              ),
+              if (settingModel.debugMode) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.paddingSmall,
+                      vertical: AppSpacing.xs),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.terminal,
+                      color: colorScheme.primary,
+                    ),
+                    title: Text(
+                      l10n.openDebugConsole,
+                      style: textTheme.titleLarge?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.openDebugConsoleDesc,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TalkerScreen(talker: talker),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.paddingSmall,
+                      vertical: AppSpacing.xs),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.delete_outline,
+                      color: colorScheme.error,
+                    ),
+                    title: Text(
+                      l10n.clearDebugLogs,
+                      style: textTheme.titleLarge?.copyWith(
+                        color: colorScheme.error,
+                      ),
+                    ),
+                    onTap: () {
+                      logger.cleanHistory();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.debugLogsCleared),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
