@@ -490,4 +490,65 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filterResetConfirm => 'Reset all filter settings to default?';
+
+  @override
+  String get exportConfig => 'Export Config';
+
+  @override
+  String get importConfig => 'Import Config';
+
+  @override
+  String get storageConfigQrTitle => 'Storage Configuration QR';
+
+  @override
+  String get storageConfigQrDesc =>
+      'Scan this QR code on another device to migrate storage settings';
+
+  @override
+  String get copyConfig => 'Copy Config Link';
+
+  @override
+  String get configCopied => 'Configuration copied to clipboard';
+
+  @override
+  String get shareConfig => 'Share Config';
+
+  @override
+  String get scanStorageConfig => 'Scan QR Code';
+
+  @override
+  String get pickFromGallery => 'Pick from Gallery';
+
+  @override
+  String get importFromClipboard => 'Import from Clipboard';
+
+  @override
+  String get pasteConfig => 'Paste Configuration';
+
+  @override
+  String get noStorageConfigFound => 'No storage configured yet, cannot export';
+
+  @override
+  String get importConfigConfirmTitle => 'Confirm Storage Import';
+
+  @override
+  String get testAndSave => 'Test Connection & Save';
+
+  @override
+  String get configImportSuccess =>
+      'Storage configuration imported and applied';
+
+  @override
+  String get configImportFailed =>
+      'Connection failed, cannot import this configuration';
+
+  @override
+  String get invalidConfig => 'Unrecognized configuration format';
+
+  @override
+  String get clipboardEmpty =>
+      'No Pho storage configuration found in clipboard';
+
+  @override
+  String get pasteHint => 'Please paste pho://storage link or config text here';
 }

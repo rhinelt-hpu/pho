@@ -473,4 +473,61 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get filterResetConfirm => '确认将所有筛选条件恢复为默认设置？';
+
+  @override
+  String get exportConfig => '导出配置';
+
+  @override
+  String get importConfig => '导入配置';
+
+  @override
+  String get storageConfigQrTitle => '存储配置二维码';
+
+  @override
+  String get storageConfigQrDesc => '在另一台设备上扫描此二维码可一键迁移存储配置';
+
+  @override
+  String get copyConfig => '复制配置链接';
+
+  @override
+  String get configCopied => '配置已复制到剪贴板';
+
+  @override
+  String get shareConfig => '分享配置';
+
+  @override
+  String get scanStorageConfig => '扫描二维码';
+
+  @override
+  String get pickFromGallery => '从相册识别';
+
+  @override
+  String get importFromClipboard => '从剪贴板导入';
+
+  @override
+  String get pasteConfig => '手动粘贴配置';
+
+  @override
+  String get noStorageConfigFound => '当前未配置网络存储，无法导出';
+
+  @override
+  String get importConfigConfirmTitle => '确认导入存储配置';
+
+  @override
+  String get testAndSave => '测试连接并保存';
+
+  @override
+  String get configImportSuccess => '存储配置已成功导入并生效';
+
+  @override
+  String get configImportFailed => '连接失败，无法导入该配置';
+
+  @override
+  String get invalidConfig => '无法识别的配置格式';
+
+  @override
+  String get clipboardEmpty => '剪贴板中未发现 Pho 存储配置';
+
+  @override
+  String get pasteHint => '请在此粘贴 pho://storage 链接或配置文本';
 }

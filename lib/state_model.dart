@@ -32,6 +32,13 @@ Map<Drive, String> driveName = {
   // Drive.baiduNetdisk: 'BaiduNetdisk',
 };
 
+Drive getDrive(String drive) {
+  return driveName.entries
+      .firstWhere((element) => element.value.toLowerCase() == drive.toLowerCase(),
+          orElse: () => const MapEntry(Drive.smb, "SMB"))
+      .key;
+}
+
 enum EncryptionType { none, aesCfb, aesGcm }
 
 class SettingModel extends ChangeNotifier {

@@ -1212,39 +1212,48 @@ class GalleryBodyState extends State<GalleryBody>
                 ),
               ],
 
-              // selection
-              if (all[i].isLivePhoto())
+              // selection overlay & indicator
               if (stateModel.isSelectionMode) ...[
                 if (_selectedIndices[i] ?? false)
-                  Container(
-                    width: imgWidth,
-                    height: imgHeight,
-                    color: colorScheme.scrim.withValues(alpha: 0.4),
-                  ),
-                Positioned(
-                  top: 2,
-                  left: 2,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(AppRadius.small),
-                    ),
-                    child: Center(
-                      child: Checkbox(
-                        value: _selectedIndices[i] ?? false,
-                        onChanged: (value) async {
-                          toggleSelection(i);
-                        },
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.small)),
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.28),
+                        border: Border.all(
+                          color: colorScheme.primary,
+                          width: 3.0,
+                        ),
                       ),
                     ),
                   ),
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 4,
+                          spreadRadius: 0.5,
+                        ),
+                      ],
+                    ),
+                    child: (_selectedIndices[i] ?? false)
+                        ? Icon(
+                            Icons.check_circle,
+                            color: colorScheme.primary,
+                            size: 24,
+                          )
+                        : Icon(
+                            Icons.circle_outlined,
+                            color: Colors.white.withValues(alpha: 0.95),
+                            size: 24,
+                          ),
+                  ),
                 ),
-              ]
+              ],
             ],
           ));
       currentChildren.add(child);

@@ -1009,6 +1009,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reset all filter settings to default?'**
   String get filterResetConfirm;
+
+  /// No description provided for @exportConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Export Config'**
+  String get exportConfig;
+
+  /// No description provided for @importConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Config'**
+  String get importConfig;
+
+  /// No description provided for @storageConfigQrTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage Configuration QR'**
+  String get storageConfigQrTitle;
+
+  /// No description provided for @storageConfigQrDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan this QR code on another device to migrate storage settings'**
+  String get storageConfigQrDesc;
+
+  /// No description provided for @copyConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Config Link'**
+  String get copyConfig;
+
+  /// No description provided for @configCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration copied to clipboard'**
+  String get configCopied;
+
+  /// No description provided for @shareConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Share Config'**
+  String get shareConfig;
+
+  /// No description provided for @scanStorageConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan QR Code'**
+  String get scanStorageConfig;
+
+  /// No description provided for @pickFromGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick from Gallery'**
+  String get pickFromGallery;
+
+  /// No description provided for @importFromClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Import from Clipboard'**
+  String get importFromClipboard;
+
+  /// No description provided for @pasteConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste Configuration'**
+  String get pasteConfig;
+
+  /// No description provided for @noStorageConfigFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No storage configured yet, cannot export'**
+  String get noStorageConfigFound;
+
+  /// No description provided for @importConfigConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Storage Import'**
+  String get importConfigConfirmTitle;
+
+  /// No description provided for @testAndSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Connection & Save'**
+  String get testAndSave;
+
+  /// No description provided for @configImportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage configuration imported and applied'**
+  String get configImportSuccess;
+
+  /// No description provided for @configImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection failed, cannot import this configuration'**
+  String get configImportFailed;
+
+  /// No description provided for @invalidConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Unrecognized configuration format'**
+  String get invalidConfig;
+
+  /// No description provided for @clipboardEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No Pho storage configuration found in clipboard'**
+  String get clipboardEmpty;
+
+  /// No description provided for @pasteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Please paste pho://storage link or config text here'**
+  String get pasteHint;
 }
 
 class _AppLocalizationsDelegate

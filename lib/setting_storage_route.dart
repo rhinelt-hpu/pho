@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:img_syncer/design_tokens.dart';
+import 'package:img_syncer/storage/storage_config.dart';
+import 'package:img_syncer/storage/storage_export_dialog.dart';
+import 'package:img_syncer/storage/storage_import_route.dart';
 import 'package:img_syncer/storageform/smbform.dart';
 import 'package:img_syncer/storageform/webdavform.dart';
 import 'package:img_syncer/storageform/nfsform.dart';
@@ -8,36 +11,64 @@ import 'package:img_syncer/state_model.dart';
 import 'package:img_syncer/global.dart';
 
 class SettingStorageRoute extends StatefulWidget {
-  const SettingStorageRoute({Key? key}) : super(key: key);
+  const SettingStorageRoute({super.key});
 
   @override
-  _SettingStorageRouteState createState() => _SettingStorageRouteState();
+  State<SettingStorageRoute> createState() => _SettingStorageRouteState();
 }
 
 class _SettingStorageRouteState extends State<SettingStorageRoute> {
+  Key _bodyKey = UniqueKey();
+
+  Future<void> _handleExport() async {
+    final config = await StorageConfig.exportCurrent();
+    if (config != null && mounted) {
+      StorageExportDialog.show(context, config);
+    } else if (mounted) {
+      SnackBarManager.showSnackBar(l10n.noStorageConfigFound);
+    }
+  }
+
+  Future<void> _handleImport() async {
+    final imported = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => const StorageImportRoute()),
+    );
+    if (imported == true && mounted) {
+      setState(() {
+        _bodyKey = UniqueKey(); // 刷新表单内容
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.storageSetting),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_2),
+            tooltip: l10n.exportConfig,
+            onPressed: _handleExport,
+          ),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: l10n.importConfig,
+            onPressed: _handleImport,
+          ),
+        ],
       ),
-      body: const SettingStorageRouteBody(),
+      body: SettingStorageRouteBody(key: _bodyKey),
     );
   }
 }
 
 class SettingStorageRouteBody extends StatefulWidget {
-  const SettingStorageRouteBody({Key? key}) : super(key: key);
+  const SettingStorageRouteBody({super.key});
 
   @override
   SettingStorageRouteBodyState createState() => SettingStorageRouteBodyState();
-}
-
-Drive getDrive(String drive) {
-  return driveName.entries
-      .firstWhere((element) => element.value == drive,
-          orElse: () => const MapEntry(Drive.smb, "SMB"))
-      .key;
 }
 
 class SettingStorageRouteBodyState extends State<SettingStorageRouteBody> {
