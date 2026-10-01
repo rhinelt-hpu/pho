@@ -126,6 +126,17 @@ class GalleryBodyState extends State<GalleryBody>
       }
     });
     settingModel.addListener(_onSettingChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.useLocal) {
+        if (assetModel.localAssets.isEmpty) {
+          assetModel.refreshLocal(false);
+        }
+      } else {
+        if (assetModel.remoteAssets.isEmpty && settingModel.isRemoteStorageSetted) {
+          assetModel.refreshRemote(false);
+        }
+      }
+    });
   }
 
   void _onSettingChanged() {

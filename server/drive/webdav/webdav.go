@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ type Webdav struct {
 	rootPath  string
 	cli       *gowebdav.Client
 	mkdirLock sync.Mutex // serializes mkdir to avoid race in gowebdav lib
+	knownDirs map[string]bool
 }
 
 type retryTransport struct {
@@ -53,10 +55,11 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
 	d := &Webdav{
-		url:      url,
-		username: username,
-		password: password,
-		cli:      gowebdav.NewClient(url, username, password),
+		url:       url,
+		username:  username,
+		password:  password,
+		cli:       gowebdav.NewClient(url, username, password),
+		knownDirs: make(map[string]bool),
 	}
 	baseTransport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
@@ -177,6 +180,33 @@ func (d *Webdav) DownloadWithOffset(path string, offset int64) (io.ReadCloser, i
 	return reader, info.Size(), nil
 }
 
+func (d *Webdav) ensureDir(dir string) error {
+	dir = filepath.ToSlash(dir)
+	d.mkdirLock.Lock()
+	defer d.mkdirLock.Unlock()
+
+	if d.knownDirs != nil && d.knownDirs[dir] {
+		return nil
+	}
+
+	err := d.cli.MkdirAll(dir, 0755)
+	if err != nil {
+		errStr := err.Error()
+		// WebDAV RFC 4918 Section 9.3.1: MKCOL 访问已存在集合必须返回 405 Method Not Allowed，视为成功并缓存
+		if strings.Contains(errStr, "405") || strings.Contains(errStr, "Method Not Allowed") {
+			if d.knownDirs != nil {
+				d.knownDirs[dir] = true
+			}
+			return nil
+		}
+		return err
+	}
+	if d.knownDirs != nil {
+		d.knownDirs[dir] = true
+	}
+	return nil
+}
+
 func (d *Webdav) Upload(path string, reader io.ReadCloser, size int64, lastModified time.Time) error {
 	if reader == nil {
 		return fmt.Errorf("reader is nil")
@@ -187,13 +217,10 @@ func (d *Webdav) Upload(path string, reader io.ReadCloser, size int64, lastModif
 	}
 	fullPath := filepath.Join(d.rootPath, path)
 	fullPath = filepath.ToSlash(fullPath)
-	d.mkdirLock.Lock()
-	err := d.cli.MkdirAll(filepath.Dir(fullPath), 0755)
-	d.mkdirLock.Unlock()
-	if err != nil {
+	if err := d.ensureDir(filepath.Dir(fullPath)); err != nil {
 		return err
 	}
-	err = d.cli.WriteStream(fullPath, reader, size, 0666)
+	err := d.cli.WriteStream(fullPath, reader, size, 0666)
 	if err != nil {
 		return err
 	}
@@ -227,9 +254,7 @@ func (d *Webdav) Move(oldPath, newPath string) error {
 	fullOld := filepath.ToSlash(filepath.Join(d.rootPath, oldPath))
 	fullNew := filepath.ToSlash(filepath.Join(d.rootPath, newPath))
 	parent := filepath.Dir(fullNew)
-	d.mkdirLock.Lock()
-	_ = d.cli.MkdirAll(parent, 0755)
-	d.mkdirLock.Unlock()
+	_ = d.ensureDir(parent)
 	return d.cli.Rename(fullOld, fullNew, true)
 }
 
@@ -238,10 +263,7 @@ func (d *Webdav) Mkdir(dir string) error {
 		return fmt.Errorf("root path is empty")
 	}
 	fullDir := filepath.ToSlash(filepath.Join(d.rootPath, dir))
-	d.mkdirLock.Lock()
-	err := d.cli.MkdirAll(fullDir, 0755)
-	d.mkdirLock.Unlock()
-	return err
+	return d.ensureDir(fullDir)
 }
 
 type desc []fs.FileInfo
