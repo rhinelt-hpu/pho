@@ -256,6 +256,21 @@ func TestAlbumLifecycle(t *testing.T) {
 		t.Fatalf("expected 2 photos after move, got: %v", newAlbumPaths)
 	}
 
+	// 7.1 验证 ListAlbums 计数：相册中的 Count 必须准确为 2
+	albumsAfterMove, err := im.ListAlbums()
+	if err != nil {
+		t.Fatalf("ListAlbums after move error: %v", err)
+	}
+	var targetCount int64
+	for _, a := range albumsAfterMove {
+		if a.Name == albumName {
+			targetCount = a.Count
+		}
+	}
+	if targetCount != 2 {
+		t.Fatalf("expected 2 photos count in album %s, got %d", albumName, targetCount)
+	}
+
 	// 8. 重命名相册
 	renamedAlbum := "2026 东京之旅"
 	err = im.RenameAlbum(albumName, renamedAlbum)
