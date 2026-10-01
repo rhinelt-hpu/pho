@@ -55,10 +55,10 @@ apk:
 ipa:
 	flutter build ipa --no-tree-shake-icons --obfuscate --split-debug-info=./debug-info
 
-# 更新版本号为当前时间戳（精确到小时，符合 CalVer 与 iOS/Android 规范）
+# 更新版本号为当前时间戳（精确到小时，格式如 26.10.1+9）
 update-version:
-	@TS_VER=$$(date "+%Y.%m%d.%-H"); \
-	TS_CODE=$$(date "+%Y%m%d%H"); \
+	@TS_VER=$$(date "+%y.%-m.%-d"); \
+	TS_CODE=$$(date "+%-H"); \
 	sed -i '' "s/^version: .*/version: $${TS_VER}+$${TS_CODE}/" pubspec.yaml; \
 	echo "Updated pubspec.yaml version to $${TS_VER}+$${TS_CODE}"
 

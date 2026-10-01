@@ -282,7 +282,7 @@ class AboutRoute extends StatefulWidget {
 }
 
 class _AboutRouteState extends State<AboutRoute> {
-  String _version = '2026.1001.9';
+  String _version = '26.10.1';
 
   @override
   void initState() {
