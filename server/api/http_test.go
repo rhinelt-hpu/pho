@@ -180,3 +180,33 @@ func TestHTTPDownloadRangeGcmZeroStart(t *testing.T) {
 		t.Fatalf("body mismatch: got %d bytes, want %d bytes", w.Body.Len(), len(plaintext))
 	}
 }
+
+func TestParseAlbumHeader(t *testing.T) {
+	req, _ := http.NewRequest("POST", "/", nil)
+	if got := parseAlbumHeader(req); got != "" {
+		t.Fatalf("expected empty, got %q", got)
+	}
+
+	req.Header.Set(HeaderAlbum, "my-album")
+	if got := parseAlbumHeader(req); got != "my-album" {
+		t.Fatalf("expected my-album, got %q", got)
+	}
+
+	// URL encoded Chinese album name: "测试"
+	req.Header.Set(HeaderAlbum, "%E6%B5%8B%E8%AF%95")
+	if got := parseAlbumHeader(req); got != "测试" {
+		t.Fatalf("expected 测试, got %q", got)
+	}
+
+	// URL encoded "相机备份"
+	req.Header.Set(HeaderAlbum, "%E7%9B%B8%E6%9C%BA%E5%A4%87%E4%BB%BD")
+	if got := parseAlbumHeader(req); got != "相机备份" {
+		t.Fatalf("expected 相机备份, got %q", got)
+	}
+
+	// Path traversal attempts
+	req.Header.Set(HeaderAlbum, "../etc")
+	if got := parseAlbumHeader(req); got != "" {
+		t.Fatalf("expected empty for traversal, got %q", got)
+	}
+}

@@ -63,6 +63,7 @@ class RemoteStorage implements RemoteStorageClient {
   Future<void> uploadXFile(XFile file, {String album = ""}) async {
     await checkServer();
     final targetAlbum = album.isNotEmpty ? album : settingModel.defaultAlbumName;
+    final encodedAlbum = Uri.encodeComponent(targetAlbum);
     final name = basename(file.path);
     final date = await file.lastModified();
     final dateStr =
@@ -83,8 +84,8 @@ class RemoteStorage implements RemoteStorageClient {
     final totalLen = imgLen;
     var req = http.StreamedRequest("POST", Uri.parse("$httpBaseUrl/$name"));
     req.headers['Image-Date'] = dateStr;
-    if (targetAlbum.isNotEmpty) {
-      req.headers['Image-Album'] = targetAlbum;
+    if (encodedAlbum.isNotEmpty) {
+      req.headers['Image-Album'] = encodedAlbum;
     }
     req.contentLength = imgLen;
     file.openRead().listen((chunk) {
@@ -103,8 +104,8 @@ class RemoteStorage implements RemoteStorageClient {
     final thumbHeaders = {
       'Image-Date': dateStr,
     };
-    if (targetAlbum.isNotEmpty) {
-      thumbHeaders['Image-Album'] = targetAlbum;
+    if (encodedAlbum.isNotEmpty) {
+      thumbHeaders['Image-Album'] = encodedAlbum;
     }
     final thumbRsp = await http.post(
       Uri.parse("$httpBaseUrl/thumbnail/$name"),
@@ -119,6 +120,7 @@ class RemoteStorage implements RemoteStorageClient {
   Future<void> uploadAssetEntity(AssetEntity asset, {String album = ""}) async {
     await checkServer();
     final targetAlbum = album.isNotEmpty ? album : settingModel.defaultAlbumName;
+    final encodedAlbum = Uri.encodeComponent(targetAlbum);
     final file = await asset.originFile;
     if (file == null) {
       throw Exception("asset file is null");
@@ -169,8 +171,8 @@ class RemoteStorage implements RemoteStorageClient {
               ? settingModel.encryptionPassword
               : "",
         };
-        if (targetAlbum.isNotEmpty) {
-          thumbHeaders['Image-Album'] = targetAlbum;
+        if (encodedAlbum.isNotEmpty) {
+          thumbHeaders['Image-Album'] = encodedAlbum;
         }
         final thumbRsp = await http.post(
           Uri.parse("$httpBaseUrl/thumbnail/$name"),
@@ -191,8 +193,8 @@ class RemoteStorage implements RemoteStorageClient {
         req.headers['Image-Date'] = dateStr;
         req.headers['Image-Is-Live-Photo'] =
             asset.isLivePhoto ? "true" : "false";
-        if (targetAlbum.isNotEmpty) {
-          req.headers['Image-Album'] = targetAlbum;
+        if (encodedAlbum.isNotEmpty) {
+          req.headers['Image-Album'] = encodedAlbum;
         }
         if (settingModel.enableEncrypt) {
           req.headers['Image-Encrypt-Type'] =
@@ -225,8 +227,8 @@ class RemoteStorage implements RemoteStorageClient {
           req.headers['Image-Date'] = dateStr;
           req.headers['Image-Is-Live-Photo'] =
               asset.isLivePhoto ? "true" : "false";
-          if (targetAlbum.isNotEmpty) {
-            req.headers['Image-Album'] = targetAlbum;
+          if (encodedAlbum.isNotEmpty) {
+            req.headers['Image-Album'] = encodedAlbum;
           }
           if (settingModel.enableEncrypt) {
             req.headers['Image-Encrypt-Type'] =

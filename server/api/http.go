@@ -6,12 +6,29 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fregie/img_syncer/server/imgmanager"
 )
+
+func parseAlbumHeader(r *http.Request) string {
+	raw := r.Header.Get(HeaderAlbum)
+	if raw == "" {
+		return ""
+	}
+	if decoded, err := url.QueryUnescape(raw); err == nil {
+		raw = decoded
+	}
+	cleaned := filepath.Clean(strings.TrimPrefix(raw, "/"))
+	if cleaned == "." || strings.HasPrefix(cleaned, "..") {
+		return ""
+	}
+	return cleaned
+}
 
 const (
 	rangeBufferSize       = 64 * 1024
@@ -85,7 +102,7 @@ func (a *api) httpUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid path", http.StatusBadRequest)
 			return
 		}
-	album := r.Header.Get(HeaderAlbum)
+	album := parseAlbumHeader(r)
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	err = a.im.Upload(r.Body, length, encodeName(dateTime, name), dateTime, imgmanager.WithEncrypt(imgmanager.EncryptOption{
 		Type:     enctype,
@@ -135,7 +152,7 @@ func (a *api) httpUploadThumbnail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		dateTime = time.Now()
 	}
-	album := r.Header.Get(HeaderAlbum)
+	album := parseAlbumHeader(r)
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	err = a.im.UploadThumbnail(r.Body, length, encodeName(dateTime, name), dateTime, imgmanager.WithEncrypt(imgmanager.EncryptOption{
 		Type:     enctype,
@@ -179,7 +196,7 @@ func (a *api) httpUploadLiveVideo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		dateTime = time.Now()
 	}
-	album := r.Header.Get(HeaderAlbum)
+	album := parseAlbumHeader(r)
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	err = a.im.UploadLiveVideo(r.Body, length, encodeName(dateTime, name), dateTime, imgmanager.WithEncrypt(imgmanager.EncryptOption{
 		Type:     enctype,

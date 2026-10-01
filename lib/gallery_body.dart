@@ -400,7 +400,8 @@ class GalleryBodyState extends State<GalleryBody>
     for (var asset in assets) {
       final entity = asset.local!;
       try {
-        await storage.uploadAssetEntity(entity);
+        await storage.uploadAssetEntity(entity,
+            album: assetModel.currentCloudAlbum);
       } catch (e) {
         SnackBarManager.showSnackBar("${l10n.uploadFailed}: $e");
       }

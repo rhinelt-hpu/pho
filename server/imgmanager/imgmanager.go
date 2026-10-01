@@ -457,7 +457,12 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 	defer unlock()
 	rc, img.Size, err = d.Download(thumbnailPath)
 	if err != nil {
-		return img, fmt.Errorf("error downloading thumbnail: %w", err)
+		// 回退读取原图，防止缩略图缺失导致前端直接报错与渲染白块
+		rc, img.Size, err = d.Download(path)
+		if err != nil {
+			return img, fmt.Errorf("error downloading thumbnail: %w", err)
+		}
+		thumbnailPath = path
 	}
 	encType := getPathEncType(path)
 	if encType != None {

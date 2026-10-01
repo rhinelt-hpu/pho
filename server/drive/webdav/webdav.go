@@ -25,6 +25,25 @@ type Webdav struct {
 	mkdirLock sync.Mutex // serializes mkdir to avoid race in gowebdav lib
 }
 
+type retryTransport struct {
+	base http.RoundTripper
+}
+
+func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	var resp *http.Response
+	var err error
+	for i := 0; i < 3; i++ {
+		resp, err = t.base.RoundTrip(req)
+		if err == nil && resp.StatusCode == http.StatusTooManyRequests {
+			resp.Body.Close()
+			time.Sleep(time.Duration(1<<i) * 1000 * time.Millisecond)
+			continue
+		}
+		break
+	}
+	return resp, err
+}
+
 func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
 	d := &Webdav{
 		url:      url,
@@ -32,9 +51,10 @@ func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
 		password: password,
 		cli:      gowebdav.NewClient(url, username, password),
 	}
-	d.cli.SetTransport(&http.Transport{
+	baseTransport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
-	})
+	}
+	d.cli.SetTransport(&retryTransport{base: baseTransport})
 	if insecure {
 		log.Printf("WARNING: TLS certificate verification disabled for WebDAV at %s, do not use in production", url)
 	}
