@@ -34,6 +34,7 @@ type ImgManager struct {
 	dirTypeMu      sync.RWMutex
 	defaultAlbum   string
 	defaultAlbumMu sync.RWMutex
+	manifest       *ManifestManager
 	actCh          chan action
 	stopCh         chan struct{}
 	wg             sync.WaitGroup
@@ -65,6 +66,7 @@ func NewImgManager(opt Option) *ImgManager {
 		opt:          opt,
 		dri:          &UnimplementedDrive{},
 		defaultAlbum: DefaultAlbumName,
+		manifest:     NewManifestManager(""),
 	}
 	im.wg.Add(im.opt.WorkerNum)
 	for i := 0; i < im.opt.WorkerNum; i++ {
@@ -102,6 +104,13 @@ func (im *ImgManager) SetDrive(dri StorageDrive) {
 	im.dri = dri
 	im.driveMu.Unlock()
 	go im.MigrateLegacyRootFolders()
+	go func() {
+		_ = im.manifest.Sync(dri)
+	}()
+}
+
+func (im *ImgManager) Manifest() *ManifestManager {
+	return im.manifest
 }
 
 func (im *ImgManager) Drive() StorageDrive {
@@ -250,6 +259,20 @@ func (im *ImgManager) Upload(content io.Reader, contentSize int64, name string, 
 		im.logger.Println("Error uploading:", e)
 		return fmt.Errorf("error uploading: %w", e)
 	}
+	targetAlbum := options.Album
+	if targetAlbum == "" {
+		targetAlbum = im.GetDefaultAlbum()
+	}
+	_ = im.manifest.AppendChunk(d, []ManifestRecord{
+		{
+			Fingerprint: filepath.Base(path),
+			Album:       targetAlbum,
+			Path:        path,
+			Size:        contentSize,
+			Deleted:     false,
+			UpdatedAt:   time.Now().Unix(),
+		},
+	})
 	return nil
 }
 
@@ -628,7 +651,18 @@ func (im *ImgManager) DeleteSingleImg(path string) error {
 				im.logger.Println("Error deleting live video dir:", err)
 			}
 		}
-		return d.Delete(path)
+		delErr := d.Delete(path)
+		if delErr == nil && im.manifest != nil {
+			_ = im.manifest.AppendChunk(d, []ManifestRecord{
+				{
+					Fingerprint: filepath.Base(path),
+					Path:        path,
+					Deleted:     true,
+					UpdatedAt:   time.Now().Unix(),
+				},
+			})
+		}
+		return delErr
 	}
 	return nil
 }
@@ -686,17 +720,30 @@ func isYearOrDateDir(name string) bool {
 	return false
 }
 
-func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.Time) []dirInfo {
+func (im *ImgManager) collectDirInfosRange(d StorageDrive, baseDir string, minDate, maxDate time.Time) []dirInfo {
 	maxYear := 9999
 	maxMonth := 12
 	maxDay := 31
+	minYear := 0
+	minMonth := 0
+	minDay := 0
 	loc := time.Local
-	if !date.IsZero() {
-		y, m, d := date.Date()
+
+	if !maxDate.IsZero() {
+		y, m, d := maxDate.Date()
 		maxYear = y
 		maxMonth = int(m)
 		maxDay = d
-		loc = date.Location()
+		loc = maxDate.Location()
+	}
+	if !minDate.IsZero() {
+		y, m, d := minDate.Date()
+		minYear = y
+		minMonth = int(m)
+		minDay = d
+		if maxDate.IsZero() {
+			loc = minDate.Location()
+		}
 	}
 
 	dirInfos := make([]dirInfo, 0)
@@ -720,12 +767,13 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 			if err != nil {
 				continue
 			}
-			if date.IsZero() || !dirDate.After(date) {
-				dirInfos = append(dirInfos, dirInfo{
-					date: dirDate,
-					dir:  joinPath(yinfo.Name()),
-				})
+			if (!maxDate.IsZero() && dirDate.After(maxDate)) || (!minDate.IsZero() && dirDate.Before(minDate)) {
+				continue
 			}
+			dirInfos = append(dirInfos, dirInfo{
+				date: dirDate,
+				dir:  joinPath(yinfo.Name()),
+			})
 		}
 	}
 
@@ -735,7 +783,11 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 			continue
 		}
 		yNum, err := strconv.Atoi(yinfo.Name())
-		if err != nil || yNum > maxYear {
+		if err != nil {
+			continue
+		}
+		// 年份剪枝：跳过不在 [minYear, maxYear] 区间内的所有历史/未来年份
+		if (minYear > 0 && yNum < minYear) || (maxYear < 9999 && yNum > maxYear) {
 			continue
 		}
 		mDir, err := im.listDir(d, joinPath(yinfo.Name()))
@@ -750,7 +802,11 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 			if err != nil {
 				continue
 			}
-			if yNum == maxYear && mNum > maxMonth {
+			// 月份剪枝
+			if minYear > 0 && yNum == minYear && mNum < minMonth {
+				continue
+			}
+			if maxYear < 9999 && yNum == maxYear && mNum > maxMonth {
 				continue
 			}
 			dDir, err := im.listDir(d, joinPath(yinfo.Name(), minfo.Name()))
@@ -765,44 +821,56 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 				if err != nil {
 					continue
 				}
-				if yNum == maxYear && mNum == maxMonth && dNum > maxDay {
+				// 日期剪枝
+				if minYear > 0 && yNum == minYear && mNum == minMonth && dNum < minDay {
+					continue
+				}
+				if maxYear < 9999 && yNum == maxYear && mNum == maxMonth && dNum > maxDay {
 					continue
 				}
 				dirPath := joinPath(yinfo.Name(), minfo.Name(), dinfo.Name())
 				dirDate := time.Date(yNum, time.Month(mNum), dNum, 0, 0, 0, 0, loc)
-				if date.IsZero() || !dirDate.After(date) {
-					dirInfos = append(dirInfos, dirInfo{
-						date: dirDate,
-						dir:  dirPath,
-					})
-				}
+				dirInfos = append(dirInfos, dirInfo{
+					date: dirDate,
+					dir:  dirPath,
+				})
 			}
 		}
 	}
 	return dirInfos
 }
 
+func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.Time) []dirInfo {
+	return im.collectDirInfosRange(d, baseDir, time.Time{}, date)
+}
+
 func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) error {
 	return im.RangeByAlbumAndDate("", date, f)
 }
 
+func (im *ImgManager) RangeByDateRange(minDate, maxDate time.Time, f func(info ImgInfo) bool) error {
+	return im.RangeByAlbumAndDateRange("", minDate, maxDate, f)
+}
+
 func (im *ImgManager) RangeByAlbumAndDate(album string, date time.Time, f func(info ImgInfo) bool) error {
+	return im.RangeByAlbumAndDateRange(album, time.Time{}, date, f)
+}
+
+func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate time.Time, f func(info ImgInfo) bool) error {
 	d, unlock := im.drive()
 	defer unlock()
 
-	t := date
-
 	var allDirInfos []dirInfo
 	if album != "" {
-		allDirInfos = im.collectDirInfos(d, album, t)
+		allDirInfos = im.collectDirInfosRange(d, album, minDate, maxDate)
 		// 如果查询的是默认相册，根目录下未迁移的历史日期目录也应一并包含
 		if album == im.GetDefaultAlbum() {
-			rootInfos := im.collectDirInfos(d, ".", t)
+			rootInfos := im.collectDirInfosRange(d, ".", minDate, maxDate)
 			allDirInfos = append(allDirInfos, rootInfos...)
 		}
 	} else {
 		// 1. 根目录下的历史日期文件夹（向下兼容）
-		rootInfos := im.collectDirInfos(d, ".", t)
+		rootInfos := im.collectDirInfosRange(d, ".", minDate, maxDate)
 		allDirInfos = append(allDirInfos, rootInfos...)
 
 		// 2. 遍历所有相册目录
@@ -812,7 +880,7 @@ func (im *ImgManager) RangeByAlbumAndDate(album string, date time.Time, f func(i
 				if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
 					continue
 				}
-				albumInfos := im.collectDirInfos(d, entry.Name(), t)
+				albumInfos := im.collectDirInfosRange(d, entry.Name(), minDate, maxDate)
 				allDirInfos = append(allDirInfos, albumInfos...)
 			}
 		}
@@ -1069,6 +1137,19 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 			_ = d.Move(dir, newLiveDir)
 			_ = d.Move(filepath.Join(defaultThumbnailDir, dir), filepath.Join(defaultThumbnailDir, newLiveDir))
 		}
+	}
+	if len(newPaths) > 0 && im.manifest != nil {
+		records := make([]ManifestRecord, 0, len(newPaths))
+		for _, np := range newPaths {
+			records = append(records, ManifestRecord{
+				Fingerprint: filepath.Base(np),
+				Album:       cleanTarget,
+				Path:        np,
+				Deleted:     false,
+				UpdatedAt:   time.Now().Unix(),
+			})
+		}
+		_ = im.manifest.AppendChunk(d, records)
 	}
 	return newPaths, nil
 }

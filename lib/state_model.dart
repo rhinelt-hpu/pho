@@ -332,13 +332,25 @@ class StateModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Timer? _saveSyncedDebounceTimer;
+
   void finishUpload(String id, bool success) {
     uploadProgress.remove(id);
     if (success) {
-      syncedIDs.add(id);
-      saveSyncedIDs();
+      if (!syncedIDs.contains(id)) {
+        syncedIDs.add(id);
+      }
+      saveSyncedIDsDebounced();
     }
     notifyListeners();
+  }
+
+  /// 防抖合并写入持久化，避免并发上传数百张照片时频繁全量覆写磁盘造成 I/O 阻塞
+  void saveSyncedIDsDebounced({Duration duration = const Duration(seconds: 1)}) {
+    _saveSyncedDebounceTimer?.cancel();
+    _saveSyncedDebounceTimer = Timer(duration, () {
+      saveSyncedIDs();
+    });
   }
 
   void updateDownloadProgress(String id, int transmitted, int total) {

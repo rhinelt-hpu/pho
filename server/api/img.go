@@ -169,6 +169,7 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 	nameToID := make(map[string]string)
 	targetIDs := make(map[string]bool)
 	invalidIDs := make([]string, 0)
+	var minDate, maxDate time.Time
 
 	for {
 		r, err := stream.Recv()
@@ -183,6 +184,12 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 			if err != nil {
 				invalidIDs = append(invalidIDs, info.Id)
 				continue
+			}
+			if minDate.IsZero() || t.Before(minDate) {
+				minDate = t
+			}
+			if maxDate.IsZero() || t.After(maxDate) {
+				maxDate = t
 			}
 			encoded := encodeName(t, info.Name)
 			nameToID[encoded] = info.Id
@@ -205,17 +212,33 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 	uploadedIDs := make([]string, 0)
 	unmatchedCount := len(targetIDs)
 
-	a.im.RangeByDate(time.Now(), func(info imgmanager.ImgInfo) bool {
-		name := filepath.Base(info.Path)
-		if id, ok := nameToID[name]; ok {
+	// 1. 优先从内存快照清单 (Manifest) 进行 O(1) 瞬时查验，完全避免网络 I/O
+	if a.im.Manifest() != nil && a.im.Manifest().IsInitialized() {
+		for encName, id := range nameToID {
 			if targetIDs[id] {
-				targetIDs[id] = false
-				unmatchedCount--
-				uploadedIDs = append(uploadedIDs, id)
+				if _, found := a.im.Manifest().LookupFingerprint(encName); found {
+					targetIDs[id] = false
+					unmatchedCount--
+					uploadedIDs = append(uploadedIDs, id)
+				}
 			}
 		}
-		return unmatchedCount > 0
-	})
+	}
+
+	// 2. 如果还有未命中的，使用反向时间区间剪枝深搜物理目录作为最终 Ground Truth
+	if unmatchedCount > 0 {
+		a.im.RangeByDateRange(minDate, maxDate, func(info imgmanager.ImgInfo) bool {
+			name := filepath.Base(info.Path)
+			if id, ok := nameToID[name]; ok {
+				if targetIDs[id] {
+					targetIDs[id] = false
+					unmatchedCount--
+					uploadedIDs = append(uploadedIDs, id)
+				}
+			}
+			return unmatchedCount > 0
+		})
+	}
 
 	notUploadedIDs := make([]string, 0, unmatchedCount)
 	for id, unmatched := range targetIDs {

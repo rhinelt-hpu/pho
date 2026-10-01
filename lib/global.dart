@@ -13,6 +13,7 @@ import 'package:img_syncer/l10n/app_localizations.dart';
 import 'dart:async';
 import 'dart:io';
 
+import 'package:img_syncer/cache/thumbnail_cache.dart';
 import 'event_bus.dart';
 
 late String httpBaseUrl;
@@ -46,6 +47,7 @@ class Global {
       storage = RemoteStorage("192.168.100.213", 50051);
     }
     lastAliveTime = DateTime.now();
+    await ThumbnailCache.init();
 
     final prefs = await SharedPreferences.getInstance();
     if (isDesktop()) {

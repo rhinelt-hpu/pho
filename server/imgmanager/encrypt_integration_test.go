@@ -388,13 +388,16 @@ func TestUploadWithoutEncryptNoAesSuffix(t *testing.T) {
 	// 不应出现 .aes 后缀
 	mock.mu.Lock()
 	hasAes := false
+	count := 0
 	for path := range mock.files {
+		if strings.HasPrefix(path, ManifestDir) {
+			continue
+		}
+		count++
 		if strings.HasSuffix(path, ".aes") {
 			hasAes = true
-			break
 		}
 	}
-	count := len(mock.files)
 	mock.mu.Unlock()
 
 	if hasAes {

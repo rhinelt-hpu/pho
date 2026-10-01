@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:img_syncer/util.dart';
 import 'package:img_syncer/storage/storage_interface.dart';
+import 'package:img_syncer/cache/thumbnail_cache.dart';
 
 /// 将 EncryptionType 转为 HTTP 头字符串
 String encryptionTypeName(EncryptionType type) {
@@ -404,6 +405,13 @@ class RemoteImage {
     if (thumbnailData != null) {
       return thumbnailData!;
     }
+    // 1. 优先命中本地磁盘缓存，彻底规避远端 WebDAV 请求与 429 限流
+    final cached = await ThumbnailCache.get(path);
+    if (cached != null) {
+      thumbnailData = cached;
+      return cached;
+    }
+
     int maxRetries = 3;
     int retryCount = 0;
     bool succeeded = false;
@@ -416,6 +424,8 @@ class RemoteImage {
         }
         thumbnailData = currentData.takeBytes();
         succeeded = true;
+        // 异步落盘，下次浏览直接 0 网络耗时
+        ThumbnailCache.put(path, thumbnailData!);
       } catch (e) {
         logger.addLog("get $path thumbnail failed: $e");
         retryCount++;
