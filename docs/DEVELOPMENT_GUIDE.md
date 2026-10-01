@@ -53,6 +53,8 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME
   curl -C - -L --speed-limit 500000 --speed-time 10 -O "<URL>"
   ```
 
+---
+
 
 ---
 
@@ -154,6 +156,34 @@ make protobuf
    ```
 5. 点击 Continue 继续运行，Xcode 将立即唤醒 `handleBgSyncTask`，拉起 Headless Engine 执行同步。
 
+### 4.3 Android 11+ 无线调试实战（ADB Pair & Connect 双端口机制避坑）
+
+Android 11 及以上系统（如澎湃 OS / MIUI / 原生 Android）提供了无需插线的 WLAN 无线调试，但其底层采用了**“配对”与“连接”双端口机制**，开发联调时极其容易踩坑：
+
+1. **第一步：设备配对 (仅需配对一次)**
+   - 手机进入【开发者选项 -> 无线调试 -> 使用配对码配对设备】。
+   - ⚠️ **核心注意点**：该弹窗中显示的 IP 和端口（例如 `192.168.3.51:42183`）是**动态临时配对端口**，只要弹窗关闭该端口立即失效！
+   - 终端使用 `adb pair` 命令进行配对：
+     ```bash
+     adb pair <IP>:<临时配对端口> <6位配对码>
+     # 示例：adb pair 192.168.3.51:42183 247588
+     # 成功输出：Successfully paired to 192.168.3.51:42183
+     ```
+2. **第二步：正式建立调试连接**
+   - 配对成功后，关闭配对弹窗，返回【无线调试】主界面。
+   - 找到主界面上常驻显示的“IP 地址和端口”（例如 `192.168.3.51:42507`，注意此端口与配对端口不同！）。
+   - 终端使用 `adb connect` 连接该常驻端口：
+     ```bash
+     adb connect <IP>:<常驻连接端口>
+     # 示例：adb connect 192.168.3.51:42507
+     # 成功输出：connected to 192.168.3.51:42507
+     ```
+3. **常见排错**：
+   - 若误用常驻连接端口去执行 `adb pair`，会报错：`error: protocol fault (couldn't read status message): Undefined error: 0`。
+   - 若连接提示 `failed to connect`，先使用 `ping <手机IP>` 确认电脑与手机处于同一网段且 AP 隔离已关闭。
+   - 检查已连接设备列表：`adb devices -l` 或 `flutter devices`。
+   - 无线推送安装应用：`adb install -r build/app/outputs/flutter-apk/app-release.apk`。
+
 ---
 
 ## 5. 自动化测试执行
@@ -205,4 +235,30 @@ make test
 ### Q8: 执行 `flutter pub get` 报错 SDK 版本不满足约束
 - **原因**：`pubspec.lock` 硬性锁定了 `flutter: ">=3.44.0"`，若安装的 Flutter 属于更早的旧版本（如 3.41.4）将无法解析。
 - **解决**：升级 Flutter SDK 至 3.44.0 以上（推荐 3.47.x 稳定版）。
+
+### Q9: macOS 构建时报错 impellerc failure 或 Font subsetting failed with exit code -9（Apple 不信任）
+- **现象**：执行 `flutter build apk` 或 `make apk` 时终端报错：
+  ```text
+  impellerc failure:
+  Target aot_android_asset_bundle failed: IconTreeShakerException: Font subsetting failed with exit code -9.
+  ```
+  macOS 可能会弹出系统安全警告提示“无法打开 impellerc，因为 Apple 无法检查其是否包含恶意软件”。
+- **原因**：如果通过 Homebrew Cask（`brew install --cask flutter`）安装 Flutter，macOS 会自动递归打上 `com.apple.quarantine` 扩展隔离属性。打包时调用的编译器工具（`impellerc`、`font-subset`、`gen_snapshot`）未向苹果提交独立公证签名，触发 Gatekeeper 发送 `SIGKILL (-9)` 强制终止。
+- **解决**：递归移除 Flutter SDK 目录下的隔离属性：
+  ```bash
+  sudo xattr -r -d com.apple.quarantine /opt/homebrew/Caskroom/flutter
+  sudo xattr -r -d com.apple.quarantine /opt/homebrew/share/flutter
+  ```
+
+### Q10: 系统安装了高版本 Java（如 Java 21 / 25）导致 Gradle 构建报错
+- **现象**：Gradle 报错 `Unsupported class file major version` 或 JVM 兼容性异常。
+- **原因**：当前工程使用的 Gradle 8.14 对 Java 25 等前沿版本支持不完备，推荐锁定至稳定的 LTS 版本 **JDK 17**。
+- **解决**：使用 Flutter 配置固定 JDK 路径（无需改动全局 `PATH`）：
+  ```bash
+  flutter config --jdk-dir="/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home"
+  ```
+
+### Q11: Android 高版本机型相册长按多选时照片看不到框选或蒙层
+- **原因**：多选渲染逻辑被错误嵌套在 `if (all[i].isLivePhoto())` 条件下。由于 Android 平台照片的 `isLivePhoto()` 恒为 `false`，导致普通照片的多选蒙层和勾选圈完全被跳过。
+- **解决**：已在 `lib/gallery_body.dart` 中彻底移除该嵌套条件，并升级为 3.0px 主题色高亮外框 + 28% 半透明蒙层 + 24px 实心 `check_circle` / 空心圆圈高对比度指示器。
 

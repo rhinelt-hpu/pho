@@ -50,3 +50,9 @@ ios/Frameworks/RUN.xcframework
 android/app/libs/server.aarserver/server
 test/results/
 *.aar
+
+# Screenshots & Local Private Notes (DO NOT COMMIT)
+screenshots/
+LOCAL_NOTES.md
+.local*
+*.local.*
