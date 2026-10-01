@@ -17,6 +17,11 @@ import (
 	"github.com/studio-b12/gowebdav"
 )
 
+const (
+	defaultThumbnailDir = ".thumbnail"
+	defaultManifestDir  = ".manifest"
+)
+
 type Webdav struct {
 	url       string
 	username  string
@@ -107,6 +112,17 @@ func (d *Webdav) SetRootPath(rootPath string) error {
 		return fmt.Errorf("root path %s is not a dir", rootPath)
 	}
 	d.rootPath = rootPath
+
+	// 预置已知根目录及其核心隐藏目录，避免后续盲目发送 MKCOL 产生 405
+	cleanRoot := filepath.ToSlash(filepath.Clean(rootPath))
+	if d.knownDirs != nil {
+		d.mkdirLock.Lock()
+		d.knownDirs[cleanRoot] = true
+		d.knownDirs[filepath.Join(cleanRoot, defaultThumbnailDir)] = true
+		d.knownDirs[filepath.Join(cleanRoot, defaultManifestDir)] = true
+		d.mkdirLock.Unlock()
+	}
+
 	return nil
 }
 
@@ -181,7 +197,11 @@ func (d *Webdav) DownloadWithOffset(path string, offset int64) (io.ReadCloser, i
 }
 
 func (d *Webdav) ensureDir(dir string) error {
-	dir = filepath.ToSlash(dir)
+	dir = filepath.ToSlash(filepath.Clean(dir))
+	if dir == "." || dir == "/" || dir == "" {
+		return nil
+	}
+
 	d.mkdirLock.Lock()
 	defer d.mkdirLock.Unlock()
 
@@ -189,18 +209,37 @@ func (d *Webdav) ensureDir(dir string) error {
 		return nil
 	}
 
-	err := d.cli.MkdirAll(dir, 0755)
-	if err != nil {
-		errStr := err.Error()
-		// WebDAV RFC 4918 Section 9.3.1: MKCOL 访问已存在集合必须返回 405 Method Not Allowed，视为成功并缓存
-		if strings.Contains(errStr, "405") || strings.Contains(errStr, "Method Not Allowed") {
-			if d.knownDirs != nil {
-				d.knownDirs[dir] = true
-			}
-			return nil
+	// 从根路径逐级向下确保目录存在，跳过已知的祖先目录，完全避免对已存在目录盲发 MKCOL
+	parts := strings.Split(strings.Trim(dir, "/"), "/")
+	current := ""
+	for _, part := range parts {
+		if current == "" {
+			current = "/" + part
+		} else {
+			current = current + "/" + part
 		}
-		return err
+
+		if d.knownDirs != nil && d.knownDirs[current] {
+			continue
+		}
+
+		err := d.cli.Mkdir(current, 0755)
+		if err != nil {
+			errStr := err.Error()
+			// WebDAV RFC 4918 Section 9.3.1: MKCOL 访问已存在集合必须返回 405 Method Not Allowed，视为成功并缓存
+			if strings.Contains(errStr, "405") || strings.Contains(errStr, "Method Not Allowed") {
+				if d.knownDirs != nil {
+					d.knownDirs[current] = true
+				}
+				continue
+			}
+			return err
+		}
+		if d.knownDirs != nil {
+			d.knownDirs[current] = true
+		}
 	}
+
 	if d.knownDirs != nil {
 		d.knownDirs[dir] = true
 	}
@@ -237,6 +276,17 @@ func (d *Webdav) Range(dir string, deal func(fs.FileInfo) bool) error {
 	infos, err := d.cli.ReadDir(fullPath)
 	if err != nil {
 		return err
+	}
+	// 将扫描到的所有子目录自动填充进 knownDirs，彻底消除后续对其子文件的 MKCOL
+	if d.knownDirs != nil {
+		d.mkdirLock.Lock()
+		d.knownDirs[fullPath] = true
+		for _, info := range infos {
+			if info.IsDir() {
+				d.knownDirs[filepath.Join(fullPath, info.Name())] = true
+			}
+		}
+		d.mkdirLock.Unlock()
 	}
 	sort.Sort(desc(infos))
 	for _, info := range infos {
