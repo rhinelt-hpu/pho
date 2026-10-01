@@ -195,5 +195,12 @@
   "moveSuccess": "Moved successfully",
   "moveFailed": "Move failed",
   "defaultAlbumSetting": "Default Backup Album",
-  "defaultAlbumSettingDesc": "Target album name for automatic sync and uploads"
+  "defaultAlbumSettingDesc": "Target album name for automatic sync and uploads",
+  "remoteStats": "Remote Request Stats",
+  "remoteStatsDesc": "Real-time monitoring of physical requests sent to remote storage",
+  "totalRequests": "Total Requests",
+  "rateLimitHits": "HTTP 429 Rate Limit Hits",
+  "resetStats": "Reset Counter",
+  "recentLogs": "Recent Request Logs",
+  "refreshStats": "Refresh Stats"
 }

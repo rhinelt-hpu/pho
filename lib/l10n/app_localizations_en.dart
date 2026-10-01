@@ -624,4 +624,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get defaultAlbumSettingDesc =>
       'Target album name for automatic sync and uploads';
+
+  @override
+  String get remoteStats => 'Remote Request Stats';
+
+  @override
+  String get remoteStatsDesc =>
+      'Real-time monitoring of physical requests sent to remote storage';
+
+  @override
+  String get totalRequests => 'Total Requests';
+
+  @override
+  String get rateLimitHits => 'HTTP 429 Rate Limit Hits';
+
+  @override
+  String get resetStats => 'Reset Counter';
+
+  @override
+  String get recentLogs => 'Recent Request Logs';
+
+  @override
+  String get refreshStats => 'Refresh Stats';
 }

@@ -14,6 +14,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:talker_flutter/talker_flutter.dart';
+import 'package:img_syncer/widgets/remote_stats_sheet.dart';
 
 /// 设置页：选择相册、云存储、后台同步、清除缓存、关于。
 class SettingsRoute extends StatefulWidget {
@@ -439,6 +440,33 @@ class _AboutRouteState extends State<AboutRoute> {
                           builder: (context) => TalkerScreen(talker: talker),
                         ),
                       );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.paddingSmall,
+                      vertical: AppSpacing.xs),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.analytics_outlined,
+                      color: colorScheme.secondary,
+                    ),
+                    title: Text(
+                      l10n.remoteStats,
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.remoteStatsDesc,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      RemoteStatsSheet.show(context);
                     },
                   ),
                 ),

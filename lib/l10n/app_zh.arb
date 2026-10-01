@@ -195,5 +195,12 @@
   "moveSuccess": "移动成功",
   "moveFailed": "移动失败",
   "defaultAlbumSetting": "默认备份相册",
-  "defaultAlbumSettingDesc": "设置自动备份和上传默认流入的相册名称"
+  "defaultAlbumSettingDesc": "设置自动备份和上传默认流入的相册名称",
+  "remoteStats": "远端请求统计",
+  "remoteStatsDesc": "实时监控发往 WebDAV 远端存储的物理请求总数与明细",
+  "totalRequests": "总请求次数",
+  "rateLimitHits": "触发 429 限流次数",
+  "resetStats": "重置统计计数",
+  "recentLogs": "最近请求流水",
+  "refreshStats": "刷新统计"
 }

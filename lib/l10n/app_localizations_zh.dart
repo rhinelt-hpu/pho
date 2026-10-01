@@ -601,4 +601,25 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get defaultAlbumSettingDesc => '设置自动备份和上传默认流入的相册名称';
+
+  @override
+  String get remoteStats => '远端请求统计';
+
+  @override
+  String get remoteStatsDesc => '实时监控发往 WebDAV 远端存储的物理请求总数与明细';
+
+  @override
+  String get totalRequests => '总请求次数';
+
+  @override
+  String get rateLimitHits => '触发 429 限流次数';
+
+  @override
+  String get resetStats => '重置统计计数';
+
+  @override
+  String get recentLogs => '最近请求流水';
+
+  @override
+  String get refreshStats => '刷新统计';
 }

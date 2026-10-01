@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fregie/img_syncer/server/drive/webdav"
 	"github.com/fregie/img_syncer/server/imgmanager"
 )
 
@@ -59,6 +61,20 @@ func (a *api) HttpHandler() http.Handler {
 }
 
 func (a *api) httpHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/debug/remote_stats" && r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		stats := webdav.GlobalStats.Snapshot()
+		_ = json.NewEncoder(w).Encode(stats)
+		return
+	}
+	if r.URL.Path == "/debug/remote_stats/reset" && (r.Method == http.MethodPost || r.Method == http.MethodGet) {
+		webdav.GlobalStats.Reset()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		a.httpDownload(w, r)

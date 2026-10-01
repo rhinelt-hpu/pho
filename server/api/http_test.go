@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/fs"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fregie/img_syncer/server/drive/webdav"
 	"github.com/fregie/img_syncer/server/imgmanager"
 )
 
@@ -208,5 +210,48 @@ func TestParseAlbumHeader(t *testing.T) {
 	req.Header.Set(HeaderAlbum, "../etc")
 	if got := parseAlbumHeader(req); got != "" {
 		t.Fatalf("expected empty for traversal, got %q", got)
+	}
+}
+
+func TestRemoteStatsEndpoint(t *testing.T) {
+	a := newTestAPI()
+	webdav.GlobalStats.Reset()
+	webdav.GlobalStats.Record("PROPFIND", "/dav/photo/", 207, 15)
+	webdav.GlobalStats.Record("GET", "/dav/photo/.thumbnail/pic.jpg", 200, 25)
+	webdav.GlobalStats.Record("PROPFIND", "/dav/photo/2026/", 429, 5)
+
+	req := httptest.NewRequest("GET", "/debug/remote_stats", nil)
+	w := httptest.NewRecorder()
+	a.HttpHandler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var stats webdav.RemoteStats
+	if err := json.Unmarshal(w.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if stats.TotalRequests != 3 {
+		t.Fatalf("expected 3 total requests, got %d", stats.TotalRequests)
+	}
+	if stats.RateLimitHits != 1 {
+		t.Fatalf("expected 1 rate limit hit, got %d", stats.RateLimitHits)
+	}
+	if stats.ByMethod["PROPFIND"] != 2 {
+		t.Fatalf("expected 2 PROPFINDs, got %d", stats.ByMethod["PROPFIND"])
+	}
+
+	// Test reset
+	reqReset := httptest.NewRequest("POST", "/debug/remote_stats/reset", nil)
+	wReset := httptest.NewRecorder()
+	a.HttpHandler().ServeHTTP(wReset, reqReset)
+	if wReset.Code != http.StatusOK {
+		t.Fatalf("reset failed: %d", wReset.Code)
+	}
+
+	snap := webdav.GlobalStats.Snapshot()
+	if snap.TotalRequests != 0 {
+		t.Fatalf("expected 0 requests after reset, got %d", snap.TotalRequests)
 	}
 }

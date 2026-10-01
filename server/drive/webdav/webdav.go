@@ -32,15 +32,22 @@ type retryTransport struct {
 func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 	var err error
+	start := time.Now()
 	for i := 0; i < 3; i++ {
 		resp, err = t.base.RoundTrip(req)
 		if err == nil && resp.StatusCode == http.StatusTooManyRequests {
+			GlobalStats.Record(req.Method, req.URL.Path, resp.StatusCode, time.Since(start).Milliseconds())
 			resp.Body.Close()
 			time.Sleep(time.Duration(1<<i) * 1000 * time.Millisecond)
 			continue
 		}
 		break
 	}
+	statusCode := 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
+	GlobalStats.Record(req.Method, req.URL.Path, statusCode, time.Since(start).Milliseconds())
 	return resp, err
 }
 

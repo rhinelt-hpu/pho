@@ -1261,6 +1261,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Target album name for automatic sync and uploads'**
   String get defaultAlbumSettingDesc;
+
+  /// No description provided for @remoteStats.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote Request Stats'**
+  String get remoteStats;
+
+  /// No description provided for @remoteStatsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Real-time monitoring of physical requests sent to remote storage'**
+  String get remoteStatsDesc;
+
+  /// No description provided for @totalRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Requests'**
+  String get totalRequests;
+
+  /// No description provided for @rateLimitHits.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTP 429 Rate Limit Hits'**
+  String get rateLimitHits;
+
+  /// No description provided for @resetStats.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Counter'**
+  String get resetStats;
+
+  /// No description provided for @recentLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Request Logs'**
+  String get recentLogs;
+
+  /// No description provided for @refreshStats.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Stats'**
+  String get refreshStats;
 }
 
 class _AppLocalizationsDelegate
