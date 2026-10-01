@@ -859,6 +859,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Successfully synced {succeeded} photos ({failed} failed)'**
   String bgSyncSuccessNotificationBodyWithFailures(int succeeded, int failed);
+
+  /// No description provided for @parallelUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Parallel Upload'**
+  String get parallelUpload;
+
+  /// No description provided for @parallelUploadDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust concurrent upload threads (1~8)'**
+  String get parallelUploadDesc;
+
+  /// No description provided for @parallelUploadCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Threads'**
+  String parallelUploadCount(int count);
+
+  /// No description provided for @parallelUploadTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Higher concurrency increases upload speed on LAN or high-speed networks; set to 1-2 on unstable networks.'**
+  String get parallelUploadTip;
+
+  /// No description provided for @fileFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'File Filter'**
+  String get fileFilter;
+
+  /// No description provided for @fileFilterDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter files to sync by media type, capture date, or extension'**
+  String get fileFilterDesc;
+
+  /// No description provided for @filterEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get filterEnabled;
+
+  /// No description provided for @filterDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get filterDisabled;
+
+  /// No description provided for @filterSwitchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable File Filter'**
+  String get filterSwitchTitle;
+
+  /// No description provided for @filterSwitchDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Only sync photos and videos matching following rules'**
+  String get filterSwitchDesc;
+
+  /// No description provided for @filterMediaGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Media Type'**
+  String get filterMediaGroup;
+
+  /// No description provided for @filterNoVideoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Videos'**
+  String get filterNoVideoTitle;
+
+  /// No description provided for @filterNoVideoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only sync photos, do not upload videos'**
+  String get filterNoVideoSubtitle;
+
+  /// No description provided for @filterNoImageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Photos'**
+  String get filterNoImageTitle;
+
+  /// No description provided for @filterNoImageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only sync videos, do not upload photos'**
+  String get filterNoImageSubtitle;
+
+  /// No description provided for @filterDateGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Date Range Filter'**
+  String get filterDateGroup;
+
+  /// No description provided for @filterAfterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Date'**
+  String get filterAfterTitle;
+
+  /// No description provided for @filterAfterDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Only sync photos/videos taken after this date'**
+  String get filterAfterDesc;
+
+  /// No description provided for @filterBeforeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'End Date'**
+  String get filterBeforeTitle;
+
+  /// No description provided for @filterBeforeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Only sync photos/videos taken before this date'**
+  String get filterBeforeDesc;
+
+  /// No description provided for @filterNotSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get filterNotSet;
+
+  /// No description provided for @filterFormatGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'File Extension Filter'**
+  String get filterFormatGroup;
+
+  /// No description provided for @filterFormatDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to toggle exclusion; excluded formats will be skipped'**
+  String get filterFormatDesc;
+
+  /// No description provided for @filterReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Filters'**
+  String get filterReset;
+
+  /// No description provided for @filterResetConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset all filter settings to default?'**
+  String get filterResetConfirm;
 }
 
 class _AppLocalizationsDelegate

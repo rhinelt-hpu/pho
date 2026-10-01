@@ -140,8 +140,7 @@ void backgroundSyncEntrypoint() async {
     storage: storageClient,
     assets: assetModel.localAssets,
     uploadedIds: uploadedIds,
-    // TODO(open-source): 并行上传调优 (原会员功能，待开源实现): 可根据用户设置支持多线程并发
-    parallelCount: 1,
+    parallelCount: prefs.getInt('parallel_count')?.clamp(1, 8) ?? 1,
     shouldStop: () => cancelFlag,
     refreshUnSync: true,
   );

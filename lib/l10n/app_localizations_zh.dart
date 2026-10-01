@@ -395,4 +395,82 @@ class AppLocalizationsZh extends AppLocalizations {
   String bgSyncSuccessNotificationBodyWithFailures(int succeeded, int failed) {
     return '成功同步 $succeeded 张照片（$failed 张失败）';
   }
+
+  @override
+  String get parallelUpload => '并发上传';
+
+  @override
+  String get parallelUploadDesc => '调整同时上传的文件数 (1~8 线程)';
+
+  @override
+  String parallelUploadCount(int count) {
+    return '$count 线程';
+  }
+
+  @override
+  String get parallelUploadTip =>
+      '局域网或高速带宽下增加并发数可显著提升同步速度；弱网或频繁超时建议保持为 1~2 线程。';
+
+  @override
+  String get fileFilter => '文件筛选器';
+
+  @override
+  String get fileFilterDesc => '按媒体类型、拍摄时间或格式过滤不需同步的文件';
+
+  @override
+  String get filterEnabled => '已启用';
+
+  @override
+  String get filterDisabled => '未启用';
+
+  @override
+  String get filterSwitchTitle => '启用文件筛选器';
+
+  @override
+  String get filterSwitchDesc => '开启后仅同步满足以下条件的照片和视频';
+
+  @override
+  String get filterMediaGroup => '媒体类型过滤';
+
+  @override
+  String get filterNoVideoTitle => '跳过视频文件';
+
+  @override
+  String get filterNoVideoSubtitle => '仅同步照片，不上传任何视频';
+
+  @override
+  String get filterNoImageTitle => '跳过照片文件';
+
+  @override
+  String get filterNoImageSubtitle => '仅同步视频，不上传任何静态照片';
+
+  @override
+  String get filterDateGroup => '拍摄日期范围过滤';
+
+  @override
+  String get filterAfterTitle => '起始日期';
+
+  @override
+  String get filterAfterDesc => '只同步此日期之后拍摄的照片/视频';
+
+  @override
+  String get filterBeforeTitle => '截止日期';
+
+  @override
+  String get filterBeforeDesc => '只同步此日期之前拍摄的照片/视频';
+
+  @override
+  String get filterNotSet => '未设置';
+
+  @override
+  String get filterFormatGroup => '文件扩展名过滤';
+
+  @override
+  String get filterFormatDesc => '点击切换排除/包含格式，被排除的格式将跳过同步';
+
+  @override
+  String get filterReset => '重置筛选条件';
+
+  @override
+  String get filterResetConfirm => '确认将所有筛选条件恢复为默认设置？';
 }

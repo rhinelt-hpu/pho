@@ -84,14 +84,153 @@ class SettingModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // TODO(open-source): 补齐筛选器与高级配置状态模型 (原会员功能，待开源实现):
-  // 1. bool filterSwitch = false;          // 筛选器总开关
-  // 2. bool filterNoVideo = false;         // 过滤视频（只同步照片）
-  // 3. bool filterNoImage = false;         // 过滤图片（只同步视频）
-  // 4. DateTime? filterAfter;              // 只同步该日期之后的照片
-  // 5. DateTime? filterBefore;             // 只同步该日期之前的照片
-  // 6. Map<String, bool> filterTypeMap = {}; // 扩展名白名单/黑名单
-  // 7. int parallelCount = 1;              // 并发上传线程数 (1~8)
+  // 1. 并发上传配置 (1~8, 默认 1)
+  int _parallelCount = 1;
+  int get parallelCount => _parallelCount;
+  set parallelCount(int count) => setParallelCount(count);
+
+  /// 兼容旧命名与测试用例 (paralleUploadCount)
+  int get paralleUploadCount => _parallelCount;
+  set paralleUploadCount(int count) => setParallelCount(count);
+
+  void setParallelCount(int count) {
+    final clamped = count.clamp(1, 8);
+    if (_parallelCount == clamped) return;
+    _parallelCount = clamped;
+    notifyListeners();
+    _saveParallelCount();
+  }
+
+  Future<void> _saveParallelCount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('parallel_count', _parallelCount);
+    } catch (_) {}
+  }
+
+  // 2. 文件筛选器 (File Filter)
+  bool filterSwitch = false; // 筛选器总开关
+  bool filterNoVideo = false; // 过滤视频（只同步照片）
+  bool filterNoImage = false; // 过滤图片（只同步视频）
+  DateTime? filterAfter; // 只同步该日期之后的照片
+  DateTime? filterBefore; // 只同步该日期之前的照片
+  Map<String, bool> filterTypeMap = {}; // 扩展名白名单/黑名单
+
+  /// 兼容旧命名与测试用例 (enableFilter)
+  bool get enableFilter => filterSwitch;
+  set enableFilter(bool enable) => setFilterSwitch(enable);
+
+  void setFilterSwitch(bool enable) {
+    if (filterSwitch == enable) return;
+    filterSwitch = enable;
+    notifyListeners();
+    _saveFilterSettings();
+  }
+
+  void setFilterNoVideo(bool noVideo) {
+    if (filterNoVideo == noVideo) return;
+    filterNoVideo = noVideo;
+    notifyListeners();
+    _saveFilterSettings();
+  }
+
+  void setFilterNoImage(bool noImage) {
+    if (filterNoImage == noImage) return;
+    filterNoImage = noImage;
+    notifyListeners();
+    _saveFilterSettings();
+  }
+
+  void setFilterAfter(DateTime? after) {
+    if (filterAfter == after) return;
+    filterAfter = after;
+    notifyListeners();
+    _saveFilterSettings();
+  }
+
+  void setFilterBefore(DateTime? before) {
+    if (filterBefore == before) return;
+    filterBefore = before;
+    notifyListeners();
+    _saveFilterSettings();
+  }
+
+  void setFilterType(String type, bool enable) {
+    final key = type.startsWith('.') ? type.toLowerCase() : '.$type'.toLowerCase();
+    if (filterTypeMap[key] == enable) return;
+    filterTypeMap[key] = enable;
+    notifyListeners();
+    _saveFilterSettings();
+  }
+
+  void resetFilters() {
+    filterSwitch = false;
+    filterNoVideo = false;
+    filterNoImage = false;
+    filterAfter = null;
+    filterBefore = null;
+    filterTypeMap.clear();
+    notifyListeners();
+    _saveFilterSettings();
+  }
+
+  Future<void> _saveFilterSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('filter_switch', filterSwitch);
+      await prefs.setBool('filter_no_video', filterNoVideo);
+      await prefs.setBool('filter_no_image', filterNoImage);
+      if (filterAfter != null) {
+        await prefs.setInt('filter_after', filterAfter!.millisecondsSinceEpoch);
+      } else {
+        await prefs.remove('filter_after');
+      }
+      if (filterBefore != null) {
+        await prefs.setInt('filter_before', filterBefore!.millisecondsSinceEpoch);
+      } else {
+        await prefs.remove('filter_before');
+      }
+      await prefs.setString('filter_type_map', jsonEncode(filterTypeMap));
+    } catch (_) {}
+  }
+
+  Future<void> saveSettings() async {
+    await _saveParallelCount();
+    await _saveFilterSettings();
+  }
+
+  Future<void> loadSettings([SharedPreferences? sharedPrefs]) async {
+    try {
+      final prefs = sharedPrefs ?? await SharedPreferences.getInstance();
+      final pCount = prefs.getInt('parallel_count');
+      if (pCount != null) {
+        _parallelCount = pCount.clamp(1, 8);
+      }
+      filterSwitch = prefs.getBool('filter_switch') ?? false;
+      filterNoVideo = prefs.getBool('filter_no_video') ?? false;
+      filterNoImage = prefs.getBool('filter_no_image') ?? false;
+      final afterMs = prefs.getInt('filter_after');
+      if (afterMs != null) {
+        filterAfter = DateTime.fromMillisecondsSinceEpoch(afterMs);
+      }
+      final beforeMs = prefs.getInt('filter_before');
+      if (beforeMs != null) {
+        filterBefore = DateTime.fromMillisecondsSinceEpoch(beforeMs);
+      }
+      final typeMapJson = prefs.getString('filter_type_map');
+      if (typeMapJson != null) {
+        try {
+          final decoded = jsonDecode(typeMapJson);
+          if (decoded is Map) {
+            filterTypeMap = decoded.map((k, v) => MapEntry(k.toString(), v == true));
+          }
+        } catch (e) {
+          logger.addLog('Failed to decode filter_type_map: $e');
+        }
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
 }
 
 class transmitState {

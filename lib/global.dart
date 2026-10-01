@@ -74,6 +74,7 @@ class Global {
         if (encPassword != null) {
           settingModel.setEncryptionPassword(encPassword);
         }
+        await settingModel.loadSettings(prefs);
         await initDrive();
         return;
       }
@@ -139,6 +140,7 @@ class Global {
         stateModel.updateLastRefreshUnsyncTime(
             DateTime.fromMillisecondsSinceEpoch(lastRefreshUnsyncTime));
       }
+      await settingModel.loadSettings(prefs);
       await assetModel.loadTitleCache();
       await loadUnsynchronizedPhotos();
       await initDrive();

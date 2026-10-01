@@ -408,4 +408,86 @@ class AppLocalizationsEn extends AppLocalizations {
   String bgSyncSuccessNotificationBodyWithFailures(int succeeded, int failed) {
     return 'Successfully synced $succeeded photos ($failed failed)';
   }
+
+  @override
+  String get parallelUpload => 'Parallel Upload';
+
+  @override
+  String get parallelUploadDesc => 'Adjust concurrent upload threads (1~8)';
+
+  @override
+  String parallelUploadCount(int count) {
+    return '$count Threads';
+  }
+
+  @override
+  String get parallelUploadTip =>
+      'Higher concurrency increases upload speed on LAN or high-speed networks; set to 1-2 on unstable networks.';
+
+  @override
+  String get fileFilter => 'File Filter';
+
+  @override
+  String get fileFilterDesc =>
+      'Filter files to sync by media type, capture date, or extension';
+
+  @override
+  String get filterEnabled => 'Enabled';
+
+  @override
+  String get filterDisabled => 'Disabled';
+
+  @override
+  String get filterSwitchTitle => 'Enable File Filter';
+
+  @override
+  String get filterSwitchDesc =>
+      'Only sync photos and videos matching following rules';
+
+  @override
+  String get filterMediaGroup => 'Media Type';
+
+  @override
+  String get filterNoVideoTitle => 'Skip Videos';
+
+  @override
+  String get filterNoVideoSubtitle => 'Only sync photos, do not upload videos';
+
+  @override
+  String get filterNoImageTitle => 'Skip Photos';
+
+  @override
+  String get filterNoImageSubtitle => 'Only sync videos, do not upload photos';
+
+  @override
+  String get filterDateGroup => 'Date Range Filter';
+
+  @override
+  String get filterAfterTitle => 'Start Date';
+
+  @override
+  String get filterAfterDesc => 'Only sync photos/videos taken after this date';
+
+  @override
+  String get filterBeforeTitle => 'End Date';
+
+  @override
+  String get filterBeforeDesc =>
+      'Only sync photos/videos taken before this date';
+
+  @override
+  String get filterNotSet => 'Not set';
+
+  @override
+  String get filterFormatGroup => 'File Extension Filter';
+
+  @override
+  String get filterFormatDesc =>
+      'Tap to toggle exclusion; excluded formats will be skipped';
+
+  @override
+  String get filterReset => 'Reset Filters';
+
+  @override
+  String get filterResetConfirm => 'Reset all filter settings to default?';
 }

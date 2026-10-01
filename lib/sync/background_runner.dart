@@ -54,6 +54,31 @@ bool shouldSyncAsset(
   if (uploadedIds[id] == true) {
     return false;
   }
+  if (settingModel.filterSwitch) {
+    if (settingModel.filterNoVideo && asset.isVideo()) {
+      return false;
+    }
+    if (settingModel.filterNoImage && !asset.isVideo()) {
+      return false;
+    }
+    if (settingModel.filterAfter != null &&
+        asset.dateCreated().isBefore(settingModel.filterAfter!)) {
+      return false;
+    }
+    if (settingModel.filterBefore != null &&
+        asset.dateCreated().isAfter(settingModel.filterBefore!)) {
+      return false;
+    }
+    if (extensionStr.isNotEmpty) {
+      final ext = extensionStr.toLowerCase();
+      final extWithDot = ext.startsWith('.') ? ext : '.$ext';
+      final extWithoutDot = ext.startsWith('.') ? ext.substring(1) : ext;
+      if (settingModel.filterTypeMap[extWithDot] == false ||
+          settingModel.filterTypeMap[extWithoutDot] == false) {
+        return false;
+      }
+    }
+  }
   return true;
 }
 

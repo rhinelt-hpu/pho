@@ -6,18 +6,102 @@ import 'package:img_syncer/background_sync_route.dart';
 import 'package:img_syncer/choose_album_route.dart';
 import 'package:img_syncer/design_tokens.dart';
 import 'package:img_syncer/setting_storage_route.dart';
+import 'package:img_syncer/filter_setting_route.dart';
 import 'package:img_syncer/global.dart';
+import 'package:img_syncer/state_model.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 /// 设置页：选择相册、云存储、后台同步、清除缓存、关于。
 class SettingsRoute extends StatefulWidget {
-  const SettingsRoute({Key? key}) : super(key: key);
+  const SettingsRoute({super.key});
 
   @override
   SettingsRouteState createState() => SettingsRouteState();
 }
 
 class SettingsRouteState extends State<SettingsRoute> {
+  @override
+  void initState() {
+    super.initState();
+    settingModel.addListener(_onSettingChanged);
+  }
+
+  @override
+  void dispose() {
+    settingModel.removeListener(_onSettingChanged);
+    super.dispose();
+  }
+
+  void _onSettingChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _showParallelUploadDialog() {
+    int current = settingModel.parallelCount;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(l10n.parallelUpload),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.parallelUploadTip,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(l10n.parallelUploadDesc),
+                      Text(
+                        l10n.parallelUploadCount(current),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: current.toDouble(),
+                    min: 1,
+                    max: 8,
+                    divisions: 7,
+                    label: '$current',
+                    onChanged: (val) {
+                      setDialogState(() {
+                        current = val.round();
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    settingModel.setParallelCount(current);
+                    Navigator.pop(context);
+                  },
+                  child: Text(l10n.yes),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,6 +144,23 @@ class SettingsRouteState extends State<SettingsRoute> {
                 ),
               ),
             ),
+          tile(
+            Icons.speed,
+            l10n.parallelUpload,
+            l10n.parallelUploadCount(settingModel.parallelCount),
+            onTap: _showParallelUploadDialog,
+          ),
+          tile(
+            Icons.filter_alt_outlined,
+            l10n.fileFilter,
+            settingModel.filterSwitch ? l10n.filterEnabled : l10n.filterDisabled,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const FilterSettingRoute(),
+              ),
+            ),
+          ),
           // TODO(open-source): 补齐高级功能与偏好设置页面入口 (原会员功能，待开源实现):
           // 1. 目录结构配置 (Directory Structure):
           //    - 选项: 按日期多层级 (YYYY/MM/DD) vs 按日期单层级 (YYYYMMDD)
@@ -69,10 +170,6 @@ class SettingsRouteState extends State<SettingsRoute> {
           //    - 调用: settingModel.setEncryptSwitch() / setEncryptionType() / setEncryptionPassword()
           // 3. 主题配色自定义 (Theme Color Picker):
           //    - 选项: 选择 theme.dart 中的 seedThemeColors 预置配色，写入 prefs.setInt('seed_color')
-          // 4. 并行上传调优 (Parallel Upload Count):
-          //    - 选项: 1~8 线程并发上传滑动条，保存到 prefs.setInt('parallel_count')
-          // 5. 同步筛选器 (Sync Filters):
-          //    - 选项: 跳过视频/跳过图片、按拍摄起止日期过滤、文件扩展名黑白名单
           const Divider(),
           tile(
             Icons.cleaning_services,
@@ -177,13 +274,35 @@ class SettingsRouteState extends State<SettingsRoute> {
 }
 
 /// 关于页：显示应用名与版本（来自 pubspec）。
-class AboutRoute extends StatelessWidget {
-  const AboutRoute({Key? key}) : super(key: key);
+class AboutRoute extends StatefulWidget {
+  const AboutRoute({super.key});
+
+  @override
+  State<AboutRoute> createState() => _AboutRouteState();
+}
+
+class _AboutRouteState extends State<AboutRoute> {
+  String _version = '2026.1001.9';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _version = info.version;
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 版本号在构建时由 pubspec 注入，运行时读取。
-    const version = '1.0.0';
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.about),
@@ -198,7 +317,7 @@ class AboutRoute extends StatelessWidget {
               title: Text(l10n.appVersion,
                   style: Theme.of(context).textTheme.titleLarge),
               subtitle: Text(
-                'Pho - $version',
+                'Pho - $_version',
                 style: TextStyle(color: Theme.of(context).colorScheme.primary),
               ),
             ),

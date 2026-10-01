@@ -1,4 +1,4 @@
-BUILD_VERSION   := $(shell git describe --tags)
+BUILD_VERSION   := $(shell git describe --tags 2>/dev/null || date "+%Y.%m%d.%H")
 GIT_COMMIT_SHA1 := $(shell git rev-parse HEAD)
 BUILD_TIME      := $(shell date "+%F %T")
 BUILD_NAME      := img_syncer_server
@@ -54,6 +54,13 @@ apk:
 
 ipa:
 	flutter build ipa --no-tree-shake-icons --obfuscate --split-debug-info=./debug-info
+
+# 更新版本号为当前时间戳（精确到小时，符合 CalVer 与 iOS/Android 规范）
+update-version:
+	@TS_VER=$$(date "+%Y.%m%d.%-H"); \
+	TS_CODE=$$(date "+%Y%m%d%H"); \
+	sed -i '' "s/^version: .*/version: $${TS_VER}+$${TS_CODE}/" pubspec.yaml; \
+	echo "Updated pubspec.yaml version to $${TS_VER}+$${TS_CODE}"
 
 .PHONY: test
 test:
