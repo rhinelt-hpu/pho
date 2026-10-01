@@ -60,8 +60,9 @@ class RemoteStorage implements RemoteStorageClient {
     cli = ImgSyncerClient(channel);
   }
 
-  Future<void> uploadXFile(XFile file) async {
+  Future<void> uploadXFile(XFile file, {String album = ""}) async {
     await checkServer();
+    final targetAlbum = album.isNotEmpty ? album : settingModel.defaultAlbumName;
     final name = basename(file.path);
     final date = await file.lastModified();
     final dateStr =
@@ -82,6 +83,9 @@ class RemoteStorage implements RemoteStorageClient {
     final totalLen = imgLen;
     var req = http.StreamedRequest("POST", Uri.parse("$httpBaseUrl/$name"));
     req.headers['Image-Date'] = dateStr;
+    if (targetAlbum.isNotEmpty) {
+      req.headers['Image-Album'] = targetAlbum;
+    }
     req.contentLength = imgLen;
     file.openRead().listen((chunk) {
       uploaded += chunk.length;
@@ -96,20 +100,25 @@ class RemoteStorage implements RemoteStorageClient {
     if (response.statusCode != 200) {
       throw Exception("upload failed: ${response.statusCode}");
     }
+    final thumbHeaders = {
+      'Image-Date': dateStr,
+    };
+    if (targetAlbum.isNotEmpty) {
+      thumbHeaders['Image-Album'] = targetAlbum;
+    }
     final thumbRsp = await http.post(
       Uri.parse("$httpBaseUrl/thumbnail/$name"),
       body: thumbnailData,
-      headers: {
-        'Image-Date': dateStr,
-      },
+      headers: thumbHeaders,
     );
     if (thumbRsp.statusCode != 200) {
       throw Exception("upload thumbnail failed: ${thumbRsp.statusCode}");
     }
   }
 
-  Future<void> uploadAssetEntity(AssetEntity asset) async {
+  Future<void> uploadAssetEntity(AssetEntity asset, {String album = ""}) async {
     await checkServer();
+    final targetAlbum = album.isNotEmpty ? album : settingModel.defaultAlbumName;
     final file = await asset.originFile;
     if (file == null) {
       throw Exception("asset file is null");
@@ -150,19 +159,23 @@ class RemoteStorage implements RemoteStorageClient {
       int uploaded = 0;
       try {
         // upload thumbnail
+        final thumbHeaders = {
+          'Image-Date': dateStr,
+          'Image-Is-Live-Photo': asset.isLivePhoto ? "true" : "false",
+          'Image-Encrypt-Type': settingModel.enableEncrypt
+              ? encryptionTypeName(settingModel.encryptionType)
+              : "None",
+          'Image-Encrypt-Password': settingModel.enableEncrypt
+              ? settingModel.encryptionPassword
+              : "",
+        };
+        if (targetAlbum.isNotEmpty) {
+          thumbHeaders['Image-Album'] = targetAlbum;
+        }
         final thumbRsp = await http.post(
           Uri.parse("$httpBaseUrl/thumbnail/$name"),
           body: thumbnailData,
-          headers: {
-            'Image-Date': dateStr,
-            'Image-Is-Live-Photo': asset.isLivePhoto ? "true" : "false",
-            'Image-Encrypt-Type': settingModel.enableEncrypt
-                ? encryptionTypeName(settingModel.encryptionType)
-                : "None",
-            'Image-Encrypt-Password': settingModel.enableEncrypt
-                ? settingModel.encryptionPassword
-                : "",
-          },
+          headers: thumbHeaders,
         );
         stateModel.updateUploadProgress(
             asset.id, uploaded + thumbLen, totalLen);
@@ -178,6 +191,9 @@ class RemoteStorage implements RemoteStorageClient {
         req.headers['Image-Date'] = dateStr;
         req.headers['Image-Is-Live-Photo'] =
             asset.isLivePhoto ? "true" : "false";
+        if (targetAlbum.isNotEmpty) {
+          req.headers['Image-Album'] = targetAlbum;
+        }
         if (settingModel.enableEncrypt) {
           req.headers['Image-Encrypt-Type'] =
               encryptionTypeName(settingModel.encryptionType);
@@ -209,6 +225,9 @@ class RemoteStorage implements RemoteStorageClient {
           req.headers['Image-Date'] = dateStr;
           req.headers['Image-Is-Live-Photo'] =
               asset.isLivePhoto ? "true" : "false";
+          if (targetAlbum.isNotEmpty) {
+            req.headers['Image-Album'] = targetAlbum;
+          }
           if (settingModel.enableEncrypt) {
             req.headers['Image-Encrypt-Type'] =
                 encryptionTypeName(settingModel.encryptionType);
@@ -270,13 +289,14 @@ class RemoteStorage implements RemoteStorageClient {
   // }
 
   Future<List<RemoteImage>> listImages(
-      String date, int offset, maxReturn) async {
+      String date, int offset, maxReturn, {String album = ""}) async {
     final rsp = await cli
         .listByDate(
           ListByDateRequest(
             date: date,
             offset: offset,
             maxReturn: maxReturn,
+            album: album,
           ),
         )
         .timeout(const Duration(seconds: 60));
@@ -289,6 +309,43 @@ class RemoteStorage implements RemoteStorageClient {
             isLivePhoto: e.isLivePhoto,
             httpClient: httpClient))
         .toList();
+  }
+
+  Future<List<AlbumInfo>> listAlbums() async {
+    final rsp = await cli.listAlbums(ListAlbumsRequest()).timeout(const Duration(seconds: 15));
+    if (!rsp.success) {
+      throw Exception("list albums failed: ${rsp.message}");
+    }
+    return rsp.albums;
+  }
+
+  Future<void> createAlbum(String name) async {
+    final rsp = await cli.createAlbum(CreateAlbumRequest(name: name)).timeout(const Duration(seconds: 15));
+    if (!rsp.success) {
+      throw Exception("create album failed: ${rsp.message}");
+    }
+  }
+
+  Future<void> deleteAlbum(String name) async {
+    final rsp = await cli.deleteAlbum(DeleteAlbumRequest(name: name)).timeout(const Duration(seconds: 30));
+    if (!rsp.success) {
+      throw Exception("delete album failed: ${rsp.message}");
+    }
+  }
+
+  Future<void> renameAlbum(String oldName, String newName) async {
+    final rsp = await cli.renameAlbum(RenameAlbumRequest(oldName: oldName, newName: newName)).timeout(const Duration(seconds: 15));
+    if (!rsp.success) {
+      throw Exception("rename album failed: ${rsp.message}");
+    }
+  }
+
+  Future<List<String>> moveAssets(List<String> paths, String targetAlbum) async {
+    final rsp = await cli.moveAssets(MoveAssetsRequest(paths: paths, targetAlbum: targetAlbum)).timeout(const Duration(seconds: 60));
+    if (!rsp.success) {
+      throw Exception("move assets failed: ${rsp.message}");
+    }
+    return rsp.newPaths;
   }
 }
 

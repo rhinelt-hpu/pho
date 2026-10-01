@@ -1,6 +1,8 @@
 package imgmanager
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,5 +172,106 @@ func TestImgManagerCloseStopsWorkers(t *testing.T) {
 	err := im.Close()
 	if err != nil {
 		t.Fatalf("Close returned error: %v", err)
+	}
+}
+
+// TestAlbumLifecycle 验证云端相册生命周期（默认相册、创建、重命名、删除保护、移动归类、相册隔离查询）
+func TestAlbumLifecycle(t *testing.T) {
+	md := newMockDrive()
+	im := NewImgManager(Option{WorkerNum: 1})
+	im.SetDrive(md)
+	defer im.Close()
+
+	// 1. 验证默认相册始终存在
+	albums, err := im.ListAlbums()
+	if err != nil {
+		t.Fatalf("ListAlbums error: %v", err)
+	}
+	if len(albums) == 0 || albums[0].Name != DefaultAlbumName || !albums[0].IsDefault {
+		t.Fatalf("expected default album %s, got: %+v", DefaultAlbumName, albums)
+	}
+
+	// 2. 创建自定义相册
+	albumName := "日本旅行 2026"
+	err = im.CreateAlbum(albumName)
+	if err != nil {
+		t.Fatalf("CreateAlbum error: %v", err)
+	}
+
+	// 3. 上传两张照片：一张在默认相册，一张在自定义相册
+	date := time.Date(2026, 4, 15, 10, 0, 0, 0, time.Local)
+	content := []byte("fake image data")
+	err = im.Upload(bytes.NewReader(content), int64(len(content)), "photo1.jpg", date, WithAlbum(DefaultAlbumName))
+	if err != nil {
+		t.Fatalf("Upload photo1 failed: %v", err)
+	}
+	err = im.Upload(bytes.NewReader(content), int64(len(content)), "photo2.jpg", date, WithAlbum(albumName))
+	if err != nil {
+		t.Fatalf("Upload photo2 failed: %v", err)
+	}
+
+	// 4. 单相册查询：日本旅行 2026 应该只有 photo2
+	var albumPaths []string
+	err = im.RangeByAlbumAndDate(albumName, date, func(info ImgInfo) bool {
+		albumPaths = append(albumPaths, info.Path)
+		return true
+	})
+	if err != nil {
+		t.Fatalf("RangeByAlbumAndDate error: %v", err)
+	}
+	if len(albumPaths) != 1 || !strings.Contains(albumPaths[0], "photo2.jpg") {
+		t.Fatalf("expected only photo2 in album, got: %v", albumPaths)
+	}
+
+	// 5. 全局聚合查询：album == "" 时应能扫描到全部照片 (photo1 + photo2)
+	var allPaths []string
+	err = im.RangeByAlbumAndDate("", date, func(info ImgInfo) bool {
+		allPaths = append(allPaths, info.Path)
+		return true
+	})
+	if err != nil {
+		t.Fatalf("RangeByAlbumAndDate global error: %v", err)
+	}
+	if len(allPaths) != 2 {
+		t.Fatalf("expected 2 photos in global timeline, got %d: %v", len(allPaths), allPaths)
+	}
+
+	// 6. 移动归类：把 photo1 从默认相册移动到自定义相册
+	path1 := im.genPath("photo1.jpg", date, Options{Album: DefaultAlbumName})
+	newPaths, err := im.MoveAssets([]string{path1}, albumName)
+	if err != nil {
+		t.Fatalf("MoveAssets error: %v", err)
+	}
+	if len(newPaths) != 1 || !strings.HasPrefix(newPaths[0], albumName) {
+		t.Fatalf("expected photo1 moved under %s, got: %v", albumName, newPaths)
+	}
+
+	// 7. 再次查询自定义相册：现在应该包含 2 张照片
+	var newAlbumPaths []string
+	_ = im.RangeByAlbumAndDate(albumName, date, func(info ImgInfo) bool {
+		newAlbumPaths = append(newAlbumPaths, info.Path)
+		return true
+	})
+	if len(newAlbumPaths) != 2 {
+		t.Fatalf("expected 2 photos after move, got: %v", newAlbumPaths)
+	}
+
+	// 8. 重命名相册
+	renamedAlbum := "2026 东京之旅"
+	err = im.RenameAlbum(albumName, renamedAlbum)
+	if err != nil {
+		t.Fatalf("RenameAlbum error: %v", err)
+	}
+
+	// 9. 删除相册保护：禁止删除默认相册
+	err = im.DeleteAlbum(DefaultAlbumName)
+	if err == nil {
+		t.Fatalf("expected error deleting default album, got nil")
+	}
+
+	// 10. 删除自定义相册成功
+	err = im.DeleteAlbum(renamedAlbum)
+	if err != nil {
+		t.Fatalf("DeleteAlbum error: %v", err)
 	}
 }

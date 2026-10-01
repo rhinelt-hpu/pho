@@ -193,6 +193,30 @@ func (d *Webdav) Range(dir string, deal func(fs.FileInfo) bool) error {
 	return nil
 }
 
+func (d *Webdav) Move(oldPath, newPath string) error {
+	if d.rootPath == "" {
+		return fmt.Errorf("root path is empty")
+	}
+	fullOld := filepath.ToSlash(filepath.Join(d.rootPath, oldPath))
+	fullNew := filepath.ToSlash(filepath.Join(d.rootPath, newPath))
+	parent := filepath.Dir(fullNew)
+	d.mkdirLock.Lock()
+	_ = d.cli.MkdirAll(parent, 0755)
+	d.mkdirLock.Unlock()
+	return d.cli.Rename(fullOld, fullNew, true)
+}
+
+func (d *Webdav) Mkdir(dir string) error {
+	if d.rootPath == "" {
+		return fmt.Errorf("root path is empty")
+	}
+	fullDir := filepath.ToSlash(filepath.Join(d.rootPath, dir))
+	d.mkdirLock.Lock()
+	err := d.cli.MkdirAll(fullDir, 0755)
+	d.mkdirLock.Unlock()
+	return err
+}
+
 type desc []fs.FileInfo
 
 func (d desc) Len() int      { return len(d) }

@@ -178,5 +178,22 @@
   "openDebugConsole": "打开调试控制台",
   "openDebugConsoleDesc": "查看实时日志、分类过滤、异常栈与系统分享导出",
   "clearDebugLogs": "清空调试日志",
-  "debugLogsCleared": "调试日志已清空"
+  "debugLogsCleared": "调试日志已清空",
+  "cloudAlbums": "云端相册",
+  "allPhotos": "全部照片",
+  "defaultAlbum": "默认相册",
+  "newAlbum": "新建相册",
+  "albumName": "相册名称",
+  "albumNameHint": "请输入相册名称",
+  "renameAlbum": "重命名相册",
+  "deleteAlbum": "删除相册",
+  "deleteAlbumConfirmTitle": "确认粉碎删除相册？",
+  "deleteAlbumConfirmDesc": "警告：此操作将永久粉碎删除相册及其内部包含的所有照片（共 {count} 张），云端数据将彻底抹除且不可撤销！",
+  "deleteAlbumInputHint": "请输入相册名称以确认删除",
+  "cannotDeleteDefaultAlbum": "默认相册禁止删除",
+  "moveToAlbum": "移动到相册",
+  "moveSuccess": "移动成功",
+  "moveFailed": "移动失败",
+  "defaultAlbumSetting": "默认备份相册",
+  "defaultAlbumSettingDesc": "设置自动备份和上传默认流入的相册名称"
 }

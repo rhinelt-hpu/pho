@@ -19,6 +19,7 @@ const (
 	HeaderEncryptType     = "Image-Encrypt-Type"
 	HeaderEncryptPassword = "Image-Encrypt-Password"
 	HeaderIsLivePhoto     = "Image-Is-Live-Photo"
+	HeaderAlbum           = "Image-Album"
 	maxUploadSize         = 500 << 20 // 500MB
 )
 
@@ -84,11 +85,12 @@ func (a *api) httpUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid path", http.StatusBadRequest)
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-		err = a.im.Upload(r.Body, length, encodeName(dateTime, name), dateTime, imgmanager.WithEncrypt(imgmanager.EncryptOption{
+	album := r.Header.Get(HeaderAlbum)
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	err = a.im.Upload(r.Body, length, encodeName(dateTime, name), dateTime, imgmanager.WithEncrypt(imgmanager.EncryptOption{
 		Type:     enctype,
 		Password: encPassword,
-	}), imgmanager.IsLivePhoto(isLivePhoto))
+	}), imgmanager.IsLivePhoto(isLivePhoto), imgmanager.WithAlbum(album))
 
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
@@ -133,11 +135,12 @@ func (a *api) httpUploadThumbnail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		dateTime = time.Now()
 	}
+	album := r.Header.Get(HeaderAlbum)
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	err = a.im.UploadThumbnail(r.Body, length, encodeName(dateTime, name), dateTime, imgmanager.WithEncrypt(imgmanager.EncryptOption{
 		Type:     enctype,
 		Password: encPassword,
-	}), imgmanager.IsLivePhoto(isLivePhoto))
+	}), imgmanager.IsLivePhoto(isLivePhoto), imgmanager.WithAlbum(album))
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -176,11 +179,12 @@ func (a *api) httpUploadLiveVideo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		dateTime = time.Now()
 	}
+	album := r.Header.Get(HeaderAlbum)
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	err = a.im.UploadLiveVideo(r.Body, length, encodeName(dateTime, name), dateTime, imgmanager.WithEncrypt(imgmanager.EncryptOption{
 		Type:     enctype,
 		Password: encPassword,
-	}), imgmanager.IsLivePhoto(true))
+	}), imgmanager.IsLivePhoto(true), imgmanager.WithAlbum(album))
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {

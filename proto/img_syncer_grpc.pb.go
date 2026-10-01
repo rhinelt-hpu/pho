@@ -22,6 +22,12 @@ type ImgSyncerClient interface {
 	ListByDate(ctx context.Context, in *ListByDateRequest, opts ...grpc.CallOption) (*ListByDateResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	FilterNotUploaded(ctx context.Context, opts ...grpc.CallOption) (ImgSyncer_FilterNotUploadedClient, error)
+	// Album Management
+	ListAlbums(ctx context.Context, in *ListAlbumsRequest, opts ...grpc.CallOption) (*ListAlbumsResponse, error)
+	CreateAlbum(ctx context.Context, in *CreateAlbumRequest, opts ...grpc.CallOption) (*CreateAlbumResponse, error)
+	DeleteAlbum(ctx context.Context, in *DeleteAlbumRequest, opts ...grpc.CallOption) (*DeleteAlbumResponse, error)
+	RenameAlbum(ctx context.Context, in *RenameAlbumRequest, opts ...grpc.CallOption) (*RenameAlbumResponse, error)
+	MoveAssets(ctx context.Context, in *MoveAssetsRequest, opts ...grpc.CallOption) (*MoveAssetsResponse, error)
 	// SAMBA Drive
 	SetDriveSMB(ctx context.Context, in *SetDriveSMBRequest, opts ...grpc.CallOption) (*SetDriveSMBResponse, error)
 	ListDriveSMBShares(ctx context.Context, in *ListDriveSMBSharesRequest, opts ...grpc.CallOption) (*ListDriveSMBSharesResponse, error)
@@ -104,6 +110,51 @@ func (x *imgSyncerFilterNotUploadedClient) Recv() (*FilterNotUploadedResponse, e
 		return nil, err
 	}
 	return m, nil
+}
+
+func (c *imgSyncerClient) ListAlbums(ctx context.Context, in *ListAlbumsRequest, opts ...grpc.CallOption) (*ListAlbumsResponse, error) {
+	out := new(ListAlbumsResponse)
+	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/ListAlbums", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *imgSyncerClient) CreateAlbum(ctx context.Context, in *CreateAlbumRequest, opts ...grpc.CallOption) (*CreateAlbumResponse, error) {
+	out := new(CreateAlbumResponse)
+	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/CreateAlbum", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *imgSyncerClient) DeleteAlbum(ctx context.Context, in *DeleteAlbumRequest, opts ...grpc.CallOption) (*DeleteAlbumResponse, error) {
+	out := new(DeleteAlbumResponse)
+	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/DeleteAlbum", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *imgSyncerClient) RenameAlbum(ctx context.Context, in *RenameAlbumRequest, opts ...grpc.CallOption) (*RenameAlbumResponse, error) {
+	out := new(RenameAlbumResponse)
+	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/RenameAlbum", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *imgSyncerClient) MoveAssets(ctx context.Context, in *MoveAssetsRequest, opts ...grpc.CallOption) (*MoveAssetsResponse, error) {
+	out := new(MoveAssetsResponse)
+	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/MoveAssets", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *imgSyncerClient) SetDriveSMB(ctx context.Context, in *SetDriveSMBRequest, opts ...grpc.CallOption) (*SetDriveSMBResponse, error) {
@@ -195,6 +246,12 @@ type ImgSyncerServer interface {
 	ListByDate(context.Context, *ListByDateRequest) (*ListByDateResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	FilterNotUploaded(ImgSyncer_FilterNotUploadedServer) error
+	// Album Management
+	ListAlbums(context.Context, *ListAlbumsRequest) (*ListAlbumsResponse, error)
+	CreateAlbum(context.Context, *CreateAlbumRequest) (*CreateAlbumResponse, error)
+	DeleteAlbum(context.Context, *DeleteAlbumRequest) (*DeleteAlbumResponse, error)
+	RenameAlbum(context.Context, *RenameAlbumRequest) (*RenameAlbumResponse, error)
+	MoveAssets(context.Context, *MoveAssetsRequest) (*MoveAssetsResponse, error)
 	// SAMBA Drive
 	SetDriveSMB(context.Context, *SetDriveSMBRequest) (*SetDriveSMBResponse, error)
 	ListDriveSMBShares(context.Context, *ListDriveSMBSharesRequest) (*ListDriveSMBSharesResponse, error)
@@ -229,6 +286,21 @@ func (UnimplementedImgSyncerServer) Delete(context.Context, *DeleteRequest) (*De
 }
 func (UnimplementedImgSyncerServer) FilterNotUploaded(ImgSyncer_FilterNotUploadedServer) error {
 	return status.Errorf(codes.Unimplemented, "method FilterNotUploaded not implemented")
+}
+func (UnimplementedImgSyncerServer) ListAlbums(context.Context, *ListAlbumsRequest) (*ListAlbumsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAlbums not implemented")
+}
+func (UnimplementedImgSyncerServer) CreateAlbum(context.Context, *CreateAlbumRequest) (*CreateAlbumResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAlbum not implemented")
+}
+func (UnimplementedImgSyncerServer) DeleteAlbum(context.Context, *DeleteAlbumRequest) (*DeleteAlbumResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAlbum not implemented")
+}
+func (UnimplementedImgSyncerServer) RenameAlbum(context.Context, *RenameAlbumRequest) (*RenameAlbumResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RenameAlbum not implemented")
+}
+func (UnimplementedImgSyncerServer) MoveAssets(context.Context, *MoveAssetsRequest) (*MoveAssetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MoveAssets not implemented")
 }
 func (UnimplementedImgSyncerServer) SetDriveSMB(context.Context, *SetDriveSMBRequest) (*SetDriveSMBResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetDriveSMB not implemented")
@@ -348,6 +420,96 @@ func (x *imgSyncerFilterNotUploadedServer) Recv() (*FilterNotUploadedRequest, er
 		return nil, err
 	}
 	return m, nil
+}
+
+func _ImgSyncer_ListAlbums_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAlbumsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImgSyncerServer).ListAlbums(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/img_syncer.ImgSyncer/ListAlbums",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImgSyncerServer).ListAlbums(ctx, req.(*ListAlbumsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ImgSyncer_CreateAlbum_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAlbumRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImgSyncerServer).CreateAlbum(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/img_syncer.ImgSyncer/CreateAlbum",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImgSyncerServer).CreateAlbum(ctx, req.(*CreateAlbumRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ImgSyncer_DeleteAlbum_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAlbumRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImgSyncerServer).DeleteAlbum(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/img_syncer.ImgSyncer/DeleteAlbum",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImgSyncerServer).DeleteAlbum(ctx, req.(*DeleteAlbumRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ImgSyncer_RenameAlbum_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameAlbumRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImgSyncerServer).RenameAlbum(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/img_syncer.ImgSyncer/RenameAlbum",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImgSyncerServer).RenameAlbum(ctx, req.(*RenameAlbumRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ImgSyncer_MoveAssets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MoveAssetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImgSyncerServer).MoveAssets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/img_syncer.ImgSyncer/MoveAssets",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImgSyncerServer).MoveAssets(ctx, req.(*MoveAssetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _ImgSyncer_SetDriveSMB_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -530,6 +692,26 @@ var ImgSyncer_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _ImgSyncer_Delete_Handler,
+		},
+		{
+			MethodName: "ListAlbums",
+			Handler:    _ImgSyncer_ListAlbums_Handler,
+		},
+		{
+			MethodName: "CreateAlbum",
+			Handler:    _ImgSyncer_CreateAlbum_Handler,
+		},
+		{
+			MethodName: "DeleteAlbum",
+			Handler:    _ImgSyncer_DeleteAlbum_Handler,
+		},
+		{
+			MethodName: "RenameAlbum",
+			Handler:    _ImgSyncer_RenameAlbum_Handler,
+		},
+		{
+			MethodName: "MoveAssets",
+			Handler:    _ImgSyncer_MoveAssets_Handler,
 		},
 		{
 			MethodName: "SetDriveSMB",

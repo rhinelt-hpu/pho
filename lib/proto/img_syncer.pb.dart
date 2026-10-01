@@ -215,6 +215,7 @@ class ListByDateRequest extends $pb.GeneratedMessage {
     $core.String? date,
     $core.int? offset,
     $core.int? maxReturn,
+    $core.String? album,
   }) {
     final $result = create();
     if (date != null) {
@@ -226,6 +227,9 @@ class ListByDateRequest extends $pb.GeneratedMessage {
     if (maxReturn != null) {
       $result.maxReturn = maxReturn;
     }
+    if (album != null) {
+      $result.album = album;
+    }
     return $result;
   }
   ListByDateRequest._() : super();
@@ -236,6 +240,7 @@ class ListByDateRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'date')
     ..a<$core.int>(2, _omitFieldNames ? '' : 'offset', $pb.PbFieldType.O3)
     ..a<$core.int>(3, _omitFieldNames ? '' : 'maxReturn', $pb.PbFieldType.O3, protoName: 'maxReturn')
+    ..aOS(4, _omitFieldNames ? '' : 'album')
     ..hasRequiredFields = false
   ;
 
@@ -286,6 +291,15 @@ class ListByDateRequest extends $pb.GeneratedMessage {
   $core.bool hasMaxReturn() => $_has(2);
   @$pb.TagNumber(3)
   void clearMaxReturn() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get album => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set album($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasAlbum() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearAlbum() => clearField(4);
 }
 
 class ListByDateResponse extends $pb.GeneratedMessage {
@@ -466,6 +480,688 @@ class DeleteResponse extends $pb.GeneratedMessage {
   $core.bool hasMessage() => $_has(1);
   @$pb.TagNumber(2)
   void clearMessage() => clearField(2);
+}
+
+class AlbumInfo extends $pb.GeneratedMessage {
+  factory AlbumInfo({
+    $core.String? name,
+    $fixnum.Int64? count,
+    $core.String? coverPath,
+    $core.bool? isDefault,
+  }) {
+    final $result = create();
+    if (name != null) {
+      $result.name = name;
+    }
+    if (count != null) {
+      $result.count = count;
+    }
+    if (coverPath != null) {
+      $result.coverPath = coverPath;
+    }
+    if (isDefault != null) {
+      $result.isDefault = isDefault;
+    }
+    return $result;
+  }
+  AlbumInfo._() : super();
+  factory AlbumInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory AlbumInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AlbumInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..aInt64(2, _omitFieldNames ? '' : 'count')
+    ..aOS(3, _omitFieldNames ? '' : 'coverPath', protoName: 'coverPath')
+    ..aOB(4, _omitFieldNames ? '' : 'isDefault', protoName: 'isDefault')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  AlbumInfo clone() => AlbumInfo()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  AlbumInfo copyWith(void Function(AlbumInfo) updates) => super.copyWith((message) => updates(message as AlbumInfo)) as AlbumInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static AlbumInfo create() => AlbumInfo._();
+  AlbumInfo createEmptyInstance() => create();
+  static $pb.PbList<AlbumInfo> createRepeated() => $pb.PbList<AlbumInfo>();
+  @$core.pragma('dart2js:noInline')
+  static AlbumInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AlbumInfo>(create);
+  static AlbumInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get count => $_getI64(1);
+  @$pb.TagNumber(2)
+  set count($fixnum.Int64 v) { $_setInt64(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasCount() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCount() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get coverPath => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set coverPath($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasCoverPath() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCoverPath() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.bool get isDefault => $_getBF(3);
+  @$pb.TagNumber(4)
+  set isDefault($core.bool v) { $_setBool(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasIsDefault() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearIsDefault() => clearField(4);
+}
+
+class ListAlbumsRequest extends $pb.GeneratedMessage {
+  factory ListAlbumsRequest() => create();
+  ListAlbumsRequest._() : super();
+  factory ListAlbumsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory ListAlbumsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ListAlbumsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  ListAlbumsRequest clone() => ListAlbumsRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  ListAlbumsRequest copyWith(void Function(ListAlbumsRequest) updates) => super.copyWith((message) => updates(message as ListAlbumsRequest)) as ListAlbumsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListAlbumsRequest create() => ListAlbumsRequest._();
+  ListAlbumsRequest createEmptyInstance() => create();
+  static $pb.PbList<ListAlbumsRequest> createRepeated() => $pb.PbList<ListAlbumsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static ListAlbumsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListAlbumsRequest>(create);
+  static ListAlbumsRequest? _defaultInstance;
+}
+
+class ListAlbumsResponse extends $pb.GeneratedMessage {
+  factory ListAlbumsResponse({
+    $core.bool? success,
+    $core.String? message,
+    $core.Iterable<AlbumInfo>? albums,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    if (albums != null) {
+      $result.albums.addAll(albums);
+    }
+    return $result;
+  }
+  ListAlbumsResponse._() : super();
+  factory ListAlbumsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory ListAlbumsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ListAlbumsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..pc<AlbumInfo>(3, _omitFieldNames ? '' : 'albums', $pb.PbFieldType.PM, subBuilder: AlbumInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  ListAlbumsResponse clone() => ListAlbumsResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  ListAlbumsResponse copyWith(void Function(ListAlbumsResponse) updates) => super.copyWith((message) => updates(message as ListAlbumsResponse)) as ListAlbumsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListAlbumsResponse create() => ListAlbumsResponse._();
+  ListAlbumsResponse createEmptyInstance() => create();
+  static $pb.PbList<ListAlbumsResponse> createRepeated() => $pb.PbList<ListAlbumsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static ListAlbumsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListAlbumsResponse>(create);
+  static ListAlbumsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<AlbumInfo> get albums => $_getList(2);
+}
+
+class CreateAlbumRequest extends $pb.GeneratedMessage {
+  factory CreateAlbumRequest({
+    $core.String? name,
+  }) {
+    final $result = create();
+    if (name != null) {
+      $result.name = name;
+    }
+    return $result;
+  }
+  CreateAlbumRequest._() : super();
+  factory CreateAlbumRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory CreateAlbumRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAlbumRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  CreateAlbumRequest clone() => CreateAlbumRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  CreateAlbumRequest copyWith(void Function(CreateAlbumRequest) updates) => super.copyWith((message) => updates(message as CreateAlbumRequest)) as CreateAlbumRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CreateAlbumRequest create() => CreateAlbumRequest._();
+  CreateAlbumRequest createEmptyInstance() => create();
+  static $pb.PbList<CreateAlbumRequest> createRepeated() => $pb.PbList<CreateAlbumRequest>();
+  @$core.pragma('dart2js:noInline')
+  static CreateAlbumRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAlbumRequest>(create);
+  static CreateAlbumRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => clearField(1);
+}
+
+class CreateAlbumResponse extends $pb.GeneratedMessage {
+  factory CreateAlbumResponse({
+    $core.bool? success,
+    $core.String? message,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    return $result;
+  }
+  CreateAlbumResponse._() : super();
+  factory CreateAlbumResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory CreateAlbumResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAlbumResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  CreateAlbumResponse clone() => CreateAlbumResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  CreateAlbumResponse copyWith(void Function(CreateAlbumResponse) updates) => super.copyWith((message) => updates(message as CreateAlbumResponse)) as CreateAlbumResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CreateAlbumResponse create() => CreateAlbumResponse._();
+  CreateAlbumResponse createEmptyInstance() => create();
+  static $pb.PbList<CreateAlbumResponse> createRepeated() => $pb.PbList<CreateAlbumResponse>();
+  @$core.pragma('dart2js:noInline')
+  static CreateAlbumResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAlbumResponse>(create);
+  static CreateAlbumResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+}
+
+class DeleteAlbumRequest extends $pb.GeneratedMessage {
+  factory DeleteAlbumRequest({
+    $core.String? name,
+  }) {
+    final $result = create();
+    if (name != null) {
+      $result.name = name;
+    }
+    return $result;
+  }
+  DeleteAlbumRequest._() : super();
+  factory DeleteAlbumRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory DeleteAlbumRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DeleteAlbumRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  DeleteAlbumRequest clone() => DeleteAlbumRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  DeleteAlbumRequest copyWith(void Function(DeleteAlbumRequest) updates) => super.copyWith((message) => updates(message as DeleteAlbumRequest)) as DeleteAlbumRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DeleteAlbumRequest create() => DeleteAlbumRequest._();
+  DeleteAlbumRequest createEmptyInstance() => create();
+  static $pb.PbList<DeleteAlbumRequest> createRepeated() => $pb.PbList<DeleteAlbumRequest>();
+  @$core.pragma('dart2js:noInline')
+  static DeleteAlbumRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DeleteAlbumRequest>(create);
+  static DeleteAlbumRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => clearField(1);
+}
+
+class DeleteAlbumResponse extends $pb.GeneratedMessage {
+  factory DeleteAlbumResponse({
+    $core.bool? success,
+    $core.String? message,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    return $result;
+  }
+  DeleteAlbumResponse._() : super();
+  factory DeleteAlbumResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory DeleteAlbumResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DeleteAlbumResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  DeleteAlbumResponse clone() => DeleteAlbumResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  DeleteAlbumResponse copyWith(void Function(DeleteAlbumResponse) updates) => super.copyWith((message) => updates(message as DeleteAlbumResponse)) as DeleteAlbumResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DeleteAlbumResponse create() => DeleteAlbumResponse._();
+  DeleteAlbumResponse createEmptyInstance() => create();
+  static $pb.PbList<DeleteAlbumResponse> createRepeated() => $pb.PbList<DeleteAlbumResponse>();
+  @$core.pragma('dart2js:noInline')
+  static DeleteAlbumResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DeleteAlbumResponse>(create);
+  static DeleteAlbumResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+}
+
+class RenameAlbumRequest extends $pb.GeneratedMessage {
+  factory RenameAlbumRequest({
+    $core.String? oldName,
+    $core.String? newName,
+  }) {
+    final $result = create();
+    if (oldName != null) {
+      $result.oldName = oldName;
+    }
+    if (newName != null) {
+      $result.newName = newName;
+    }
+    return $result;
+  }
+  RenameAlbumRequest._() : super();
+  factory RenameAlbumRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory RenameAlbumRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'RenameAlbumRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'oldName', protoName: 'oldName')
+    ..aOS(2, _omitFieldNames ? '' : 'newName', protoName: 'newName')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  RenameAlbumRequest clone() => RenameAlbumRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  RenameAlbumRequest copyWith(void Function(RenameAlbumRequest) updates) => super.copyWith((message) => updates(message as RenameAlbumRequest)) as RenameAlbumRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RenameAlbumRequest create() => RenameAlbumRequest._();
+  RenameAlbumRequest createEmptyInstance() => create();
+  static $pb.PbList<RenameAlbumRequest> createRepeated() => $pb.PbList<RenameAlbumRequest>();
+  @$core.pragma('dart2js:noInline')
+  static RenameAlbumRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RenameAlbumRequest>(create);
+  static RenameAlbumRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get oldName => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set oldName($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasOldName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOldName() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get newName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set newName($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNewName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNewName() => clearField(2);
+}
+
+class RenameAlbumResponse extends $pb.GeneratedMessage {
+  factory RenameAlbumResponse({
+    $core.bool? success,
+    $core.String? message,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    return $result;
+  }
+  RenameAlbumResponse._() : super();
+  factory RenameAlbumResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory RenameAlbumResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'RenameAlbumResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  RenameAlbumResponse clone() => RenameAlbumResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  RenameAlbumResponse copyWith(void Function(RenameAlbumResponse) updates) => super.copyWith((message) => updates(message as RenameAlbumResponse)) as RenameAlbumResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RenameAlbumResponse create() => RenameAlbumResponse._();
+  RenameAlbumResponse createEmptyInstance() => create();
+  static $pb.PbList<RenameAlbumResponse> createRepeated() => $pb.PbList<RenameAlbumResponse>();
+  @$core.pragma('dart2js:noInline')
+  static RenameAlbumResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RenameAlbumResponse>(create);
+  static RenameAlbumResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+}
+
+class MoveAssetsRequest extends $pb.GeneratedMessage {
+  factory MoveAssetsRequest({
+    $core.Iterable<$core.String>? paths,
+    $core.String? targetAlbum,
+  }) {
+    final $result = create();
+    if (paths != null) {
+      $result.paths.addAll(paths);
+    }
+    if (targetAlbum != null) {
+      $result.targetAlbum = targetAlbum;
+    }
+    return $result;
+  }
+  MoveAssetsRequest._() : super();
+  factory MoveAssetsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory MoveAssetsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MoveAssetsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..pPS(1, _omitFieldNames ? '' : 'paths')
+    ..aOS(2, _omitFieldNames ? '' : 'targetAlbum', protoName: 'targetAlbum')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  MoveAssetsRequest clone() => MoveAssetsRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  MoveAssetsRequest copyWith(void Function(MoveAssetsRequest) updates) => super.copyWith((message) => updates(message as MoveAssetsRequest)) as MoveAssetsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MoveAssetsRequest create() => MoveAssetsRequest._();
+  MoveAssetsRequest createEmptyInstance() => create();
+  static $pb.PbList<MoveAssetsRequest> createRepeated() => $pb.PbList<MoveAssetsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static MoveAssetsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MoveAssetsRequest>(create);
+  static MoveAssetsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.String> get paths => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.String get targetAlbum => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set targetAlbum($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasTargetAlbum() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTargetAlbum() => clearField(2);
+}
+
+class MoveAssetsResponse extends $pb.GeneratedMessage {
+  factory MoveAssetsResponse({
+    $core.bool? success,
+    $core.String? message,
+    $core.Iterable<$core.String>? newPaths,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    if (newPaths != null) {
+      $result.newPaths.addAll(newPaths);
+    }
+    return $result;
+  }
+  MoveAssetsResponse._() : super();
+  factory MoveAssetsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory MoveAssetsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MoveAssetsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..pPS(3, _omitFieldNames ? '' : 'newPaths', protoName: 'newPaths')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  MoveAssetsResponse clone() => MoveAssetsResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  MoveAssetsResponse copyWith(void Function(MoveAssetsResponse) updates) => super.copyWith((message) => updates(message as MoveAssetsResponse)) as MoveAssetsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MoveAssetsResponse create() => MoveAssetsResponse._();
+  MoveAssetsResponse createEmptyInstance() => create();
+  static $pb.PbList<MoveAssetsResponse> createRepeated() => $pb.PbList<MoveAssetsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static MoveAssetsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MoveAssetsResponse>(create);
+  static MoveAssetsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.String> get newPaths => $_getList(2);
 }
 
 class FilterNotUploadedRequestInfo extends $pb.GeneratedMessage {

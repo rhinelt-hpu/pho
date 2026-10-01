@@ -178,5 +178,22 @@
   "openDebugConsole": "Open Debug Console",
   "openDebugConsoleDesc": "Inspect live logs, filter by level, view stack traces, and export",
   "clearDebugLogs": "Clear Debug Logs",
-  "debugLogsCleared": "Debug logs cleared"
+  "debugLogsCleared": "Debug logs cleared",
+  "cloudAlbums": "Cloud Albums",
+  "allPhotos": "All Photos",
+  "defaultAlbum": "Default Album",
+  "newAlbum": "New Album",
+  "albumName": "Album Name",
+  "albumNameHint": "Enter album name",
+  "renameAlbum": "Rename Album",
+  "deleteAlbum": "Delete Album",
+  "deleteAlbumConfirmTitle": "Permanently Delete Album?",
+  "deleteAlbumConfirmDesc": "Warning: This will permanently delete the album and all {count} photo(s) inside it. Data on the remote storage will be completely erased and cannot be recovered!",
+  "deleteAlbumInputHint": "Type album name to confirm deletion",
+  "cannotDeleteDefaultAlbum": "The default album cannot be deleted",
+  "moveToAlbum": "Move to Album",
+  "moveSuccess": "Moved successfully",
+  "moveFailed": "Move failed",
+  "defaultAlbumSetting": "Default Backup Album",
+  "defaultAlbumSettingDesc": "Target album name for automatic sync and uploads"
 }

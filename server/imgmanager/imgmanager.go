@@ -24,18 +24,21 @@ const (
 	defaultThumbnailMaxWidth  = 500
 	defaultThumbnailMaxHeight = 500
 	defaultThumbnailDir       = ".thumbnail"
+	DefaultAlbumName          = "相机备份"
 )
 
 type ImgManager struct {
-	dri       StorageDrive
-	driveMu   sync.RWMutex
-	dirType   pb.DirectoryType
-	dirTypeMu sync.RWMutex
-	actCh     chan action
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
-	logger    *log.Logger
-	opt       Option
+	dri            StorageDrive
+	driveMu        sync.RWMutex
+	dirType        pb.DirectoryType
+	dirTypeMu      sync.RWMutex
+	defaultAlbum   string
+	defaultAlbumMu sync.RWMutex
+	actCh          chan action
+	stopCh         chan struct{}
+	wg             sync.WaitGroup
+	logger         *log.Logger
+	opt            Option
 }
 
 type Option struct {
@@ -56,11 +59,12 @@ func NewImgManager(opt Option) *ImgManager {
 		opt.ThumbnailMaxHeight = defaultThumbnailMaxHeight
 	}
 	im := &ImgManager{
-		actCh:  make(chan action, 10),
-		stopCh: make(chan struct{}),
-		logger: log.New(os.Stdout, "[ImgManager] ", log.LstdFlags),
-		opt:    opt,
-		dri:    &UnimplementedDrive{},
+		actCh:        make(chan action, 10),
+		stopCh:       make(chan struct{}),
+		logger:       log.New(os.Stdout, "[ImgManager] ", log.LstdFlags),
+		opt:          opt,
+		dri:          &UnimplementedDrive{},
+		defaultAlbum: DefaultAlbumName,
 	}
 	im.wg.Add(im.opt.WorkerNum)
 	for i := 0; i < im.opt.WorkerNum; i++ {
@@ -75,13 +79,29 @@ func (im *ImgManager) SetDirectoryType(dirType pb.DirectoryType) {
 	im.dirType = dirType
 }
 
+func (im *ImgManager) GetDefaultAlbum() string {
+	im.defaultAlbumMu.RLock()
+	defer im.defaultAlbumMu.RUnlock()
+	if im.defaultAlbum == "" {
+		return DefaultAlbumName
+	}
+	return im.defaultAlbum
+}
+
+func (im *ImgManager) SetDefaultAlbum(name string) {
+	im.defaultAlbumMu.Lock()
+	defer im.defaultAlbumMu.Unlock()
+	im.defaultAlbum = name
+}
+
 func (im *ImgManager) SetDrive(dri StorageDrive) {
 	im.driveMu.Lock()
-	defer im.driveMu.Unlock()
 	if im.dri != nil {
 		im.dri.Close()
 	}
 	im.dri = dri
+	im.driveMu.Unlock()
+	go im.MigrateLegacyRootFolders()
 }
 
 func (im *ImgManager) Drive() StorageDrive {
@@ -139,6 +159,7 @@ func (im *ImgManager) runWorker() {
 type Options struct {
 	EncyptOption EncryptOption
 	IsLivePhoto  bool
+	Album        string
 }
 
 // EncryptType 和常量已迁移至 encrypt.go
@@ -162,6 +183,12 @@ func IsLivePhoto(isLivePhoto bool) OptionFunc {
 	}
 }
 
+func WithAlbum(album string) OptionFunc {
+	return func(o *Options) {
+		o.Album = album
+	}
+}
+
 func (im *ImgManager) genPath(name string, date time.Time, options Options) string {
 	if date.IsZero() {
 		date = time.Now()
@@ -173,11 +200,18 @@ func (im *ImgManager) genPath(name string, date time.Time, options Options) stri
 	dirType := im.dirType
 	im.dirTypeMu.RUnlock()
 	elems := []string{}
+	album := options.Album
+	if album == "" {
+		album = im.GetDefaultAlbum()
+	}
+	if album != "" {
+		elems = append(elems, album)
+	}
 	switch dirType {
 	case pb.DirectoryType_DIRECTORY_TYPE_01:
 		elems = append(elems, date.Format("2006/01/02"))
 	case pb.DirectoryType_DIRECTORY_TYPE_02:
-		elems = append(elems, date.Format("20060102/"))
+		elems = append(elems, date.Format("20060102"))
 	default:
 		elems = append(elems, date.Format("2006/01/02"))
 	}
@@ -619,66 +653,81 @@ type ImgInfo struct {
 	IsLivePhoto bool
 }
 
-func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) error {
-	d, unlock := im.drive()
-	defer unlock()
-	t := date
-	if t.IsZero() {
-		t = time.Now()
+type AlbumInfo struct {
+	Name      string
+	Count     int64
+	CoverPath string
+	IsDefault bool
+}
+
+func isIgnoredDir(name string) bool {
+	if strings.HasPrefix(name, ".") || name == "live" || name == "lost+found" {
+		return true
 	}
-	year, month, day := t.Date()
+	return false
+}
+
+func isYearOrDateDir(name string) bool {
+	if len(name) == 4 {
+		if _, err := strconv.Atoi(name); err == nil {
+			return true
+		}
+	}
+	if len(name) == 8 {
+		if _, err := strconv.Atoi(name); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.Time) []dirInfo {
+	year, month, day := date.Date()
 	dirInfos := make([]dirInfo, 0)
-	yDir, err := im.listDir(d, ".")
+	yDir, err := im.listDir(d, baseDir)
 	if err != nil {
-		im.logger.Println("Error listing year dir:", err)
-		return err
+		return dirInfos
 	}
-	// sort.Sort(desc(yDir))
-	// type 02
+
+	joinPath := func(parts ...string) string {
+		if baseDir == "." {
+			return filepath.Join(parts...)
+		}
+		all := append([]string{baseDir}, parts...)
+		return filepath.Join(all...)
+	}
+
+	// type 02 (YYYYMMDD)
 	for _, yinfo := range yDir {
 		if len(yinfo.Name()) == 8 {
-			dirDate, err := time.Parse("20060102", yinfo.Name())
+			dirDate, err := time.ParseInLocation("20060102", yinfo.Name(), date.Location())
 			if err != nil {
-				im.logger.Printf("Error parsing date: %s, %s", yinfo.Name(), err)
 				continue
 			}
 			if !dirDate.After(date) {
 				dirInfos = append(dirInfos, dirInfo{
 					date: dirDate,
-					dir:  yinfo.Name(),
+					dir:  joinPath(yinfo.Name()),
 				})
 			}
 		}
 	}
-	// type 01
+
+	// type 01 (YYYY/MM/DD)
 	for _, yinfo := range yDir {
-		if yinfo.Name() == "live" {
-			continue
-		}
-		if !yinfo.IsDir() {
-			continue
-		}
-		if len(yinfo.Name()) != 4 {
+		if yinfo.Name() == "live" || !yinfo.IsDir() || len(yinfo.Name()) != 4 {
 			continue
 		}
 		yNum, err := strconv.Atoi(yinfo.Name())
+		if err != nil || yNum > year {
+			continue
+		}
+		mDir, err := im.listDir(d, joinPath(yinfo.Name()))
 		if err != nil {
 			continue
 		}
-		if yNum > year {
-			continue
-		}
-		mDir, err := im.listDir(d, filepath.Base(yinfo.Name()))
-		if err != nil {
-			im.logger.Println("Error listing month dir:", err)
-			continue
-		}
-		// sort.Sort(desc(mDir))
 		for _, minfo := range mDir {
-			if minfo.Name() == "live" {
-				continue
-			}
-			if !minfo.IsDir() {
+			if minfo.Name() == "live" || !minfo.IsDir() {
 				continue
 			}
 			mNum, err := strconv.Atoi(minfo.Name())
@@ -688,12 +737,10 @@ func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) err
 			if yNum == year && mNum > int(month) {
 				continue
 			}
-			dDir, err := im.listDir(d, filepath.Join(yinfo.Name(), minfo.Name()))
+			dDir, err := im.listDir(d, joinPath(yinfo.Name(), minfo.Name()))
 			if err != nil {
-				im.logger.Println("Error listing day dir:", err)
 				continue
 			}
-			// sort.Sort(desc(dDir))
 			for _, dinfo := range dDir {
 				if !dinfo.IsDir() {
 					continue
@@ -705,8 +752,8 @@ func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) err
 				if yNum == year && mNum == int(month) && dNum > day {
 					continue
 				}
-				dirPath := filepath.Join(yinfo.Name(), minfo.Name(), dinfo.Name())
-				dirDate := time.Date(yNum, time.Month(mNum), dNum, 0, 0, 0, 0, time.Local)
+				dirPath := joinPath(yinfo.Name(), minfo.Name(), dinfo.Name())
+				dirDate := time.Date(yNum, time.Month(mNum), dNum, 0, 0, 0, 0, date.Location())
 				if !dirDate.After(date) {
 					dirInfos = append(dirInfos, dirInfo{
 						date: dirDate,
@@ -716,9 +763,45 @@ func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) err
 			}
 		}
 	}
+	return dirInfos
+}
 
-	sort.Sort(dirDesc(dirInfos))
-	for _, dirInfo := range dirInfos {
+func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) error {
+	return im.RangeByAlbumAndDate("", date, f)
+}
+
+func (im *ImgManager) RangeByAlbumAndDate(album string, date time.Time, f func(info ImgInfo) bool) error {
+	d, unlock := im.drive()
+	defer unlock()
+
+	t := date
+	if t.IsZero() {
+		t = time.Now()
+	}
+
+	var allDirInfos []dirInfo
+	if album != "" {
+		allDirInfos = im.collectDirInfos(d, album, t)
+	} else {
+		// 1. 根目录下的历史日期文件夹（向下兼容）
+		rootInfos := im.collectDirInfos(d, ".", t)
+		allDirInfos = append(allDirInfos, rootInfos...)
+
+		// 2. 遍历所有相册目录
+		entries, err := im.listDir(d, ".")
+		if err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
+					continue
+				}
+				albumInfos := im.collectDirInfos(d, entry.Name(), t)
+				allDirInfos = append(allDirInfos, albumInfos...)
+			}
+		}
+	}
+
+	sort.Sort(dirDesc(allDirInfos))
+	for _, dirInfo := range allDirInfos {
 		goOn := true
 		d.Range(dirInfo.dir, func(info fs.FileInfo) bool {
 			if info.IsDir() {
@@ -748,6 +831,256 @@ func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) err
 		}
 	}
 	return nil
+}
+
+// ListAlbums 列出所有云端相册（默认相册排首位，附带数量与最新封面）
+func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
+	d, unlock := im.drive()
+	defer unlock()
+
+	entries, err := im.listDir(d, ".")
+	if err != nil {
+		return nil, err
+	}
+
+	defaultName := im.GetDefaultAlbum()
+	albumNames := make([]string, 0)
+	hasDefault := false
+
+	for _, entry := range entries {
+		if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
+			continue
+		}
+		name := entry.Name()
+		if name == defaultName {
+			hasDefault = true
+		} else {
+			albumNames = append(albumNames, name)
+		}
+	}
+	sort.Strings(albumNames)
+
+	orderedNames := make([]string, 0, len(albumNames)+1)
+	orderedNames = append(orderedNames, defaultName)
+	orderedNames = append(orderedNames, albumNames...)
+
+	result := make([]AlbumInfo, 0, len(orderedNames))
+	for _, name := range orderedNames {
+		var count int64
+		var cover string
+		dirInfos := im.collectDirInfos(d, name, time.Time{})
+		sort.Sort(dirDesc(dirInfos))
+		for _, di := range dirInfos {
+			d.Range(di.dir, func(info fs.FileInfo) bool {
+				if info.IsDir() {
+					if strings.HasPrefix(info.Name(), "live_") {
+						d.Range(filepath.Join(di.dir, info.Name()), func(info2 fs.FileInfo) bool {
+							if !util.IsVideo(info2.Name()) {
+								count++
+								if cover == "" {
+									cover = filepath.Join(di.dir, info.Name(), info2.Name())
+								}
+							}
+							return true
+						})
+					}
+					return true
+				}
+				count++
+				if cover == "" {
+					cover = filepath.Join(di.dir, info.Name())
+				}
+				return true
+			})
+		}
+
+		// 若为默认相册且此时根目录下存在存量照片，也一并计入统计
+		if name == defaultName && !hasDefault {
+			rootInfos := im.collectDirInfos(d, ".", time.Time{})
+			sort.Sort(dirDesc(rootInfos))
+			for _, di := range rootInfos {
+				d.Range(di.dir, func(info fs.FileInfo) bool {
+					if !info.IsDir() {
+						count++
+						if cover == "" {
+							cover = filepath.Join(di.dir, info.Name())
+						}
+					}
+					return true
+				})
+			}
+		}
+
+		result = append(result, AlbumInfo{
+			Name:      name,
+			Count:     count,
+			CoverPath: cover,
+			IsDefault: name == defaultName,
+		})
+	}
+
+	return result, nil
+}
+
+// CreateAlbum 创建新相册目录
+func (im *ImgManager) CreateAlbum(name string) error {
+	cleaned, err := util.SanitizePath(name)
+	if err != nil || strings.Contains(cleaned, "/") {
+		return fmt.Errorf("invalid album name: %s", name)
+	}
+	if isIgnoredDir(cleaned) || isYearOrDateDir(cleaned) {
+		return fmt.Errorf("album name %s is reserved", name)
+	}
+	d, unlock := im.drive()
+	defer unlock()
+	exists, _ := d.IsExist(cleaned)
+	if exists {
+		return fmt.Errorf("album %s already exists", name)
+	}
+	if err := d.Mkdir(cleaned); err != nil {
+		return err
+	}
+	_ = d.Mkdir(filepath.Join(defaultThumbnailDir, cleaned))
+	return nil
+}
+
+// DeleteAlbum 粉碎删除相册及其下所有文件（默认相册禁止删除）
+func (im *ImgManager) DeleteAlbum(name string) error {
+	cleaned, err := util.SanitizePath(name)
+	if err != nil || strings.Contains(cleaned, "/") {
+		return fmt.Errorf("invalid album name: %s", name)
+	}
+	if cleaned == im.GetDefaultAlbum() {
+		return fmt.Errorf("cannot delete default album: %s", name)
+	}
+	d, unlock := im.drive()
+	defer unlock()
+
+	im.deleteDirRecursive(d, cleaned)
+	im.deleteDirRecursive(d, filepath.Join(defaultThumbnailDir, cleaned))
+	return nil
+}
+
+func (im *ImgManager) deleteDirRecursive(d StorageDrive, dir string) {
+	_ = d.Range(dir, func(info fs.FileInfo) bool {
+		sub := filepath.Join(dir, info.Name())
+		if info.IsDir() {
+			im.deleteDirRecursive(d, sub)
+		} else {
+			_ = d.Delete(sub)
+		}
+		return true
+	})
+	_ = d.Delete(dir)
+}
+
+// RenameAlbum 重命名相册
+func (im *ImgManager) RenameAlbum(oldName, newName string) error {
+	cleanOld, err := util.SanitizePath(oldName)
+	if err != nil || strings.Contains(cleanOld, "/") {
+		return fmt.Errorf("invalid old album name: %s", oldName)
+	}
+	cleanNew, err := util.SanitizePath(newName)
+	if err != nil || strings.Contains(cleanNew, "/") {
+		return fmt.Errorf("invalid new album name: %s", newName)
+	}
+	if isIgnoredDir(cleanNew) || isYearOrDateDir(cleanNew) {
+		return fmt.Errorf("album name %s is reserved", newName)
+	}
+	d, unlock := im.drive()
+	defer unlock()
+
+	exists, _ := d.IsExist(cleanNew)
+	if exists {
+		return fmt.Errorf("target album %s already exists", newName)
+	}
+
+	if err := d.Move(cleanOld, cleanNew); err != nil {
+		return fmt.Errorf("rename album failed: %w", err)
+	}
+	_ = d.Move(filepath.Join(defaultThumbnailDir, cleanOld), filepath.Join(defaultThumbnailDir, cleanNew))
+
+	if cleanOld == im.GetDefaultAlbum() {
+		im.SetDefaultAlbum(cleanNew)
+	}
+	return nil
+}
+
+// MoveAssets 将指定路径的照片移动至目标相册（联动迁移主图、缩略图与 LivePhoto）
+func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, error) {
+	cleanTarget, err := util.SanitizePath(targetAlbum)
+	if err != nil || strings.Contains(cleanTarget, "/") {
+		return nil, fmt.Errorf("invalid target album: %s", targetAlbum)
+	}
+	d, unlock := im.drive()
+	defer unlock()
+
+	newPaths := make([]string, 0, len(paths))
+	for _, p := range paths {
+		cleanedPath, err := util.SanitizePath(p)
+		if err != nil {
+			continue
+		}
+		parts := strings.Split(filepath.ToSlash(cleanedPath), "/")
+		var subParts []string
+		if len(parts) >= 2 {
+			firstPart := parts[0]
+			if !isYearOrDateDir(firstPart) {
+				subParts = parts[1:]
+			} else {
+				subParts = parts
+			}
+		} else {
+			subParts = parts
+		}
+		newSubPath := filepath.Join(subParts...)
+		newMainPath := filepath.Join(cleanTarget, newSubPath)
+
+		if err := d.Move(cleanedPath, newMainPath); err != nil {
+			im.logger.Printf("MoveAssets: failed to move %s -> %s: %v", cleanedPath, newMainPath, err)
+			continue
+		}
+		newPaths = append(newPaths, newMainPath)
+
+		// 联动迁移缩略图
+		oldThumb := filepath.Join(defaultThumbnailDir, cleanedPath)
+		newThumb := filepath.Join(defaultThumbnailDir, newMainPath)
+		_ = d.Move(oldThumb, newThumb)
+
+		// 联动迁移 Live Photo
+		dir := filepath.Dir(cleanedPath)
+		if strings.HasPrefix(filepath.Base(dir), "live_") {
+			newLiveDir := filepath.Dir(newMainPath)
+			_ = d.Move(dir, newLiveDir)
+			_ = d.Move(filepath.Join(defaultThumbnailDir, dir), filepath.Join(defaultThumbnailDir, newLiveDir))
+		}
+	}
+	return newPaths, nil
+}
+
+// MigrateLegacyRootFolders 自动迁移老版本存量年份文件夹至默认相册
+func (im *ImgManager) MigrateLegacyRootFolders() {
+	d, unlock := im.drive()
+	defer unlock()
+
+	entries, err := im.listDir(d, ".")
+	if err != nil {
+		return
+	}
+	defaultName := im.GetDefaultAlbum()
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if isYearOrDateDir(entry.Name()) {
+			oldPath := entry.Name()
+			newPath := filepath.Join(defaultName, oldPath)
+			_ = d.Move(oldPath, newPath)
+			oldThumb := filepath.Join(defaultThumbnailDir, oldPath)
+			newThumb := filepath.Join(defaultThumbnailDir, defaultName, oldPath)
+			_ = d.Move(oldThumb, newThumb)
+		}
+	}
 }
 
 func (im *ImgManager) listDir(d StorageDrive, path string) ([]fs.FileInfo, error) {

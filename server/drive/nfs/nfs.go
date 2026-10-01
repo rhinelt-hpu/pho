@@ -348,3 +348,25 @@ func (d *Nfs) MkdirAll(path string, perm fs.FileMode) error {
 
 	return nil
 }
+
+func (d *Nfs) Move(oldPath, newPath string) error {
+	rc, size, err := d.Download(oldPath)
+	if err != nil {
+		return err
+	}
+	err = d.Upload(newPath, rc, size, time.Now())
+	if err != nil {
+		return err
+	}
+	return d.Delete(oldPath)
+}
+
+func (d *Nfs) Mkdir(dir string) error {
+	if err := d.checkConn(); err != nil {
+		return err
+	}
+	if d.rootPath == "" {
+		return fmt.Errorf("root path is empty")
+	}
+	return d.MkdirAll(filepath.Join(d.rootPath, dir), 0755)
+}

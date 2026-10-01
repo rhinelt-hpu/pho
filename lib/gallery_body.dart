@@ -23,6 +23,7 @@ import 'package:gal/gal.dart';
 import 'package:img_syncer/choose_album_route.dart';
 import 'package:img_syncer/setting_storage_route.dart';
 import 'package:img_syncer/widgets/thumbnail_skeleton.dart';
+import 'package:img_syncer/widgets/cloud_album_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class GalleryBody extends StatefulWidget {
@@ -412,6 +413,20 @@ class GalleryBodyState extends State<GalleryBody>
     clearSelection();
   }
 
+  void _moveSelectedToAlbum() {
+    final all =
+        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets;
+    final assets = <Asset>[];
+    _selectedIndices.forEach((key, isSelected) {
+      if (isSelected && key < all.length) {
+        assets.add(all[key]);
+      }
+    });
+    if (assets.isEmpty) return;
+    clearSelection();
+    MoveToAlbumDialog.show(context, assets);
+  }
+
   void _showBottomSheet(BuildContext context) {
     _bottomSheetController = Scaffold.of(context).showBottomSheet(
       (BuildContext context) {
@@ -454,6 +469,13 @@ class GalleryBodyState extends State<GalleryBody>
                                   downloadSelected,
                                   isEnable: !model.isDownloading() &&
                                       !model.isUploading()),
+                            if (!widget.useLocal)
+                              _bottomSheetIconButtun(
+                                  Icons.drive_file_move_outlined,
+                                  l10n.moveToAlbum,
+                                  _moveSelectedToAlbum,
+                                  isEnable: !model.isDownloading() &&
+                                      !model.isUploading()),
                           ],
                         ),
                       )),
@@ -479,6 +501,12 @@ class GalleryBodyState extends State<GalleryBody>
             children: [],
           ),
           actions: [
+            if (!widget.useLocal)
+              IconButton(
+                icon: const Icon(Icons.photo_library_outlined),
+                tooltip: l10n.cloudAlbums,
+                onPressed: () => CloudAlbumSheet.show(context),
+              ),
             MenuAnchor(
               builder: (BuildContext context, MenuController controller,
                   Widget? child) {
@@ -506,16 +534,21 @@ class GalleryBodyState extends State<GalleryBody>
                         },
                       )
                     : MenuItemButton(
-                        child: Text(l10n.storageSetting),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) =>
-                                    const SettingStorageRoute()),
-                          );
-                        },
+                        child: Text(l10n.cloudAlbums),
+                        onPressed: () => CloudAlbumSheet.show(context),
                       ),
+                if (!widget.useLocal)
+                  MenuItemButton(
+                    child: Text(l10n.storageSetting),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) =>
+                                const SettingStorageRoute()),
+                      );
+                    },
+                  ),
                 MenuItemButton(
                   onPressed: settingModel.galleryColumCount > 2
                       ? () async {
@@ -545,27 +578,53 @@ class GalleryBodyState extends State<GalleryBody>
           ],
           flexibleSpace: FlexibleSpaceBar(
             centerTitle: true,
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.only(right: AppSpacing.xs),
-                  child: Image.asset(
-                    'assets/icon/pho_icon.png',
-                    width: 40,
-                    height: 40,
+            title: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.small),
+              onTap: !widget.useLocal ? () => CloudAlbumSheet.show(context) : null,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.only(right: AppSpacing.xs),
+                    child: Image.asset(
+                      'assets/icon/pho_icon.png',
+                      width: 40,
+                      height: 40,
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  "Pho",
-                  // logo 保留专用手写字体 Sriracha-Regular
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineLarge!
-                      .copyWith(fontFamily: "Sriracha-Regular"),
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.xs),
+                  Consumer<AssetModel>(
+                    builder: (context, aModel, child) {
+                      final albumName =
+                          !widget.useLocal && aModel.currentCloudAlbum.isNotEmpty
+                              ? aModel.currentCloudAlbum
+                              : "Pho";
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            albumName,
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineLarge!
+                                .copyWith(
+                                  fontFamily: albumName == "Pho"
+                                      ? "Sriracha-Regular"
+                                      : null,
+                                  fontSize: albumName == "Pho" ? null : 20,
+                                ),
+                          ),
+                          if (!widget.useLocal) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.arrow_drop_down, size: 20),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );

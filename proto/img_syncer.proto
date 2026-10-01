@@ -8,6 +8,12 @@ service ImgSyncer {
   rpc ListByDate (ListByDateRequest) returns (ListByDateResponse) {}
   rpc Delete (DeleteRequest) returns (DeleteResponse) {}
   rpc FilterNotUploaded (stream FilterNotUploadedRequest) returns (stream FilterNotUploadedResponse) {}
+  // Album Management
+  rpc ListAlbums (ListAlbumsRequest) returns (ListAlbumsResponse) {}
+  rpc CreateAlbum (CreateAlbumRequest) returns (CreateAlbumResponse) {}
+  rpc DeleteAlbum (DeleteAlbumRequest) returns (DeleteAlbumResponse) {}
+  rpc RenameAlbum (RenameAlbumRequest) returns (RenameAlbumResponse) {}
+  rpc MoveAssets (MoveAssetsRequest) returns (MoveAssetsResponse) {}
   // SAMBA Drive
   rpc SetDriveSMB (SetDriveSMBRequest) returns (SetDriveSMBResponse) {}
   rpc ListDriveSMBShares (ListDriveSMBSharesRequest) returns (ListDriveSMBSharesResponse) {}
@@ -55,6 +61,7 @@ message ListByDateRequest {
   string date = 1; // YYYY:MM:DD
   int32 offset = 2;
   int32 maxReturn = 3;
+  string album = 4; // empty string means all albums (aggregated) or specific album name
 }
 message ListByDateResponse {
   bool success = 1;
@@ -68,6 +75,55 @@ message DeleteRequest {
 message DeleteResponse {
   bool success = 1;
   string message = 2;
+}
+
+message AlbumInfo {
+  string name = 1;
+  int64 count = 2;
+  string coverPath = 3;
+  bool isDefault = 4;
+}
+
+message ListAlbumsRequest {}
+message ListAlbumsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AlbumInfo albums = 3;
+}
+
+message CreateAlbumRequest {
+  string name = 1;
+}
+message CreateAlbumResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteAlbumRequest {
+  string name = 1;
+}
+message DeleteAlbumResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RenameAlbumRequest {
+  string oldName = 1;
+  string newName = 2;
+}
+message RenameAlbumResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message MoveAssetsRequest {
+  repeated string paths = 1;
+  string targetAlbum = 2;
+}
+message MoveAssetsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated string newPaths = 3;
 }
 
 message FilterNotUploadedRequestInfo {

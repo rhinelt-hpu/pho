@@ -221,10 +221,27 @@ class SettingModel extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _saveDefaultAlbumName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('default_album_name', defaultAlbumName);
+    } catch (_) {}
+  }
+
+  String defaultAlbumName = '相机备份';
+
+  void setDefaultAlbumName(String name) {
+    if (name.isEmpty || defaultAlbumName == name) return;
+    defaultAlbumName = name;
+    notifyListeners();
+    _saveDefaultAlbumName();
+  }
+
   Future<void> saveSettings() async {
     await _saveParallelCount();
     await _saveFilterSettings();
     await _saveDebugMode();
+    await _saveDefaultAlbumName();
   }
 
   Future<void> loadSettings([SharedPreferences? sharedPrefs]) async {
@@ -247,6 +264,7 @@ class SettingModel extends ChangeNotifier {
       }
       _debugMode = prefs.getBool('debug_mode') ?? false;
       logger.setEnabled(_debugMode);
+      defaultAlbumName = prefs.getString('default_album_name') ?? '相机备份';
       final typeMapJson = prefs.getString('filter_type_map');
       if (typeMapJson != null) {
         try {
@@ -442,6 +460,62 @@ class AssetModel extends ChangeNotifier {
 
   String? remoteLastError;
 
+  String currentCloudAlbum = '';
+  List<AlbumInfo> cloudAlbums = [];
+
+  Future<void> refreshCloudAlbums() async {
+    try {
+      final list = await storageClient.listAlbums();
+      cloudAlbums = list;
+      notifyListeners();
+    } catch (e) {
+      logger.addLog("refreshCloudAlbums failed: $e");
+    }
+  }
+
+  Future<void> selectCloudAlbum(String albumName) async {
+    if (currentCloudAlbum == albumName) return;
+    currentCloudAlbum = albumName;
+    await refreshRemote(false);
+  }
+
+  Future<void> createCloudAlbum(String name) async {
+    await storageClient.createAlbum(name);
+    await refreshCloudAlbums();
+  }
+
+  Future<void> deleteCloudAlbum(String name) async {
+    await storageClient.deleteAlbum(name);
+    if (currentCloudAlbum == name) {
+      currentCloudAlbum = '';
+    }
+    await refreshCloudAlbums();
+    await refreshRemote(false);
+  }
+
+  Future<void> renameCloudAlbum(String oldName, String newName) async {
+    await storageClient.renameAlbum(oldName, newName);
+    if (currentCloudAlbum == oldName) {
+      currentCloudAlbum = newName;
+    }
+    await refreshCloudAlbums();
+    await refreshRemote(false);
+  }
+
+  Future<List<String>> moveRemoteAssets(List<Asset> assets, String targetAlbum) async {
+    final paths = assets.where((a) => a.hasRemote).map((a) => a.remote!.path).toList();
+    if (paths.isEmpty) return [];
+    final newPaths = await storageClient.moveAssets(paths, targetAlbum);
+    if (currentCloudAlbum.isNotEmpty && currentCloudAlbum != targetAlbum) {
+      remoteAssets.removeWhere((a) => a.hasRemote && paths.contains(a.remote!.path));
+    } else {
+      await refreshRemote(false);
+    }
+    await refreshCloudAlbums();
+    notifyListeners();
+    return newPaths;
+  }
+
   void addTitleCache(String id, String title) {
     titleCache[id] = title;
     if (titleCache.length - cacheLastSaveLen > 50) {
@@ -633,7 +707,7 @@ class AssetModel extends ChangeNotifier {
         }
         final offset = remoteAssets.length;
         final List<RemoteImage> images =
-            await storageClient.listImages("", offset, pageSize);
+            await storageClient.listImages("", offset, pageSize, album: currentCloudAlbum);
         if (images.length < pageSize) {
           remoteHasMore = false;
         }

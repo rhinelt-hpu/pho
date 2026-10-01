@@ -15,6 +15,8 @@ type StorageDrive interface {
 	Delete(path string) error
 	Range(dir string, deal func(fs.FileInfo) bool) error
 	Close() error
+	Move(oldPath, newPath string) error
+	Mkdir(dir string) error
 }
 
 type Image struct {
@@ -63,4 +65,12 @@ func (d *UnimplementedDrive) Range(dir string, deal func(fs.FileInfo) bool) erro
 
 func (d *UnimplementedDrive) Close() error {
 	return nil
+}
+
+func (d *UnimplementedDrive) Move(oldPath, newPath string) error {
+	return errors.New("no available drive")
+}
+
+func (d *UnimplementedDrive) Mkdir(dir string) error {
+	return errors.New("no available drive")
 }

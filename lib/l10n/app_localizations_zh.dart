@@ -548,4 +548,57 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get debugLogsCleared => '调试日志已清空';
+
+  @override
+  String get cloudAlbums => '云端相册';
+
+  @override
+  String get allPhotos => '全部照片';
+
+  @override
+  String get defaultAlbum => '默认相册';
+
+  @override
+  String get newAlbum => '新建相册';
+
+  @override
+  String get albumName => '相册名称';
+
+  @override
+  String get albumNameHint => '请输入相册名称';
+
+  @override
+  String get renameAlbum => '重命名相册';
+
+  @override
+  String get deleteAlbum => '删除相册';
+
+  @override
+  String get deleteAlbumConfirmTitle => '确认粉碎删除相册？';
+
+  @override
+  String deleteAlbumConfirmDesc(Object count) {
+    return '警告：此操作将永久粉碎删除相册及其内部包含的所有照片（共 $count 张），云端数据将彻底抹除且不可撤销！';
+  }
+
+  @override
+  String get deleteAlbumInputHint => '请输入相册名称以确认删除';
+
+  @override
+  String get cannotDeleteDefaultAlbum => '默认相册禁止删除';
+
+  @override
+  String get moveToAlbum => '移动到相册';
+
+  @override
+  String get moveSuccess => '移动成功';
+
+  @override
+  String get moveFailed => '移动失败';
+
+  @override
+  String get defaultAlbumSetting => '默认备份相册';
+
+  @override
+  String get defaultAlbumSettingDesc => '设置自动备份和上传默认流入的相册名称';
 }

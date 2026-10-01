@@ -60,7 +60,7 @@ func (a *api) ListByDate(ctx context.Context, req *pb.ListByDateRequest) (rsp *p
 	rsp.Infos = make([]*pb.FileInfo, 0, req.MaxReturn)
 	offset := req.Offset
 	needReturn := req.MaxReturn
-	e = a.im.RangeByDate(start, func(info imgmanager.ImgInfo) bool {
+	e = a.im.RangeByAlbumAndDate(req.Album, start, func(info imgmanager.ImgInfo) bool {
 		if offset > 0 {
 			offset--
 			return true
@@ -93,6 +93,76 @@ func (a *api) Delete(ctx context.Context, req *pb.DeleteRequest) (rsp *pb.Delete
 	}
 	a.im.DeleteImg(req.Paths)
 	return
+}
+
+func (a *api) ListAlbums(ctx context.Context, req *pb.ListAlbumsRequest) (*pb.ListAlbumsResponse, error) {
+	albums, err := a.im.ListAlbums()
+	if err != nil {
+		return &pb.ListAlbumsResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	pbAlbums := make([]*pb.AlbumInfo, 0, len(albums))
+	for _, alb := range albums {
+		pbAlbums = append(pbAlbums, &pb.AlbumInfo{
+			Name:      alb.Name,
+			Count:     alb.Count,
+			CoverPath: alb.CoverPath,
+			IsDefault: alb.IsDefault,
+		})
+	}
+	return &pb.ListAlbumsResponse{
+		Success: true,
+		Albums:  pbAlbums,
+	}, nil
+}
+
+func (a *api) CreateAlbum(ctx context.Context, req *pb.CreateAlbumRequest) (*pb.CreateAlbumResponse, error) {
+	err := a.im.CreateAlbum(req.Name)
+	if err != nil {
+		return &pb.CreateAlbumResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.CreateAlbumResponse{Success: true}, nil
+}
+
+func (a *api) DeleteAlbum(ctx context.Context, req *pb.DeleteAlbumRequest) (*pb.DeleteAlbumResponse, error) {
+	err := a.im.DeleteAlbum(req.Name)
+	if err != nil {
+		return &pb.DeleteAlbumResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.DeleteAlbumResponse{Success: true}, nil
+}
+
+func (a *api) RenameAlbum(ctx context.Context, req *pb.RenameAlbumRequest) (*pb.RenameAlbumResponse, error) {
+	err := a.im.RenameAlbum(req.OldName, req.NewName)
+	if err != nil {
+		return &pb.RenameAlbumResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.RenameAlbumResponse{Success: true}, nil
+}
+
+func (a *api) MoveAssets(ctx context.Context, req *pb.MoveAssetsRequest) (*pb.MoveAssetsResponse, error) {
+	newPaths, err := a.im.MoveAssets(req.Paths, req.TargetAlbum)
+	if err != nil {
+		return &pb.MoveAssetsResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.MoveAssetsResponse{
+		Success:  true,
+		NewPaths: newPaths,
+	}, nil
 }
 
 func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) error {

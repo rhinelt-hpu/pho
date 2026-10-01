@@ -33,6 +33,8 @@ func (m *mockDrive) DownloadWithOffset(path string, offset int64) (io.ReadCloser
 func (m *mockDrive) Delete(path string) error    { return nil }
 func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error { return nil }
 func (m *mockDrive) Close() error                { return nil }
+func (m *mockDrive) Move(oldPath, newPath string) error { return nil }
+func (m *mockDrive) Mkdir(dir string) error      { return nil }
 
 func newTestAPI() *api {
 	im := imgmanager.NewImgManager(imgmanager.Option{WorkerNum: 1})

@@ -570,4 +570,58 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get debugLogsCleared => 'Debug logs cleared';
+
+  @override
+  String get cloudAlbums => 'Cloud Albums';
+
+  @override
+  String get allPhotos => 'All Photos';
+
+  @override
+  String get defaultAlbum => 'Default Album';
+
+  @override
+  String get newAlbum => 'New Album';
+
+  @override
+  String get albumName => 'Album Name';
+
+  @override
+  String get albumNameHint => 'Enter album name';
+
+  @override
+  String get renameAlbum => 'Rename Album';
+
+  @override
+  String get deleteAlbum => 'Delete Album';
+
+  @override
+  String get deleteAlbumConfirmTitle => 'Permanently Delete Album?';
+
+  @override
+  String deleteAlbumConfirmDesc(Object count) {
+    return 'Warning: This will permanently delete the album and all $count photo(s) inside it. Data on the remote storage will be completely erased and cannot be recovered!';
+  }
+
+  @override
+  String get deleteAlbumInputHint => 'Type album name to confirm deletion';
+
+  @override
+  String get cannotDeleteDefaultAlbum => 'The default album cannot be deleted';
+
+  @override
+  String get moveToAlbum => 'Move to Album';
+
+  @override
+  String get moveSuccess => 'Moved successfully';
+
+  @override
+  String get moveFailed => 'Move failed';
+
+  @override
+  String get defaultAlbumSetting => 'Default Backup Album';
+
+  @override
+  String get defaultAlbumSettingDesc =>
+      'Target album name for automatic sync and uploads';
 }

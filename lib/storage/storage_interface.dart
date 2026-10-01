@@ -8,7 +8,12 @@ import 'package:img_syncer/storage/storage.dart';
 /// [RemoteStorage] 的抽象接口，用于单元测试 mock 注入。
 abstract class RemoteStorageClient {
   ImgSyncerClient get cli;
-  Future<void> uploadXFile(XFile file);
-  Future<void> uploadAssetEntity(AssetEntity asset);
-  Future<List<RemoteImage>> listImages(String date, int offset, maxReturn);
+  Future<void> uploadXFile(XFile file, {String album = ""});
+  Future<void> uploadAssetEntity(AssetEntity asset, {String album = ""});
+  Future<List<RemoteImage>> listImages(String date, int offset, maxReturn, {String album = ""});
+  Future<List<AlbumInfo>> listAlbums();
+  Future<void> createAlbum(String name);
+  Future<void> deleteAlbum(String name);
+  Future<void> renameAlbum(String oldName, String newName);
+  Future<List<String>> moveAssets(List<String> paths, String targetAlbum);
 }

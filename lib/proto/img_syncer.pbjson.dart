@@ -76,13 +76,15 @@ const ListByDateRequest$json = {
     {'1': 'date', '3': 1, '4': 1, '5': 9, '10': 'date'},
     {'1': 'offset', '3': 2, '4': 1, '5': 5, '10': 'offset'},
     {'1': 'maxReturn', '3': 3, '4': 1, '5': 5, '10': 'maxReturn'},
+    {'1': 'album', '3': 4, '4': 1, '5': 9, '10': 'album'},
   ],
 };
 
 /// Descriptor for `ListByDateRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List listByDateRequestDescriptor = $convert.base64Decode(
     'ChFMaXN0QnlEYXRlUmVxdWVzdBISCgRkYXRlGAEgASgJUgRkYXRlEhYKBm9mZnNldBgCIAEoBV'
-    'IGb2Zmc2V0EhwKCW1heFJldHVybhgDIAEoBVIJbWF4UmV0dXJu');
+    'IGb2Zmc2V0EhwKCW1heFJldHVybhgDIAEoBVIJbWF4UmV0dXJuEhQKBWFsYnVtGAQgASgJUgVh'
+    'bGJ1bQ==');
 
 @$core.Deprecated('Use listByDateResponseDescriptor instead')
 const ListByDateResponse$json = {
@@ -125,6 +127,157 @@ const DeleteResponse$json = {
 final $typed_data.Uint8List deleteResponseDescriptor = $convert.base64Decode(
     'Cg5EZWxldGVSZXNwb25zZRIYCgdzdWNjZXNzGAEgASgIUgdzdWNjZXNzEhgKB21lc3NhZ2UYAi'
     'ABKAlSB21lc3NhZ2U=');
+
+@$core.Deprecated('Use albumInfoDescriptor instead')
+const AlbumInfo$json = {
+  '1': 'AlbumInfo',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'count', '3': 2, '4': 1, '5': 3, '10': 'count'},
+    {'1': 'coverPath', '3': 3, '4': 1, '5': 9, '10': 'coverPath'},
+    {'1': 'isDefault', '3': 4, '4': 1, '5': 8, '10': 'isDefault'},
+  ],
+};
+
+/// Descriptor for `AlbumInfo`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List albumInfoDescriptor = $convert.base64Decode(
+    'CglBbGJ1bUluZm8SEgoEbmFtZRgBIAEoCVIEbmFtZRIUCgVjb3VudBgCIAEoA1IFY291bnQSHA'
+    'oJY292ZXJQYXRoGAMgASgJUgljb3ZlclBhdGgSHAoJaXNEZWZhdWx0GAQgASgIUglpc0RlZmF1'
+    'bHQ=');
+
+@$core.Deprecated('Use listAlbumsRequestDescriptor instead')
+const ListAlbumsRequest$json = {
+  '1': 'ListAlbumsRequest',
+};
+
+/// Descriptor for `ListAlbumsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listAlbumsRequestDescriptor = $convert.base64Decode(
+    'ChFMaXN0QWxidW1zUmVxdWVzdA==');
+
+@$core.Deprecated('Use listAlbumsResponseDescriptor instead')
+const ListAlbumsResponse$json = {
+  '1': 'ListAlbumsResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'albums', '3': 3, '4': 3, '5': 11, '6': '.img_syncer.AlbumInfo', '10': 'albums'},
+  ],
+};
+
+/// Descriptor for `ListAlbumsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listAlbumsResponseDescriptor = $convert.base64Decode(
+    'ChJMaXN0QWxidW1zUmVzcG9uc2USGAoHc3VjY2VzcxgBIAEoCFIHc3VjY2VzcxIYCgdtZXNzYW'
+    'dlGAIgASgJUgdtZXNzYWdlEi0KBmFsYnVtcxgDIAMoCzIVLmltZ19zeW5jZXIuQWxidW1JbmZv'
+    'UgZhbGJ1bXM=');
+
+@$core.Deprecated('Use createAlbumRequestDescriptor instead')
+const CreateAlbumRequest$json = {
+  '1': 'CreateAlbumRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `CreateAlbumRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List createAlbumRequestDescriptor = $convert.base64Decode(
+    'ChJDcmVhdGVBbGJ1bVJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use createAlbumResponseDescriptor instead')
+const CreateAlbumResponse$json = {
+  '1': 'CreateAlbumResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `CreateAlbumResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List createAlbumResponseDescriptor = $convert.base64Decode(
+    'ChNDcmVhdGVBbGJ1bVJlc3BvbnNlEhgKB3N1Y2Nlc3MYASABKAhSB3N1Y2Nlc3MSGAoHbWVzc2'
+    'FnZRgCIAEoCVIHbWVzc2FnZQ==');
+
+@$core.Deprecated('Use deleteAlbumRequestDescriptor instead')
+const DeleteAlbumRequest$json = {
+  '1': 'DeleteAlbumRequest',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+  ],
+};
+
+/// Descriptor for `DeleteAlbumRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List deleteAlbumRequestDescriptor = $convert.base64Decode(
+    'ChJEZWxldGVBbGJ1bVJlcXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZQ==');
+
+@$core.Deprecated('Use deleteAlbumResponseDescriptor instead')
+const DeleteAlbumResponse$json = {
+  '1': 'DeleteAlbumResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `DeleteAlbumResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List deleteAlbumResponseDescriptor = $convert.base64Decode(
+    'ChNEZWxldGVBbGJ1bVJlc3BvbnNlEhgKB3N1Y2Nlc3MYASABKAhSB3N1Y2Nlc3MSGAoHbWVzc2'
+    'FnZRgCIAEoCVIHbWVzc2FnZQ==');
+
+@$core.Deprecated('Use renameAlbumRequestDescriptor instead')
+const RenameAlbumRequest$json = {
+  '1': 'RenameAlbumRequest',
+  '2': [
+    {'1': 'oldName', '3': 1, '4': 1, '5': 9, '10': 'oldName'},
+    {'1': 'newName', '3': 2, '4': 1, '5': 9, '10': 'newName'},
+  ],
+};
+
+/// Descriptor for `RenameAlbumRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List renameAlbumRequestDescriptor = $convert.base64Decode(
+    'ChJSZW5hbWVBbGJ1bVJlcXVlc3QSGAoHb2xkTmFtZRgBIAEoCVIHb2xkTmFtZRIYCgduZXdOYW'
+    '1lGAIgASgJUgduZXdOYW1l');
+
+@$core.Deprecated('Use renameAlbumResponseDescriptor instead')
+const RenameAlbumResponse$json = {
+  '1': 'RenameAlbumResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `RenameAlbumResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List renameAlbumResponseDescriptor = $convert.base64Decode(
+    'ChNSZW5hbWVBbGJ1bVJlc3BvbnNlEhgKB3N1Y2Nlc3MYASABKAhSB3N1Y2Nlc3MSGAoHbWVzc2'
+    'FnZRgCIAEoCVIHbWVzc2FnZQ==');
+
+@$core.Deprecated('Use moveAssetsRequestDescriptor instead')
+const MoveAssetsRequest$json = {
+  '1': 'MoveAssetsRequest',
+  '2': [
+    {'1': 'paths', '3': 1, '4': 3, '5': 9, '10': 'paths'},
+    {'1': 'targetAlbum', '3': 2, '4': 1, '5': 9, '10': 'targetAlbum'},
+  ],
+};
+
+/// Descriptor for `MoveAssetsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List moveAssetsRequestDescriptor = $convert.base64Decode(
+    'ChFNb3ZlQXNzZXRzUmVxdWVzdBIUCgVwYXRocxgBIAMoCVIFcGF0aHMSIAoLdGFyZ2V0QWxidW'
+    '0YAiABKAlSC3RhcmdldEFsYnVt');
+
+@$core.Deprecated('Use moveAssetsResponseDescriptor instead')
+const MoveAssetsResponse$json = {
+  '1': 'MoveAssetsResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'newPaths', '3': 3, '4': 3, '5': 9, '10': 'newPaths'},
+  ],
+};
+
+/// Descriptor for `MoveAssetsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List moveAssetsResponseDescriptor = $convert.base64Decode(
+    'ChJNb3ZlQXNzZXRzUmVzcG9uc2USGAoHc3VjY2VzcxgBIAEoCFIHc3VjY2VzcxIYCgdtZXNzYW'
+    'dlGAIgASgJUgdtZXNzYWdlEhoKCG5ld1BhdGhzGAMgAygJUghuZXdQYXRocw==');
 
 @$core.Deprecated('Use filterNotUploadedRequestInfoDescriptor instead')
 const FilterNotUploadedRequestInfo$json = {

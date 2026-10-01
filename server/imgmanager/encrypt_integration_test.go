@@ -111,6 +111,9 @@ func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error {
 	defer m.mu.Unlock()
 
 	prefix := dir
+	if prefix == "." {
+		prefix = ""
+	}
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
@@ -120,11 +123,23 @@ func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error {
 	for path, data := range m.files {
 		if prefix == "" || strings.HasPrefix(path, prefix) {
 			name := strings.TrimPrefix(path, prefix)
-			if !strings.Contains(name, "/") && !seen[name] {
+			if strings.Contains(name, "/") {
+				subDir := strings.Split(name, "/")[0]
+				if !seen[subDir] {
+					seen[subDir] = true
+					infos = append(infos, memFileInfo{
+						name:    subDir,
+						size:    0,
+						isDir:   true,
+						modTime: time.Now(),
+					})
+				}
+			} else if !seen[name] {
 				seen[name] = true
 				infos = append(infos, memFileInfo{
 					name:    name,
 					size:    int64(len(data)),
+					isDir:   false,
 					modTime: time.Now(),
 				})
 			}
@@ -148,10 +163,26 @@ func (m *mockDrive) Close() error {
 	return nil
 }
 
+func (m *mockDrive) Move(oldPath, newPath string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	data, ok := m.files[oldPath]
+	if ok {
+		m.files[newPath] = data
+		delete(m.files, oldPath)
+	}
+	return nil
+}
+
+func (m *mockDrive) Mkdir(dir string) error {
+	return nil
+}
+
 // memFileInfo 实现 fs.FileInfo 接口，供 mockDrive.Range 使用。
 type memFileInfo struct {
 	name    string
 	size    int64
+	isDir   bool
 	modTime time.Time
 }
 
@@ -159,7 +190,7 @@ func (f *memFileInfo) Name() string       { return f.name }
 func (f *memFileInfo) Size() int64        { return f.size }
 func (f *memFileInfo) Mode() fs.FileMode  { return 0644 }
 func (f *memFileInfo) ModTime() time.Time { return f.modTime }
-func (f *memFileInfo) IsDir() bool        { return false }
+func (f *memFileInfo) IsDir() bool        { return f.isDir }
 func (f *memFileInfo) Sys() interface{}   { return nil }
 
 // =============================================================================

@@ -1159,6 +1159,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Debug logs cleared'**
   String get debugLogsCleared;
+
+  /// No description provided for @cloudAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud Albums'**
+  String get cloudAlbums;
+
+  /// No description provided for @allPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'All Photos'**
+  String get allPhotos;
+
+  /// No description provided for @defaultAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Album'**
+  String get defaultAlbum;
+
+  /// No description provided for @newAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'New Album'**
+  String get newAlbum;
+
+  /// No description provided for @albumName.
+  ///
+  /// In en, this message translates to:
+  /// **'Album Name'**
+  String get albumName;
+
+  /// No description provided for @albumNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter album name'**
+  String get albumNameHint;
+
+  /// No description provided for @renameAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Album'**
+  String get renameAlbum;
+
+  /// No description provided for @deleteAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Album'**
+  String get deleteAlbum;
+
+  /// No description provided for @deleteAlbumConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently Delete Album?'**
+  String get deleteAlbumConfirmTitle;
+
+  /// No description provided for @deleteAlbumConfirmDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Warning: This will permanently delete the album and all {count} photo(s) inside it. Data on the remote storage will be completely erased and cannot be recovered!'**
+  String deleteAlbumConfirmDesc(Object count);
+
+  /// No description provided for @deleteAlbumInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type album name to confirm deletion'**
+  String get deleteAlbumInputHint;
+
+  /// No description provided for @cannotDeleteDefaultAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'The default album cannot be deleted'**
+  String get cannotDeleteDefaultAlbum;
+
+  /// No description provided for @moveToAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Album'**
+  String get moveToAlbum;
+
+  /// No description provided for @moveSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved successfully'**
+  String get moveSuccess;
+
+  /// No description provided for @moveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Move failed'**
+  String get moveFailed;
+
+  /// No description provided for @defaultAlbumSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Backup Album'**
+  String get defaultAlbumSetting;
+
+  /// No description provided for @defaultAlbumSettingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Target album name for automatic sync and uploads'**
+  String get defaultAlbumSettingDesc;
 }
 
 class _AppLocalizationsDelegate

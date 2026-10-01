@@ -37,6 +37,26 @@ class ImgSyncerClient extends $grpc.Client {
       '/img_syncer.ImgSyncer/FilterNotUploaded',
       ($0.FilterNotUploadedRequest value) => value.writeToBuffer(),
       ($core.List<$core.int> value) => $0.FilterNotUploadedResponse.fromBuffer(value));
+  static final _$listAlbums = $grpc.ClientMethod<$0.ListAlbumsRequest, $0.ListAlbumsResponse>(
+      '/img_syncer.ImgSyncer/ListAlbums',
+      ($0.ListAlbumsRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.ListAlbumsResponse.fromBuffer(value));
+  static final _$createAlbum = $grpc.ClientMethod<$0.CreateAlbumRequest, $0.CreateAlbumResponse>(
+      '/img_syncer.ImgSyncer/CreateAlbum',
+      ($0.CreateAlbumRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.CreateAlbumResponse.fromBuffer(value));
+  static final _$deleteAlbum = $grpc.ClientMethod<$0.DeleteAlbumRequest, $0.DeleteAlbumResponse>(
+      '/img_syncer.ImgSyncer/DeleteAlbum',
+      ($0.DeleteAlbumRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.DeleteAlbumResponse.fromBuffer(value));
+  static final _$renameAlbum = $grpc.ClientMethod<$0.RenameAlbumRequest, $0.RenameAlbumResponse>(
+      '/img_syncer.ImgSyncer/RenameAlbum',
+      ($0.RenameAlbumRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.RenameAlbumResponse.fromBuffer(value));
+  static final _$moveAssets = $grpc.ClientMethod<$0.MoveAssetsRequest, $0.MoveAssetsResponse>(
+      '/img_syncer.ImgSyncer/MoveAssets',
+      ($0.MoveAssetsRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.MoveAssetsResponse.fromBuffer(value));
   static final _$setDriveSMB = $grpc.ClientMethod<$0.SetDriveSMBRequest, $0.SetDriveSMBResponse>(
       '/img_syncer.ImgSyncer/SetDriveSMB',
       ($0.SetDriveSMBRequest value) => value.writeToBuffer(),
@@ -94,6 +114,26 @@ class ImgSyncerClient extends $grpc.Client {
 
   $grpc.ResponseStream<$0.FilterNotUploadedResponse> filterNotUploaded($async.Stream<$0.FilterNotUploadedRequest> request, {$grpc.CallOptions? options}) {
     return $createStreamingCall(_$filterNotUploaded, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ListAlbumsResponse> listAlbums($0.ListAlbumsRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$listAlbums, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.CreateAlbumResponse> createAlbum($0.CreateAlbumRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$createAlbum, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.DeleteAlbumResponse> deleteAlbum($0.DeleteAlbumRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$deleteAlbum, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.RenameAlbumResponse> renameAlbum($0.RenameAlbumRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$renameAlbum, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.MoveAssetsResponse> moveAssets($0.MoveAssetsRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$moveAssets, request, options: options);
   }
 
   $grpc.ResponseFuture<$0.SetDriveSMBResponse> setDriveSMB($0.SetDriveSMBRequest request, {$grpc.CallOptions? options}) {
@@ -166,6 +206,41 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
         true,
         ($core.List<$core.int> value) => $0.FilterNotUploadedRequest.fromBuffer(value),
         ($0.FilterNotUploadedResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.ListAlbumsRequest, $0.ListAlbumsResponse>(
+        'ListAlbums',
+        listAlbums_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.ListAlbumsRequest.fromBuffer(value),
+        ($0.ListAlbumsResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.CreateAlbumRequest, $0.CreateAlbumResponse>(
+        'CreateAlbum',
+        createAlbum_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.CreateAlbumRequest.fromBuffer(value),
+        ($0.CreateAlbumResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.DeleteAlbumRequest, $0.DeleteAlbumResponse>(
+        'DeleteAlbum',
+        deleteAlbum_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.DeleteAlbumRequest.fromBuffer(value),
+        ($0.DeleteAlbumResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RenameAlbumRequest, $0.RenameAlbumResponse>(
+        'RenameAlbum',
+        renameAlbum_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.RenameAlbumRequest.fromBuffer(value),
+        ($0.RenameAlbumResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.MoveAssetsRequest, $0.MoveAssetsResponse>(
+        'MoveAssets',
+        moveAssets_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.MoveAssetsRequest.fromBuffer(value),
+        ($0.MoveAssetsResponse value) => value.writeToBuffer()));
     $addMethod($grpc.ServiceMethod<$0.SetDriveSMBRequest, $0.SetDriveSMBResponse>(
         'SetDriveSMB',
         setDriveSMB_Pre,
@@ -243,6 +318,26 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
     return delete(call, await request);
   }
 
+  $async.Future<$0.ListAlbumsResponse> listAlbums_Pre($grpc.ServiceCall call, $async.Future<$0.ListAlbumsRequest> request) async {
+    return listAlbums(call, await request);
+  }
+
+  $async.Future<$0.CreateAlbumResponse> createAlbum_Pre($grpc.ServiceCall call, $async.Future<$0.CreateAlbumRequest> request) async {
+    return createAlbum(call, await request);
+  }
+
+  $async.Future<$0.DeleteAlbumResponse> deleteAlbum_Pre($grpc.ServiceCall call, $async.Future<$0.DeleteAlbumRequest> request) async {
+    return deleteAlbum(call, await request);
+  }
+
+  $async.Future<$0.RenameAlbumResponse> renameAlbum_Pre($grpc.ServiceCall call, $async.Future<$0.RenameAlbumRequest> request) async {
+    return renameAlbum(call, await request);
+  }
+
+  $async.Future<$0.MoveAssetsResponse> moveAssets_Pre($grpc.ServiceCall call, $async.Future<$0.MoveAssetsRequest> request) async {
+    return moveAssets(call, await request);
+  }
+
   $async.Future<$0.SetDriveSMBResponse> setDriveSMB_Pre($grpc.ServiceCall call, $async.Future<$0.SetDriveSMBRequest> request) async {
     return setDriveSMB(call, await request);
   }
@@ -283,6 +378,11 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
   $async.Future<$0.ListByDateResponse> listByDate($grpc.ServiceCall call, $0.ListByDateRequest request);
   $async.Future<$0.DeleteResponse> delete($grpc.ServiceCall call, $0.DeleteRequest request);
   $async.Stream<$0.FilterNotUploadedResponse> filterNotUploaded($grpc.ServiceCall call, $async.Stream<$0.FilterNotUploadedRequest> request);
+  $async.Future<$0.ListAlbumsResponse> listAlbums($grpc.ServiceCall call, $0.ListAlbumsRequest request);
+  $async.Future<$0.CreateAlbumResponse> createAlbum($grpc.ServiceCall call, $0.CreateAlbumRequest request);
+  $async.Future<$0.DeleteAlbumResponse> deleteAlbum($grpc.ServiceCall call, $0.DeleteAlbumRequest request);
+  $async.Future<$0.RenameAlbumResponse> renameAlbum($grpc.ServiceCall call, $0.RenameAlbumRequest request);
+  $async.Future<$0.MoveAssetsResponse> moveAssets($grpc.ServiceCall call, $0.MoveAssetsRequest request);
   $async.Future<$0.SetDriveSMBResponse> setDriveSMB($grpc.ServiceCall call, $0.SetDriveSMBRequest request);
   $async.Future<$0.ListDriveSMBSharesResponse> listDriveSMBShares($grpc.ServiceCall call, $0.ListDriveSMBSharesRequest request);
   $async.Future<$0.ListDriveSMBDirResponse> listDriveSMBDir($grpc.ServiceCall call, $0.ListDriveSMBDirRequest request);

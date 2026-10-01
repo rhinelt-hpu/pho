@@ -1,10 +1,32 @@
 package util
 
 import (
+	"fmt"
 	"mime"
 	"path/filepath"
 	"strings"
 )
+
+// SanitizePath 对路径进行安全检查，防止路径遍历攻击。
+func SanitizePath(name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("empty path")
+	}
+	if filepath.IsAbs(name) {
+		return "", fmt.Errorf("absolute path not allowed: %s", name)
+	}
+	if strings.Contains(name, "\\") {
+		return "", fmt.Errorf("invalid path separator: %s", name)
+	}
+	if name == "." || strings.HasPrefix(name, "./") {
+		return "", fmt.Errorf("invalid path: %s", name)
+	}
+	cleaned := filepath.Clean(name)
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("path traversal not allowed: %s", name)
+	}
+	return cleaned, nil
+}
 
 func IsVideo(name string) bool {
 	ext := filepath.Ext(name)

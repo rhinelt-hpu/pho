@@ -40,6 +40,52 @@ class SettingsRouteState extends State<SettingsRoute> {
     if (mounted) setState(() {});
   }
 
+  void _showDefaultAlbumDialog() {
+    final controller = TextEditingController(text: settingModel.defaultAlbumName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.defaultAlbumSetting),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.defaultAlbumSettingDesc,
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: l10n.albumNameHint,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty) {
+                settingModel.setDefaultAlbumName(text);
+                setState(() {});
+              }
+              Navigator.pop(ctx);
+            },
+            child: Text(l10n.yes),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showParallelUploadDialog() {
     int current = settingModel.parallelCount;
     showDialog(
@@ -152,6 +198,12 @@ class SettingsRouteState extends State<SettingsRoute> {
             l10n.parallelUpload,
             l10n.parallelUploadCount(settingModel.parallelCount),
             onTap: _showParallelUploadDialog,
+          ),
+          tile(
+            Icons.photo_library_outlined,
+            l10n.defaultAlbumSetting,
+            settingModel.defaultAlbumName,
+            onTap: _showDefaultAlbumDialog,
           ),
           tile(
             Icons.filter_alt_outlined,
