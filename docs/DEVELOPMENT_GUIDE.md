@@ -321,3 +321,17 @@ make test
 - **原因**：多选渲染逻辑被错误嵌套在 `if (all[i].isLivePhoto())` 条件下。由于 Android 平台照片的 `isLivePhoto()` 恒为 `false`，导致普通照片的多选蒙层和勾选圈完全被跳过。
 - **解决**：已在 `lib/gallery_body.dart` 中彻底移除该嵌套条件，并升级为 3.0px 主题色高亮外框 + 28% 半透明蒙层 + 24px 实心 `check_circle` / 空心圆圈高对比度指示器。
 
+### Q12: Android 上传或预览时报错 keepScreenOn 失败 (Unable to establish connection on channel: dev.flutter.pigeon...)
+- **现象**：开始上传与结束上传时，控制台抛出两次标红的 `PlatformException(channel-error, Unable to establish connection on channel: "dev.flutter.pigeon.wakelock_plus_platform_interface.WakelockPlusApi.toggle"...)`。
+- **原因**：`wakelock_plus: 1.1.4` 与其浮动传递依赖 `wakelock_plus_platform_interface: 1.6.0` 之间存在 Pigeon 通道签名重构的不兼容变更，导致底层通道名称断联。
+- **解决**：
+  1. 在 Android 原生 `MainActivity.kt` 中实现 `keepScreenOn` MethodChannel，直接调用系统标准的 `window.addFlags(FLAG_KEEP_SCREEN_ON)`，零三方包开销且 100% 稳定可靠；
+  2. 在 `pubspec.yaml` 的 `dependency_overrides` 中显式固定 `wakelock_plus_platform_interface: 1.1.0`，彻底对齐 Pigeon 通道版本。
+
+### Q13: 应用每次杀进程重启后仍然重复弹出“欢迎使用 Pho”首屏新手引导
+- **原因**：首屏新手引导页在点击“跳过”按钮时，直接调用了 `widget.onComplete` 回调，未将 `has_onboarded: true` 持久化写入 `SharedPreferences`。导致下次冷启动时 `prefs.getBool('has_onboarded')` 依然为 `false`。
+- **解决**：
+  1. 在 `OnboardingRoute` 中将“跳过”按钮绑定至 `_finishOnboarding`，点击即同步持久化写入 `has_onboarded = true`；
+  2. 在应用入口根节点 `_AppEntryPointState` 增加自愈容错判定：若检测到本地已经配置了 WebDAV / SMB / NFS 等存储，说明属于已有用户，自动补全持久化标记并永久跳过引导流程。
+
+
