@@ -2,6 +2,8 @@ package imgmanager
 
 import (
 	"bytes"
+	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -269,6 +271,36 @@ func TestAlbumLifecycle(t *testing.T) {
 	}
 	if targetCount != 2 {
 		t.Fatalf("expected 2 photos count in album %s, got %d", albumName, targetCount)
+	}
+
+	// 7.2 上传一张根目录下未分相册的老版本照片（模拟旧版本存量数据）
+	legacyDate := time.Date(2026, 4, 16, 12, 0, 0, 0, time.Local)
+	legacyPath := filepath.Join(legacyDate.Format("2006/01/02"), "legacy.jpg")
+	_ = md.Upload(legacyPath, io.NopCloser(bytes.NewReader(content)), int64(len(content)), legacyDate)
+
+	// 7.3 查询默认相册（相机备份）：必须包含 legacy 照片
+	var defaultAlbumPaths []string
+	_ = im.RangeByAlbumAndDate(DefaultAlbumName, time.Time{}, func(info ImgInfo) bool {
+		defaultAlbumPaths = append(defaultAlbumPaths, info.Path)
+		return true
+	})
+	if len(defaultAlbumPaths) != 1 || defaultAlbumPaths[0] != legacyPath {
+		t.Fatalf("expected legacy photo in default album query, got: %v", defaultAlbumPaths)
+	}
+
+	// 7.4 验证 ListAlbums 默认相册计数：必须为 1
+	albumsWithLegacy, err := im.ListAlbums()
+	if err != nil {
+		t.Fatalf("ListAlbums error: %v", err)
+	}
+	var defaultCount int64
+	for _, a := range albumsWithLegacy {
+		if a.Name == DefaultAlbumName {
+			defaultCount = a.Count
+		}
+	}
+	if defaultCount != 1 {
+		t.Fatalf("expected 1 photo in default album, got %d", defaultCount)
 	}
 
 	// 8. 重命名相册

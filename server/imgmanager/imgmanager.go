@@ -791,13 +791,15 @@ func (im *ImgManager) RangeByAlbumAndDate(album string, date time.Time, f func(i
 	defer unlock()
 
 	t := date
-	if t.IsZero() {
-		t = time.Now()
-	}
 
 	var allDirInfos []dirInfo
 	if album != "" {
 		allDirInfos = im.collectDirInfos(d, album, t)
+		// 如果查询的是默认相册，根目录下未迁移的历史日期目录也应一并包含
+		if album == im.GetDefaultAlbum() {
+			rootInfos := im.collectDirInfos(d, ".", t)
+			allDirInfos = append(allDirInfos, rootInfos...)
+		}
 	} else {
 		// 1. 根目录下的历史日期文件夹（向下兼容）
 		rootInfos := im.collectDirInfos(d, ".", t)

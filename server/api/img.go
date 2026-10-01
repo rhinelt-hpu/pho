@@ -49,7 +49,7 @@ func (a *api) ListByDate(ctx context.Context, req *pb.ListByDateRequest) (rsp *p
 		req.Offset = 0
 	}
 	var e error
-	start := time.Now()
+	var start time.Time
 	if req.Date != "" {
 		start, e = time.Parse("2006:01:02", req.Date)
 		if e != nil {
