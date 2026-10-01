@@ -71,13 +71,24 @@ class _AppEntryPointState extends State<_AppEntryPoint> {
     super.initState();
     SharedPreferences.getInstance().then((prefs) {
       if (!mounted) return;
+      final hasOnboarded = prefs.getBool('has_onboarded') ?? false;
+      // 容错：如果用户已经配置了网络存储或相册，说明已经在使用，绝不重复弹出新手引导
+      final hasConfiguredStorage =
+          (prefs.getString('webdav_url')?.isNotEmpty ?? false) ||
+          (prefs.getString('smb_host')?.isNotEmpty ?? false) ||
+          (prefs.getString('nfs_host')?.isNotEmpty ?? false);
+      if (hasConfiguredStorage && !hasOnboarded) {
+        prefs.setBool('has_onboarded', true);
+      }
       setState(() {
-        _needsOnboarding = !(prefs.getBool('has_onboarded') ?? false);
+        _needsOnboarding = !(hasOnboarded || hasConfiguredStorage);
       });
     });
   }
 
-  void _finishOnboarding() {
+  void _finishOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_onboarded', true);
     if (!mounted) return;
     setState(() {
       _needsOnboarding = false;

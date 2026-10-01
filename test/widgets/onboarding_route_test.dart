@@ -50,7 +50,7 @@ void main() {
       expect(pageView.onPageChanged, isNotNull);
     });
 
-    testWidgets('点击跳过按钮触发 onComplete', (WidgetTester tester) async {
+    testWidgets('点击跳过按钮触发 onComplete 并写入 has_onboarded', (WidgetTester tester) async {
       bool completed = false;
       SharedPreferences.setMockInitialValues({});
 
@@ -63,6 +63,8 @@ void main() {
       await pumpUntilSettled(tester);
 
       expect(completed, isTrue);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('has_onboarded'), isTrue);
     });
 
     testWidgets('滑动到最后一页点击开始使用进入权限步骤', (WidgetTester tester) async {

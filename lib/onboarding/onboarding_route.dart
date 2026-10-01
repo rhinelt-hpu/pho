@@ -101,7 +101,7 @@ class _OnboardingRouteState extends State<OnboardingRoute> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
-                    onPressed: widget.onComplete,
+                    onPressed: _finishOnboarding,
                     child: Text(l10n.onboardingSkip),
                   ),
                   _PageIndicator(count: pages.length, currentIndex: _currentPage),

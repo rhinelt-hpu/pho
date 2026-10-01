@@ -108,6 +108,9 @@ Future<void> keepScreenOn(bool on) async {
     if (Platform.isIOS) {
       const channel = MethodChannel('com.example.img_syncer/notifications');
       await channel.invokeMethod('keepScreenOn', {'enable': on});
+    } else if (Platform.isAndroid) {
+      const channel = MethodChannel('com.example.img_syncer/RunGrpcServer');
+      await channel.invokeMethod('keepScreenOn', {'enable': on});
     } else {
       if (on) {
         await WakelockPlus.enable();
@@ -116,6 +119,14 @@ Future<void> keepScreenOn(bool on) async {
       }
     }
   } catch (e) {
-    logger.addLog("keepScreenOn($on) failed: $e");
+    try {
+      if (on) {
+        await WakelockPlus.enable();
+      } else {
+        await WakelockPlus.disable();
+      }
+    } catch (e2) {
+      logger.addLog("keepScreenOn($on) failed: $e2");
+    }
   }
 }

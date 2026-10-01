@@ -13,6 +13,7 @@ import android.os.Build
 import android.provider.MediaStore
 
 import android.content.Intent
+import android.view.WindowManager
 import java.io.File
 
 
@@ -29,6 +30,14 @@ class MainActivity : FlutterActivity() {
         result.success(re)
       } else if (call.method == "scanFile") {
         scanFile(call.argument("path"), call.argument("volumeName"), call.argument("relativePath"), call.argument("mimeType"))
+        result.success(null)
+      } else if (call.method == "keepScreenOn") {
+        val enable = call.argument<Boolean>("enable") ?: false
+        if (enable) {
+          window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+          window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         result.success(null)
       } else {
         result.notImplemented()
