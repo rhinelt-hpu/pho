@@ -457,6 +457,8 @@ class AssetModel extends ChangeNotifier {
   }
   List<Asset> localAssets = [];
   List<Asset> remoteAssets = [];
+  final Set<String> _localAssetIds = {};
+  bool _isRefreshingLocal = false;
   int columCount = 4;
   int pageSize = 500;
   bool localHasMore = true;
@@ -557,27 +559,36 @@ class AssetModel extends ChangeNotifier {
     if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
       return;
     }
-    logger.addLog("refresh local");
-    if (localGetting != null) {
-      if (localGettingNeedBreak == true) {
-        return;
+    if (_isRefreshingLocal) {
+      return;
+    }
+    _isRefreshingLocal = true;
+    try {
+      logger.addLog("refresh local");
+      if (localGetting != null) {
+        if (localGettingNeedBreak == true) {
+          return;
+        }
+        localGettingNeedBreak = true;
+        await localGetting!.future;
       }
-      localGettingNeedBreak = true;
-      await localGetting!.future;
-    }
-    if (stateModel.refreshingUnsynchronized) {
-      refreshUnsynchronizedNeedBreak = true;
-    }
-    if (refreshSync) {
-      stateModel.setSyncedPhotos([]);
-    }
-    localHasMore = true;
-    localAssets = [];
-    localGettingNeedBreak = false;
-    notifyListeners();
-    final finished = await getLocalPhotos();
-    if (finished && refreshSync) {
-      await refreshUnsynchronizedPhotos();
+      if (stateModel.refreshingUnsynchronized) {
+        refreshUnsynchronizedNeedBreak = true;
+      }
+      if (refreshSync) {
+        stateModel.setSyncedPhotos([]);
+      }
+      localHasMore = true;
+      localAssets = [];
+      _localAssetIds.clear();
+      localGettingNeedBreak = false;
+      notifyListeners();
+      final finished = await getLocalPhotos();
+      if (finished && refreshSync) {
+        await refreshUnsynchronizedPhotos();
+      }
+    } finally {
+      _isRefreshingLocal = false;
     }
   }
 
@@ -670,6 +681,10 @@ class AssetModel extends ChangeNotifier {
               notifyListeners();
               return false;
             }
+            if (_localAssetIds.contains(entities[i].id)) {
+              continue; // 彻底去重，同一物理文件绝不二次入列
+            }
+            _localAssetIds.add(entities[i].id);
             final asset = Asset(local: entities[i]);
             if (settingModel.localFolderAbsPath == null) {
               final file = await entities[i].originFile;
@@ -690,6 +705,7 @@ class AssetModel extends ChangeNotifier {
             break;
           }
         }
+        break; // 只要匹配到选定的本地相册，处理完毕立即退出循环，避免扫描到系统多重同名 bucket
       }
     }
 

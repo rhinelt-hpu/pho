@@ -274,6 +274,7 @@ class SyncBodyState extends State<SyncBody> {
     }
     final all = assetModel.localAssets;
     List<Widget> listChildren = [];
+    final Set<String> seenUnsyncedIds = {};
     double currentScrollOffset = 0;
     for (var asset in all) {
       // columnBuilder 为同步函数，使用 localTitle 获取扩展名；
@@ -285,6 +286,10 @@ class SyncBodyState extends State<SyncBody> {
       if (!shouldSyncAsset(asset, asset.local!.id, uploadedIds, ext)) {
         continue;
       }
+      if (seenUnsyncedIds.contains(asset.local!.id)) {
+        continue; // 保底去重：同一物理文件绝不重复渲染和重复计数
+      }
+      seenUnsyncedIds.add(asset.local!.id);
       final totalHeight = MediaQuery.of(context).size.height;
       bool needLoadThumbnail = false;
       if (currentScrollOffset > scrollOffset - (2 * totalHeight) &&

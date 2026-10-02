@@ -225,11 +225,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
         stateModel.setOnline(!results.contains(ConnectivityResult.none));
       });
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (assetModel.localAssets.isEmpty) {
-        assetModel.refreshLocal(false);
-      }
-    });
     super.initState();
   }
 
