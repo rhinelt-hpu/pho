@@ -37,9 +37,9 @@ void main() {
       sm = SettingModel();
     });
 
-    test('默认并发数为 1', () {
-      expect(sm.parallelCount, 1);
-      expect(sm.paralleUploadCount, 1);
+    test('默认并发数为 3', () {
+      expect(sm.parallelCount, 3);
+      expect(sm.paralleUploadCount, 3);
     });
 
     test('设置并发数在 1~8 范围内有效', () {

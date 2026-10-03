@@ -91,8 +91,8 @@ class SettingModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 1. 并发上传配置 (1~8, 默认 1)
-  int _parallelCount = 1;
+  // 1. 并发上传配置 (1~8, 默认 3)
+  int _parallelCount = 3;
   int get parallelCount => _parallelCount;
   set parallelCount(int count) => setParallelCount(count);
 
