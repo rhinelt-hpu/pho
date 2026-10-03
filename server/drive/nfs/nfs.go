@@ -17,6 +17,8 @@ import (
 	"github.com/vmware/go-nfs-client/nfs/rpc"
 )
 
+const MaxRemoteConcurrency = 16
+
 type Nfs struct {
 	host              string
 	target            string
@@ -25,6 +27,21 @@ type Nfs struct {
 	cli               *nfs.Target
 	lastConnTimestamp int64
 	connMu            sync.Mutex // 保护重连过程的序列化
+	sem               chan struct{}
+}
+
+type semReleaseReadCloser struct {
+	io.ReadCloser
+	once    sync.Once
+	release func()
+}
+
+func (rc *semReleaseReadCloser) Close() error {
+	err := rc.ReadCloser.Close()
+	if rc.release != nil {
+		rc.once.Do(rc.release)
+	}
+	return err
 }
 
 func NewNfsDrive(url string) (*Nfs, error) {
@@ -35,6 +52,7 @@ func NewNfsDrive(url string) (*Nfs, error) {
 	d := &Nfs{
 		host:   re[0],
 		target: re[1],
+		sem:    make(chan struct{}, MaxRemoteConcurrency),
 	}
 	mount, err := nfs.DialMount(d.host)
 	if err != nil {
@@ -50,6 +68,14 @@ func NewNfsDrive(url string) (*Nfs, error) {
 	d.mount = mount
 	d.cli = target
 	return d, nil
+}
+
+func (d *Nfs) acquire() func() {
+	if d.sem == nil {
+		return func() {}
+	}
+	d.sem <- struct{}{}
+	return func() { <-d.sem }
 }
 
 func (d *Nfs) Close() error {
@@ -153,6 +179,8 @@ func (d *Nfs) SetRootPath(rootPath string) error {
 }
 
 func (d *Nfs) IsExist(path string) (bool, error) {
+	release := d.acquire()
+	defer release()
 	if err := d.checkConn(); err != nil {
 		return false, err
 	}
@@ -180,61 +208,75 @@ func (d *Nfs) IsExist(path string) (bool, error) {
 }
 
 func (d *Nfs) Download(path string) (io.ReadCloser, int64, error) {
+	release := d.acquire()
 	if err := d.checkConn(); err != nil {
+		release()
 		return nil, 0, err
 	}
 	if d.rootPath == "" {
+		release()
 		return nil, 0, fmt.Errorf("root path is empty")
 	}
 	fullPath := filepath.Join(d.rootPath, path)
 	file, err := d.cli.Open(fullPath)
 	if err != nil {
 		d.cleanLastConnTime()
+		release()
 		return nil, 0, fmt.Errorf("open file error: %v", err)
 	}
 	info, _, err := d.cli.Lookup(fullPath)
 	if err != nil {
 		file.Close()
+		release()
 		return nil, 0, fmt.Errorf("lookup file info error: %v", err)
 	}
 	length := int64(info.Size())
 	d.updateLastConnTime()
-	return file, length, nil
+	return &semReleaseReadCloser{ReadCloser: file, release: release}, length, nil
 }
 
 func (d *Nfs) DownloadWithOffset(path string, offset int64) (io.ReadCloser, int64, error) {
+	release := d.acquire()
 	if err := d.checkConn(); err != nil {
+		release()
 		return nil, 0, err
 	}
 	if d.rootPath == "" {
+		release()
 		return nil, 0, fmt.Errorf("root path is empty")
 	}
 	fullPath := filepath.Join(d.rootPath, path)
 	file, err := d.cli.Open(fullPath)
 	if err != nil {
 		d.cleanLastConnTime()
+		release()
 		return nil, 0, fmt.Errorf("open file error: %v", err)
 	}
 	info, _, err := d.cli.Lookup(fullPath)
 	if err != nil {
 		file.Close()
+		release()
 		return nil, 0, fmt.Errorf("lookup file info error: %v", err)
 	}
 	length := int64(info.Size())
 	if length > 0 && offset >= length {
 		file.Close()
+		release()
 		return nil, length, fmt.Errorf("offset is out of range")
 	}
 	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
 		file.Close()
+		release()
 		return nil, length, err
 	}
 	d.updateLastConnTime()
-	return file, length, nil
+	return &semReleaseReadCloser{ReadCloser: file, release: release}, length, nil
 }
 
 func (d *Nfs) Delete(path string) error {
+	release := d.acquire()
+	defer release()
 	if err := d.checkConn(); err != nil {
 		return err
 	}
@@ -251,6 +293,8 @@ func (d *Nfs) Delete(path string) error {
 }
 
 func (d *Nfs) Upload(path string, reader io.ReadCloser, size int64, lastModified time.Time) error {
+	release := d.acquire()
+	defer release()
 	if err := d.checkConn(); err != nil {
 		return err
 	}
@@ -289,6 +333,8 @@ func (d *Nfs) Upload(path string, reader io.ReadCloser, size int64, lastModified
 }
 
 func (d *Nfs) Range(dir string, deal func(fs.FileInfo) bool) error {
+	release := d.acquire()
+	defer release()
 	if err := d.checkConn(); err != nil {
 		return err
 	}
@@ -362,6 +408,8 @@ func (d *Nfs) Move(oldPath, newPath string) error {
 }
 
 func (d *Nfs) Mkdir(dir string) error {
+	release := d.acquire()
+	defer release()
 	if err := d.checkConn(); err != nil {
 		return err
 	}

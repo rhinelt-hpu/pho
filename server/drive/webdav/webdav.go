@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	defaultThumbnailDir = ".thumbnail"
-	defaultManifestDir  = ".manifest"
+	defaultThumbnailDir  = ".thumbnail"
+	defaultManifestDir   = ".manifest"
+	MaxRemoteConcurrency = 16
 )
 
 type Webdav struct {
@@ -30,13 +31,42 @@ type Webdav struct {
 	cli       *gowebdav.Client
 	mkdirLock sync.Mutex // serializes mkdir to avoid race in gowebdav lib
 	knownDirs map[string]bool
+	sem       chan struct{}
+}
+
+type semReleaseReadCloser struct {
+	io.ReadCloser
+	once    sync.Once
+	release func()
+}
+
+func (rc *semReleaseReadCloser) Close() error {
+	err := rc.ReadCloser.Close()
+	if rc.release != nil {
+		rc.once.Do(rc.release)
+	}
+	return err
 }
 
 type retryTransport struct {
 	base http.RoundTripper
+	sem  chan struct{}
 }
 
 func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.sem != nil {
+		select {
+		case t.sem <- struct{}{}:
+		case <-req.Context().Done():
+			return nil, req.Context().Err()
+		}
+	}
+	releaseSem := func() {
+		if t.sem != nil {
+			<-t.sem
+		}
+	}
+
 	var resp *http.Response
 	var err error
 	start := time.Now()
@@ -61,21 +91,38 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		statusCode = resp.StatusCode
 	}
 	GlobalStats.Record(req.Method, req.URL.Path, statusCode, time.Since(start).Milliseconds())
-	return resp, err
+	if err != nil || resp == nil || resp.Body == nil {
+		releaseSem()
+		return resp, err
+	}
+	resp.Body = &semReleaseReadCloser{
+		ReadCloser: resp.Body,
+		release:    releaseSem,
+	}
+	return resp, nil
 }
 
 func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
+	sem := make(chan struct{}, MaxRemoteConcurrency)
 	d := &Webdav{
 		url:       url,
 		username:  username,
 		password:  password,
 		cli:       gowebdav.NewClient(url, username, password),
 		knownDirs: make(map[string]bool),
+		sem:       sem,
 	}
 	baseTransport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecure},
+		MaxConnsPerHost:     MaxRemoteConcurrency,
+		MaxIdleConns:        MaxRemoteConcurrency * 2,
+		MaxIdleConnsPerHost: MaxRemoteConcurrency,
+		IdleConnTimeout:     90 * time.Second,
 	}
-	d.cli.SetTransport(&retryTransport{base: baseTransport})
+	d.cli.SetTransport(&retryTransport{
+		base: baseTransport,
+		sem:  sem,
+	})
 	if insecure {
 		log.Printf("WARNING: TLS certificate verification disabled for WebDAV at %s, do not use in production", url)
 	}

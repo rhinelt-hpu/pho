@@ -17,7 +17,10 @@ import (
 	"github.com/hirochachacha/go-smb2"
 )
 
-const smbConnTTL = 5 * time.Minute
+const (
+	smbConnTTL           = 5 * time.Minute
+	MaxRemoteConcurrency = 16
+)
 
 type Smb struct {
 	addr              string
@@ -29,6 +32,21 @@ type Smb struct {
 	lastConnTimestamp int64
 	downloadLock      sync.Mutex
 	connMu            sync.Mutex
+	sem               chan struct{}
+}
+
+type semReleaseReadCloser struct {
+	io.ReadCloser
+	once    sync.Once
+	release func()
+}
+
+func (rc *semReleaseReadCloser) Close() error {
+	err := rc.ReadCloser.Close()
+	if rc.release != nil {
+		rc.once.Do(rc.release)
+	}
+	return err
 }
 
 func NewSmbDrive(addr, username, password string) *Smb {
@@ -39,9 +57,18 @@ func NewSmbDrive(addr, username, password string) *Smb {
 		addr:     addr,
 		username: username,
 		password: password,
+		sem:      make(chan struct{}, MaxRemoteConcurrency),
 	}
 
 	return smb
+}
+
+func (s *Smb) acquire() func() {
+	if s.sem == nil {
+		return func() {}
+	}
+	s.sem <- struct{}{}
+	return func() { <-s.sem }
 }
 
 func (s *Smb) lastConnTime() time.Time {
@@ -176,6 +203,8 @@ func (s *Smb) SetRootPath(rootPath string) error {
 }
 
 func (s *Smb) Upload(path string, content io.ReadCloser, size int64, lastModified time.Time) error {
+	release := s.acquire()
+	defer release()
 	defer content.Close()
 	if err := s.checkConn(); err != nil {
 		return err
@@ -214,6 +243,8 @@ func (s *Smb) Upload(path string, content io.ReadCloser, size int64, lastModifie
 }
 
 func (s *Smb) IsExist(path string) (bool, error) {
+	release := s.acquire()
+	defer release()
 	if err := s.checkConn(); err != nil {
 		return false, err
 	}
@@ -260,38 +291,50 @@ func (s *Smb) Download(path string) (io.ReadCloser, int64, error) {
 // DownloadWithOffset 从 SMB 远程文件读取指定偏移量起的内容。
 // 注意：由于 go-smb2 库不支持在同一 Share 上并发读取，下载操作通过 downloadLock 串行化。
 func (s *Smb) DownloadWithOffset(path string, offset int64) (io.ReadCloser, int64, error) {
+	release := s.acquire()
 	s.downloadLock.Lock()
 	defer s.downloadLock.Unlock()
 	if err := s.checkConn(); err != nil {
+		release()
 		return nil, 0, err
 	}
 	if s.rootPath == "" {
+		release()
 		return nil, 0, fmt.Errorf("root path is empty")
 	}
 	fullPath := filepath.Join(s.rootPath, path)
 	f, err := s.fs.Open(fullPath)
 	if err != nil {
 		s.cleanLastConnTime()
+		release()
 		return nil, 0, err
 	}
 	s.updateLastConnTime()
 	fi, err := f.Stat()
 	if err != nil {
+		_ = f.Close()
 		s.cleanLastConnTime()
+		release()
 		return nil, 0, err
 	}
 	if offset > fi.Size() {
+		_ = f.Close()
+		release()
 		return nil, 0, fmt.Errorf("offset %d is bigger than file size %d", offset, fi.Size())
 	}
 	_, err = f.Seek(offset, io.SeekStart)
 	if err != nil {
+		_ = f.Close()
 		s.cleanLastConnTime()
+		release()
 		return nil, 0, err
 	}
-	return f, fi.Size(), nil
+	return &semReleaseReadCloser{ReadCloser: f, release: release}, fi.Size(), nil
 }
 
 func (s *Smb) Delete(path string) error {
+	release := s.acquire()
+	defer release()
 	if err := s.checkConn(); err != nil {
 		return err
 	}
@@ -317,6 +360,8 @@ func (s *Smb) Close() error {
 }
 
 func (s *Smb) Range(dir string, deal func(fs.FileInfo) bool) error {
+	release := s.acquire()
+	defer release()
 	if err := s.checkConn(); err != nil {
 		return err
 	}
@@ -340,6 +385,8 @@ func (s *Smb) Range(dir string, deal func(fs.FileInfo) bool) error {
 }
 
 func (s *Smb) Move(oldPath, newPath string) error {
+	release := s.acquire()
+	defer release()
 	if err := s.checkConn(); err != nil {
 		return err
 	}
@@ -360,6 +407,8 @@ func (s *Smb) Move(oldPath, newPath string) error {
 }
 
 func (s *Smb) Mkdir(dir string) error {
+	release := s.acquire()
+	defer release()
 	if err := s.checkConn(); err != nil {
 		return err
 	}
