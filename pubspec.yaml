@@ -34,13 +34,8 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
-  toast: ^0.3.0
   grpc: ^3.1.0
   photo_manager: ^3.6.0
-  photo_view:
-    git:
-      url: https://github.com/bluefireteam/photo_view.git
-      ref: a13ca2fc387a3fb1276126959e092c44d0029987
   date_format: ^2.0.7
   provider: ^6.0.5
   path: ^1.8.2
@@ -49,11 +44,9 @@ dependencies:
   exif: ^3.1.4
   adaptive_theme: ^3.2.0
   dynamic_color: ^1.6.7
-  synchronized: ^3.0.1
   rxdart: ^0.27.7
   image: ^4.0.17
   share_plus: ^7.1.0
-  logger: ^2.0.0
   connectivity_plus: ^6.0.0
   flutter_launcher_icons: ^0.13.1
   extended_image: ^8.1.0

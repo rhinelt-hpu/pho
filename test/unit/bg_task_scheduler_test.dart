@@ -40,13 +40,11 @@ void main() {
     expect(capturedArgs, isNull);
   });
 
-  test('native 端未注册 handler 时抛 MissingPluginException（契约不吞错）',
+  test('native 端未注册 handler 时不抛出未捕获异常（静默降级记录日志）',
       () async {
     messenger.setMockMethodCallHandler(channel, null);
 
-    expect(
-      () => scheduleBgTaskViaChannel(),
-      throwsA(isA<MissingPluginException>()),
-    );
+    // 契约：iOS 模拟器或非 iOS 平台没有对应 channel 时，捕获异常不打断启动
+    await expectLater(scheduleBgTaskViaChannel(), completes);
   });
 }

@@ -7,7 +7,6 @@ import 'package:img_syncer/design_tokens.dart';
 import 'package:img_syncer/event_bus.dart';
 import 'package:img_syncer/global.dart';
 import 'package:img_syncer/state_model.dart';
-import 'package:img_syncer/widgets/thumbnail_skeleton.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';

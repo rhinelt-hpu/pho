@@ -24,7 +24,6 @@ type Image struct {
 	Path        string
 	Size        int64
 	ContentType string
-	ImageMetadata
 }
 
 const (

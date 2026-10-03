@@ -645,14 +645,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.1.1"
-  logger:
-    dependency: "direct main"
-    description:
-      name: logger
-      sha256: "25aee487596a6257655a1e091ec2ae66bc30e7af663592cc3a27e6591e05035c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.7.0"
   logging:
     dependency: transitive
     description:
@@ -829,15 +821,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.11.0"
-  photo_view:
-    dependency: "direct main"
-    description:
-      path: "."
-      ref: a13ca2fc387a3fb1276126959e092c44d0029987
-      resolved-ref: a13ca2fc387a3fb1276126959e092c44d0029987
-      url: "https://github.com/bluefireteam/photo_view.git"
-    source: git
-    version: "0.15.0"
   platform:
     dependency: transitive
     description:
@@ -1083,14 +1066,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
-  synchronized:
-    dependency: "direct main"
-    description:
-      name: synchronized
-      sha256: "61894a1956de6b4fc1aefd0892e109514a1a706cbece3ac59decd90ff5a7a423"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.4.1+1"
   talker:
     dependency: "direct main"
     description:
@@ -1131,14 +1106,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.12"
-  toast:
-    dependency: "direct main"
-    description:
-      name: toast
-      sha256: "12433091e3e5a25b3a25f670126e42547c9ade135de30ad9ace45d1ddccd57c9"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.0"
   typed_data:
     dependency: transitive
     description:
