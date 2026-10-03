@@ -6,17 +6,20 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 const (
-	ManifestDir = ".manifest"
+	ManifestDir                = ".manifest"
+	DefaultCompactionThreshold = 20
 )
 
 // ManifestRecord 代表单个远端文件的状态快照（以指纹为唯一主键）
@@ -46,12 +49,13 @@ type ManifestSnapshot struct {
 
 // ManifestManager 负责远端元数据清单的无锁追加、水位线跳过读取与状态同步
 type ManifestManager struct {
-	mu           sync.RWMutex
-	records      map[string]ManifestRecord // Fingerprint -> ManifestRecord
-	maxWatermark int64
-	deviceID     string
-	initialized  bool
-	localPath    string // 本地持久化缓存路径（如 app_data/manifest_cache.json）
+	mu                    sync.RWMutex
+	records               map[string]ManifestRecord // Fingerprint -> ManifestRecord
+	maxWatermark          int64
+	deviceID              string
+	initialized           bool
+	localPath             string // 本地持久化缓存路径（如 app_data/manifest_cache.json）
+	chunksSinceCompaction int
 }
 
 func NewManifestManager(deviceID string) *ManifestManager {
@@ -225,6 +229,24 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 		_ = mm.saveLocalLocked()
 	}
 
+	// 5. 自动碎片压缩与垃圾回收检查：
+	// 若远端存在 >= DefaultCompactionThreshold 个切片文件：
+	// - 若当前最高水位线高于快照，压缩并生成新快照并清理旧碎片；
+	// - 若快照已是最新，直接触发异步清理旧碎片。
+	if len(chunks) >= DefaultCompactionThreshold && mm.maxWatermark > 0 {
+		chunksToPrune := make([]string, 0, len(chunks))
+		for _, c := range chunks {
+			if c.watermark <= mm.maxWatermark {
+				chunksToPrune = append(chunksToPrune, filepath.Join(ManifestDir, c.name))
+			}
+		}
+		if snapshotWatermark < mm.maxWatermark {
+			_ = mm.compactLocked(d, chunksToPrune)
+		} else {
+			go mm.pruneObsoleteFiles(d, mm.maxWatermark, chunksToPrune)
+		}
+	}
+
 	mm.initialized = true
 	return nil
 }
@@ -268,14 +290,84 @@ func (mm *ManifestManager) AppendChunk(d StorageDrive, records []ManifestRecord)
 		}
 	}
 	_ = mm.saveLocalLocked()
+
+	mm.chunksSinceCompaction++
+	if mm.chunksSinceCompaction >= DefaultCompactionThreshold {
+		_ = mm.compactLocked(d)
+	}
+
 	return nil
 }
 
-// Compact 将当前内存中的全量有效状态压缩为一个基线快照，并上传至远端
-func (mm *ManifestManager) Compact(d StorageDrive) error {
-	mm.mu.Lock()
-	defer mm.mu.Unlock()
+// pruneObsoleteFiles 在后台并发回收已纳入快照的旧 chunk 与旧快照
+func (mm *ManifestManager) pruneObsoleteFiles(d StorageDrive, watermark int64, hintPaths []string) {
+	deleteSet := make(map[string]bool)
+	for _, p := range hintPaths {
+		deleteSet[p] = true
+	}
 
+	// 补充扫描 .manifest/ 目录，将残留的更老快照和其他碎片一并纳入清理队列
+	err := d.Range(ManifestDir, func(info fs.FileInfo) bool {
+		name := info.Name()
+		if strings.HasPrefix(name, "chunk_") && strings.HasSuffix(name, ".json") {
+			parts := strings.Split(strings.TrimSuffix(strings.TrimPrefix(name, "chunk_"), ".json"), "_")
+			if len(parts) >= 1 {
+				w, err := strconv.ParseInt(parts[0], 10, 64)
+				if err == nil && w <= watermark {
+					deleteSet[filepath.Join(ManifestDir, name)] = true
+				}
+			}
+		} else if strings.HasPrefix(name, "snapshot_to_") && strings.HasSuffix(name, ".json") {
+			parts := strings.TrimSuffix(strings.TrimPrefix(name, "snapshot_to_"), ".json")
+			w, err := strconv.ParseInt(parts, 10, 64)
+			if err == nil && w < watermark {
+				deleteSet[filepath.Join(ManifestDir, name)] = true
+			}
+		}
+		return true
+	})
+	if err != nil && len(deleteSet) == 0 {
+		log.Printf("[WARN] pruneObsoleteFiles Range failed: %v", err)
+		return
+	}
+
+	if len(deleteSet) == 0 {
+		return
+	}
+
+	toDelete := make([]string, 0, len(deleteSet))
+	for p := range deleteSet {
+		toDelete = append(toDelete, p)
+	}
+
+	// 使用 8 并发协程安全清理过时碎片，不阻塞主线程与读锁
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+	var deletedCount int32
+	start := time.Now()
+
+	for _, p := range toDelete {
+		wg.Add(1)
+		go func(path string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if err := d.Delete(path); err == nil {
+				atomic.AddInt32(&deletedCount, 1)
+			} else {
+				log.Printf("[WARN] Prune %s failed: %v", path, err)
+			}
+		}(p)
+	}
+
+	wg.Wait()
+	log.Printf("[INFO] Manifest GC complete: pruned %d/%d obsolete files in %v (current watermark: %d)",
+		deletedCount, len(toDelete), time.Since(start), watermark)
+}
+
+// compactLocked 将当前内存全量状态压缩写入 snapshot_to_<watermark>.json，并安全回收已纳入快照的旧 chunk 与旧快照
+// 调用前需持有 mm.mu
+func (mm *ManifestManager) compactLocked(d StorageDrive, hintPaths ...[]string) error {
 	if mm.maxWatermark <= 0 || len(mm.records) == 0 {
 		return nil
 	}
@@ -300,7 +392,30 @@ func (mm *ManifestManager) Compact(d StorageDrive) error {
 	snapFileName := fmt.Sprintf("snapshot_to_%010d.json", snap.Watermark)
 	snapPath := filepath.Join(ManifestDir, snapFileName)
 
-	return d.Upload(snapPath, io.NopCloser(bytes.NewReader(data)), int64(len(data)), time.Now())
+	// 1. 上传新基线快照
+	err = d.Upload(snapPath, io.NopCloser(bytes.NewReader(data)), int64(len(data)), time.Now())
+	if err != nil {
+		return fmt.Errorf("upload snapshot failed: %w", err)
+	}
+
+	mm.chunksSinceCompaction = 0
+	_ = mm.saveLocalLocked()
+
+	// 2. 异步安全垃圾回收（GC），不阻塞主线程与读锁
+	var hints []string
+	if len(hintPaths) > 0 {
+		hints = hintPaths[0]
+	}
+	go mm.pruneObsoleteFiles(d, snap.Watermark, hints)
+
+	return nil
+}
+
+// Compact 将当前内存中的全量有效状态压缩为一个基线快照，并上传至远端
+func (mm *ManifestManager) Compact(d StorageDrive) error {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	return mm.compactLocked(d)
 }
 
 // LookupFingerprint 在内存中快速检索指纹，返回是否存在且未删除

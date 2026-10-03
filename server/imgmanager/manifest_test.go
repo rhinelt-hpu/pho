@@ -1,8 +1,11 @@
 package imgmanager
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestManifestLifecycleAndWatermarkPruning(t *testing.T) {
@@ -137,5 +140,75 @@ func TestManifestLifecycleAndWatermarkPruning(t *testing.T) {
 	}
 	if mmCold.RecordCount() != 2 {
 		t.Fatalf("expected still 2 active records, got: %d", mmCold.RecordCount())
+	}
+}
+
+func TestManifestAutoCompactionAndGarbageCollection(t *testing.T) {
+	md := newMockDrive()
+	mm := NewManifestManager("test_dev")
+
+	// 追加 25 个独立 chunk，模拟大量碎片累积
+	for i := 1; i <= 25; i++ {
+		err := mm.AppendChunk(md, []ManifestRecord{
+			{
+				Fingerprint: fmt.Sprintf("pic_%d.jpg", i),
+				Album:       "相机备份",
+				Path:        fmt.Sprintf("相机备份/2026/10/03/pic_%d.jpg", i),
+				Size:        int64(i * 100),
+				Deleted:     false,
+				UpdatedAt:   int64(i * 10),
+			},
+		})
+		if err != nil {
+			t.Fatalf("AppendChunk %d failed: %v", i, err)
+		}
+	}
+
+	// 断言由于超过 DefaultCompactionThreshold (20)，自动压缩在第 20 个 chunk 被触发
+	// 稍作等待后台 GC goroutine 完成清理
+	time.Sleep(50 * time.Millisecond)
+
+	// 验证 snapshot_to_0000000020.json 已被生成
+	snapPath20 := filepath.Join(ManifestDir, "snapshot_to_0000000020.json")
+	if _, ok := md.files[snapPath20]; !ok {
+		t.Fatalf("expected snapshot %s to exist in mock drive", snapPath20)
+	}
+
+	// 验证前 20 个旧 chunk 已被垃圾回收
+	for i := 1; i <= 20; i++ {
+		chunkFilePrefix := filepath.Join(ManifestDir, fmt.Sprintf("chunk_%010d_", i))
+		for path := range md.files {
+			if strings.HasPrefix(path, chunkFilePrefix) {
+				t.Fatalf("obsolete chunk %s <= 20 was not pruned by GC", path)
+			}
+		}
+	}
+
+	// 手动触发一次 Compact，测试将剩余 5 个增量切片压缩并删除旧快照 snapshot_20
+	err := mm.Compact(md)
+	if err != nil {
+		t.Fatalf("Compact failed: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	snapPath25 := filepath.Join(ManifestDir, "snapshot_to_0000000025.json")
+	if _, ok := md.files[snapPath25]; !ok {
+		t.Fatalf("expected snapshot %s to exist in mock drive", snapPath25)
+	}
+	// 验证旧快照 snapshot_20 也被回收
+	if _, ok := md.files[snapPath20]; ok {
+		t.Fatalf("old snapshot %s was not pruned by GC", snapPath20)
+	}
+
+	// 模拟新设备加入并 Sync：只需下载单张快照即可完成全部 25 张照片的恢复
+	mmNew := NewManifestManager("new_dev")
+	err = mmNew.Sync(md)
+	if err != nil {
+		t.Fatalf("Sync on new device failed: %v", err)
+	}
+	if mmNew.RecordCount() != 25 {
+		t.Fatalf("expected 25 records recovered on new device, got: %d", mmNew.RecordCount())
+	}
+	if mmNew.GetMaxWatermark() != 25 {
+		t.Fatalf("expected watermark 25, got: %d", mmNew.GetMaxWatermark())
 	}
 }
