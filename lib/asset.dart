@@ -153,25 +153,39 @@ class Asset extends ImageProvider<Asset> {
     }
     if (hasRemote) {
       final filePath = remote!.path;
-      var format1 = RegExp(r'^(\d{4})/(\d{2})/(\d{2})/');
-      var format2 = RegExp(r'^(\d{4})(\d{2})(\d{2})/');
 
-      // Check if file path matches the first format.
-      var match = format1.firstMatch(filePath);
-      if (match != null) {
-        var year = match.group(1);
-        var month = match.group(2);
-        var day = match.group(3);
-        return DateTime.parse('$year$month$day');
+      // 1. 优先尝试从文件名 encodeName (YYYYMMDDhhmmss_...) 中解析精确拍摄时间
+      final fileName = basename(filePath);
+      var formatName = RegExp(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_');
+      var matchName = formatName.firstMatch(fileName);
+      if (matchName != null) {
+        var year = int.parse(matchName.group(1)!);
+        var month = int.parse(matchName.group(2)!);
+        var day = int.parse(matchName.group(3)!);
+        var hour = int.parse(matchName.group(4)!);
+        var minute = int.parse(matchName.group(5)!);
+        var second = int.parse(matchName.group(6)!);
+        return DateTime(year, month, day, hour, minute, second);
       }
 
-      // Check if file path matches the second format.
-      match = format2.firstMatch(filePath);
-      if (match != null) {
-        var year = match.group(1);
-        var month = match.group(2);
-        var day = match.group(3);
-        return DateTime.parse('$year$month$day');
+      // 2. 尝试从路径中匹配 YYYY/MM/DD/（支持前置相册名，如 相机备份/2026/02/26/ 或 2026/02/26/）
+      var formatPath1 = RegExp(r'(?:^|/)(\d{4})/(\d{2})/(\d{2})/');
+      var matchPath1 = formatPath1.firstMatch(filePath);
+      if (matchPath1 != null) {
+        var year = int.parse(matchPath1.group(1)!);
+        var month = int.parse(matchPath1.group(2)!);
+        var day = int.parse(matchPath1.group(3)!);
+        return DateTime(year, month, day);
+      }
+
+      // 3. 尝试从路径中匹配 YYYYMMDD/（如 相机备份/20260226/ 或 20260226/）
+      var formatPath2 = RegExp(r'(?:^|/)(\d{4})(\d{2})(\d{2})/');
+      var matchPath2 = formatPath2.firstMatch(filePath);
+      if (matchPath2 != null) {
+        var year = int.parse(matchPath2.group(1)!);
+        var month = int.parse(matchPath2.group(2)!);
+        var day = int.parse(matchPath2.group(3)!);
+        return DateTime(year, month, day);
       }
     }
     return DateTime.now();
