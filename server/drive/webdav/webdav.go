@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,25 +33,51 @@ type Webdav struct {
 	mkdirLock sync.Mutex // serializes mkdir to avoid race in gowebdav lib
 	knownDirs map[string]bool
 	sem       chan struct{}
+	rt        *retryTransport
 }
 
 type semReleaseReadCloser struct {
 	io.ReadCloser
 	once    sync.Once
 	release func()
+	size    int64
+}
+
+func (rc *semReleaseReadCloser) releaseNow() {
+	if rc.release != nil {
+		rc.once.Do(rc.release)
+	}
 }
 
 func (rc *semReleaseReadCloser) Close() error {
 	err := rc.ReadCloser.Close()
-	if rc.release != nil {
-		rc.once.Do(rc.release)
-	}
+	rc.releaseNow()
 	return err
 }
 
+func parseContentRangeTotal(cr string) int64 {
+	if cr == "" {
+		return -1
+	}
+	idx := strings.LastIndexByte(cr, '/')
+	if idx < 0 || idx+1 >= len(cr) {
+		return -1
+	}
+	totalStr := strings.TrimSpace(cr[idx+1:])
+	if totalStr == "*" || totalStr == "" {
+		return -1
+	}
+	n, err := strconv.ParseInt(totalStr, 10, 64)
+	if err != nil || n < 0 {
+		return -1
+	}
+	return n
+}
+
 type retryTransport struct {
-	base http.RoundTripper
-	sem  chan struct{}
+	base        http.RoundTripper
+	sem         chan struct{}
+	lastSizeMap sync.Map
 }
 
 func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -95,15 +122,37 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		releaseSem()
 		return resp, err
 	}
+
+	var totalSize int64 = -1
+	if req.Method == http.MethodGet {
+		if resp.StatusCode == http.StatusPartialContent {
+			totalSize = parseContentRangeTotal(resp.Header.Get("Content-Range"))
+		} else if resp.StatusCode == http.StatusOK {
+			totalSize = resp.ContentLength
+		}
+		t.lastSizeMap.Store(req.URL.Path, totalSize)
+	}
+
 	resp.Body = &semReleaseReadCloser{
 		ReadCloser: resp.Body,
 		release:    releaseSem,
+		size:       totalSize,
 	}
 	return resp, nil
 }
 
 func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
 	sem := make(chan struct{}, MaxRemoteConcurrency)
+	baseTransport := &http.Transport{
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecure},
+		MaxIdleConns:        MaxRemoteConcurrency * 2,
+		MaxIdleConnsPerHost: MaxRemoteConcurrency,
+		IdleConnTimeout:     90 * time.Second,
+	}
+	rt := &retryTransport{
+		base: baseTransport,
+		sem:  sem,
+	}
 	d := &Webdav{
 		url:       url,
 		username:  username,
@@ -111,18 +160,9 @@ func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
 		cli:       gowebdav.NewClient(url, username, password),
 		knownDirs: make(map[string]bool),
 		sem:       sem,
+		rt:        rt,
 	}
-	baseTransport := &http.Transport{
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecure},
-		MaxConnsPerHost:     MaxRemoteConcurrency,
-		MaxIdleConns:        MaxRemoteConcurrency * 2,
-		MaxIdleConnsPerHost: MaxRemoteConcurrency,
-		IdleConnTimeout:     90 * time.Second,
-	}
-	d.cli.SetTransport(&retryTransport{
-		base: baseTransport,
-		sem:  sem,
-	})
+	d.cli.SetTransport(rt)
 	if insecure {
 		log.Printf("WARNING: TLS certificate verification disabled for WebDAV at %s, do not use in production", url)
 	}
@@ -200,6 +240,28 @@ func (d *Webdav) IsExist(path string) (bool, error) {
 	return true, nil
 }
 
+func (d *Webdav) extractSizeOrStat(fullPath string, reader io.ReadCloser) (int64, error) {
+	if src, ok := reader.(*semReleaseReadCloser); ok {
+		if src.size >= 0 {
+			return src.size, nil
+		}
+		// 若远端未返回 Content-Length / Content-Range，先释放当前流占用的信号量槽位，防止并发下嵌套 Stat 死锁
+		src.releaseNow()
+	} else if d.rt != nil {
+		normPath := "/" + strings.TrimPrefix(fullPath, "/")
+		if v, ok := d.rt.lastSizeMap.Load(normPath); ok {
+			if sz, ok := v.(int64); ok && sz >= 0 {
+				return sz, nil
+			}
+		}
+	}
+	info, err := d.cli.Stat(fullPath)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
 func (d *Webdav) Download(path string) (io.ReadCloser, int64, error) {
 	if d.rootPath == "" {
 		return nil, 0, fmt.Errorf("root path is empty")
@@ -210,12 +272,12 @@ func (d *Webdav) Download(path string) (io.ReadCloser, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	info, err := d.cli.Stat(fullPath)
+	size, err := d.extractSizeOrStat(fullPath, reader)
 	if err != nil {
 		reader.Close()
 		return nil, 0, err
 	}
-	return reader, info.Size(), nil
+	return reader, size, nil
 }
 
 func (d *Webdav) Delete(path string) error {
@@ -241,12 +303,12 @@ func (d *Webdav) DownloadWithOffset(path string, offset int64) (io.ReadCloser, i
 	if err != nil {
 		return nil, 0, err
 	}
-	info, err := d.cli.Stat(fullPath)
+	size, err := d.extractSizeOrStat(fullPath, reader)
 	if err != nil {
 		reader.Close()
 		return nil, 0, err
 	}
-	return reader, info.Size(), nil
+	return reader, size, nil
 }
 
 func (d *Webdav) ensureDir(dir string) error {

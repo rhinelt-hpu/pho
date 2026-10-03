@@ -74,11 +74,14 @@ func TestRemoteConcurrencyLimit16(t *testing.T) {
 					errCh <- err
 				}
 			} else {
-				// 模拟 GET 下载缩略图/原图请求（验证流关闭后才释放信号量槽位）
-				rc, err := drive.Cli().ReadStream(fmt.Sprintf("/root/photo_%d.jpg", idx))
+				// 模拟完整 drive.Download 请求（直接提取 Content-Length 零 Stat 请求，且流关闭后才释放信号量槽位）
+				rc, sz, err := drive.Download(fmt.Sprintf("photo_%d.jpg", idx))
 				if err != nil {
 					errCh <- err
 					return
+				}
+				if sz != 11 {
+					errCh <- fmt.Errorf("expected size 11, got %d", sz)
 				}
 				_, _ = io.ReadAll(rc)
 				_ = rc.Close()
