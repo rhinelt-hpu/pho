@@ -156,7 +156,13 @@ class SettingsRouteState extends State<SettingsRoute> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.settings),
+        title: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            l10n.settings,
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+        ),
       ),
       body: ListView(
         children: [
@@ -182,7 +188,7 @@ class SettingsRouteState extends State<SettingsRoute> {
               ),
             ),
           ),
-          if (Platform.isAndroid)
+          if (Platform.isAndroid || Platform.isIOS)
             tile(
               Icons.cloud_sync_outlined,
               l10n.backgroundSync,

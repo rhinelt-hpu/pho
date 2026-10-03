@@ -126,6 +126,7 @@ class GalleryBodyState extends State<GalleryBody>
       }
     });
     settingModel.addListener(_onSettingChanged);
+    stateModel.addListener(_onStateModelChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.useLocal) {
         if (assetModel.localAssets.isEmpty) {
@@ -163,9 +164,16 @@ class GalleryBodyState extends State<GalleryBody>
     }
   }
 
+  void _onStateModelChanged() {
+    if (!stateModel.isSelectionMode && _selectedIndices.isNotEmpty) {
+      clearSelection();
+    }
+  }
+
   @override
   void dispose() {
     settingModel.removeListener(_onSettingChanged);
+    stateModel.removeListener(_onStateModelChanged);
     super.dispose();
     _scrollController.dispose();
     _scrollSubject.close();
@@ -228,12 +236,13 @@ class GalleryBodyState extends State<GalleryBody>
 
   void clearSelection() {
     _selectedIndices.clear();
+    final controller = _bottomSheetController;
+    _bottomSheetController = null;
+    controller?.close(); // 关闭BottomSheet
     stateModel.setSelectionMode(false);
-    if (_bottomSheetController != null) {
-      _bottomSheetController?.close(); // 关闭BottomSheet
-      _bottomSheetController = null;
+    if (mounted) {
+      setState(() {});
     }
-    setState(() {});
   }
 
   void _showDeleteDialog(BuildContext context) {
@@ -1465,42 +1474,56 @@ class GalleryBodyState extends State<GalleryBody>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return RefreshIndicator(
-      key: _refreshIndicatorKey,
-      onRefresh: refresh,
-      child: Stack(
-        children: [
-          CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                if (widget.showAppBar) appBar(),
-                Consumer<AssetModel>(builder: contentBuilder),
-              ]),
-          if (!isDesktop())
-            Positioned(top: locaterOffset, right: 0, child: locater()),
-          // 回到顶部按钮
-          Positioned(
-            bottom: 20,
-            right: 20,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Offstage(
-                  offstage: !_showToTopBtn,
-                  child: Container(
-                    margin: const EdgeInsets.only(left: 10),
-                    child: FloatingActionButton.small(
-                      onPressed: _scrollToTop,
-                      heroTag: 'gallery_body_${widget.useLocal}_toTop',
-                      child: const Icon(Icons.arrow_upward),
+    return Consumer<StateModel>(
+      builder: (context, model, child) {
+        return PopScope(
+          canPop: !model.isSelectionMode,
+          onPopInvokedWithResult: (bool didPop, dynamic result) {
+            if (didPop) return;
+            if (model.isSelectionMode) {
+              clearSelection();
+            }
+          },
+          child: child!,
+        );
+      },
+      child: RefreshIndicator(
+        key: _refreshIndicatorKey,
+        onRefresh: refresh,
+        child: Stack(
+          children: [
+            CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  if (widget.showAppBar) appBar(),
+                  Consumer<AssetModel>(builder: contentBuilder),
+                ]),
+            if (!isDesktop())
+              Positioned(top: locaterOffset, right: 0, child: locater()),
+            // 回到顶部按钮
+            Positioned(
+              bottom: 20,
+              right: 20,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Offstage(
+                    offstage: !_showToTopBtn,
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 10),
+                      child: FloatingActionButton.small(
+                        onPressed: _scrollToTop,
+                        heroTag: 'gallery_body_${widget.useLocal}_toTop',
+                        child: const Icon(Icons.arrow_upward),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

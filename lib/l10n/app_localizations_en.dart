@@ -646,4 +646,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refreshStats => 'Refresh Stats';
+
+  @override
+  String get transferring => 'Transferring';
 }

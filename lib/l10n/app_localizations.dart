@@ -1303,6 +1303,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Refresh Stats'**
   String get refreshStats;
+
+  /// No description provided for @transferring.
+  ///
+  /// In en, this message translates to:
+  /// **'Transferring'**
+  String get transferring;
 }
 
 class _AppLocalizationsDelegate

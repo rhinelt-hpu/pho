@@ -372,6 +372,7 @@ class StateModel extends ChangeNotifier {
       return 0;
     }
     final state = uploadProgress[id]!;
+    if (state.total <= 0) return 0;
     return state.transmitted / state.total;
   }
 
@@ -380,6 +381,7 @@ class StateModel extends ChangeNotifier {
       return 0;
     }
     final state = downloadProgress[id]!;
+    if (state.total <= 0) return 0;
     return state.transmitted / state.total;
   }
 
@@ -416,6 +418,8 @@ class StateModel extends ChangeNotifier {
   }
 
   Future<void> saveSyncedIDs() async {
+    _saveSyncedDebounceTimer?.cancel();
+    _saveSyncedDebounceTimer = null;
     final prefs = await SharedPreferences.getInstance();
     final jsonString = jsonEncode(syncedIDs);
     await prefs.setString('synced_ids', jsonString);

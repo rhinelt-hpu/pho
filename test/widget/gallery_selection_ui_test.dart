@@ -122,4 +122,54 @@ void main() {
     // 2. 未选中的第 2 张照片应渲染空心 circle_outlined，提示用户处于多选且可勾选
     expect(find.byIcon(Icons.circle_outlined), findsOneWidget);
   });
+
+  testWidgets('多选模式下触发系统返回键：应退出多选状态而非退出页面/程序', (tester) async {
+    assetModel.localAssets = [
+      _MockAsset(id: '1'),
+      _MockAsset(id: '2'),
+    ];
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingModel>.value(value: settingModel),
+          ChangeNotifierProvider<AssetModel>.value(value: assetModel),
+          ChangeNotifierProvider<StateModel>.value(value: stateModel),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: GalleryBody(useLocal: true, showAppBar: false),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final state = tester.state<GalleryBodyState>(find.byType(GalleryBody));
+    state.toggleSelection(0);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(stateModel.isSelectionMode, isTrue);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+
+    // 模拟用户按下 Android 系统返回键
+    final didHandlePop = await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // 断言返回事件已被拦截处理，多选模式已退出，且 GalleryBody 仍在树中（未退出页面）
+    expect(didHandlePop, isTrue);
+    expect(stateModel.isSelectionMode, isFalse);
+    expect(find.byType(GalleryBody), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(find.byIcon(Icons.circle_outlined), findsNothing);
+  });
 }

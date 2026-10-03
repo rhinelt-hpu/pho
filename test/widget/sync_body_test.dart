@@ -1,7 +1,18 @@
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:img_syncer/asset.dart';
+import 'package:img_syncer/global.dart' as global;
+import 'package:img_syncer/l10n/app_localizations.dart';
+import 'package:img_syncer/main.dart';
+import 'package:img_syncer/settings_route.dart';
 import 'package:img_syncer/state_model.dart';
 import 'package:img_syncer/sync_body.dart';
+import 'package:img_syncer/util.dart';
+import 'package:photo_manager/photo_manager.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 可控的 Asset 子类，绕过 photo_manager AssetEntity 依赖。
 class _TestAsset extends Asset {
@@ -17,7 +28,18 @@ class _TestAsset extends Asset {
   })  : _isVideo = isVideoFlag,
         _dateCreated = dateCreated,
         _assetId = id,
-        super(local: null, remote: null) {
+        super(
+          local: AssetEntity(
+            id: id,
+            typeInt: isVideoFlag ? 2 : 1,
+            width: 100,
+            height: 100,
+            createDateSecond: dateCreated.millisecondsSinceEpoch ~/ 1000,
+            modifiedDateSecond: dateCreated.millisecondsSinceEpoch ~/ 1000,
+            title: title,
+          ),
+          remote: null,
+        ) {
     hasLocal = true;
     localTitle = title;
   }
@@ -29,6 +51,18 @@ class _TestAsset extends Asset {
 
   @override
   DateTime dateCreated() => _dateCreated;
+
+  @override
+  bool loadThumbnailFinished() => false;
+
+  @override
+  Future<Uint8List> thumbnailDataAsync() async => Uint8List(0);
+
+  @override
+  bool hasGotTitle() => true;
+
+  @override
+  Future<String> name() async => localTitle ?? 'test.jpg';
 }
 
 /// 用指定 SettingModel 调用 shouldSyncAsset
@@ -151,6 +185,149 @@ void main() {
       const threshold = 10;
       expect(10 > threshold, isFalse);
       expect(11 > threshold, isTrue);
+    });
+  });
+
+  group('SyncBody UI 与正在传输列表、底部设置导航测试', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      settingModel = SettingModel();
+      assetModel = AssetModel();
+      stateModel = StateModel();
+      settingModel.isRemoteStorageSetted = true;
+      global.l10n = await AppLocalizations.delegate.load(const Locale('zh'));
+    });
+
+    Widget wrapWithProviders(Widget home) {
+      return MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingModel>.value(value: settingModel),
+          ChangeNotifierProvider<AssetModel>.value(value: assetModel),
+          ChangeNotifierProvider<StateModel>.value(value: stateModel),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: home,
+        ),
+      );
+    }
+
+    testWidgets('同步页移除冗余四个快捷设置按钮，仅展示传输与未同步列表', (tester) async {
+      assetModel.localAssets = [
+        _TestAsset(
+          id: 'p1',
+          isVideoFlag: false,
+          dateCreated: DateTime(2026, 1, 1),
+          title: 'IMG_0001.jpg',
+        ),
+      ];
+
+      await tester.pumpWidget(
+        wrapWithProviders(const SyncBody(localFolder: 'Camera')),
+      );
+      await tester.pump();
+
+      // 断言原先顶部的四个快捷按钮（本地相册、云端设置、后台同步、设置）不再出现在同步页
+      expect(find.text('本地相册'), findsNothing);
+      expect(find.text('云端设置'), findsNothing);
+      expect(find.text('后台同步'), findsNothing);
+
+      // 此时无正在传输项，“正在传输”分组不应显示，仅显示“未同步照片”
+      expect(find.text('正在传输'), findsNothing);
+      expect(find.text('未同步照片'), findsOneWidget);
+      expect(find.text('IMG_0001.jpg'), findsOneWidget);
+    });
+
+    testWidgets('当存在正在上传或正在下载的内容时，显示“正在传输”列表与实时进度', (tester) async {
+      assetModel.localAssets = [
+        _TestAsset(
+          id: 'up_1',
+          isVideoFlag: false,
+          dateCreated: DateTime(2026, 1, 1),
+          title: 'uploading_photo.jpg',
+        ),
+        _TestAsset(
+          id: 'wait_2',
+          isVideoFlag: false,
+          dateCreated: DateTime(2026, 1, 2),
+          title: 'waiting_photo.jpg',
+        ),
+      ];
+
+      await tester.pumpWidget(
+        wrapWithProviders(const SyncBody(localFolder: 'Camera')),
+      );
+      await tester.pump();
+
+      // 初始无传输：仅未同步列表
+      expect(find.text('正在传输'), findsNothing);
+      expect(find.text('uploading_photo.jpg'), findsOneWidget);
+      expect(find.text('waiting_photo.jpg'), findsOneWidget);
+
+      // 触发 up_1 上传进度 45%，以及一个云端视频下载进度 60%
+      stateModel.updateUploadProgress('up_1', 45, 100);
+      stateModel.updateDownloadProgress('remote_video.mp4', 60, 100);
+      await tester.pump();
+
+      // 断言“正在传输”分组出现，且显示计数 (2)
+      expect(find.text('正在传输'), findsOneWidget);
+      expect(find.text('(2)'), findsOneWidget);
+      expect(find.text('上传中 45%'), findsOneWidget);
+      expect(find.text('下载中 60%'), findsOneWidget);
+      expect(find.text('remote_video.mp4'), findsOneWidget);
+
+      // 断言 uploading_photo.jpg 仅在页面出现 1 次（已移至“正在传输”，不会在“未同步照片”重复出现）
+      expect(find.text('uploading_photo.jpg'), findsOneWidget);
+      expect(find.text('waiting_photo.jpg'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNWidgets(2));
+
+      // 完成上传与下载后，“正在传输”分组自动消失
+      stateModel.finishUpload('up_1', true);
+      stateModel.finishDownload('remote_video.mp4', true);
+      await stateModel.saveSyncedIDs();
+      await tester.pump();
+
+      expect(find.text('正在传输'), findsNothing);
+      expect(find.text('uploading_photo.jpg'), findsNothing);
+      expect(find.text('waiting_photo.jpg'), findsOneWidget);
+    });
+
+    testWidgets('首页底部导航栏包含4个按钮，最右侧第4个为“设置”并可切换', (tester) async {
+      isDesktopOverrideForTest = false;
+      settingModel.isRemoteStorageSetted = false;
+      addTearDown(() => isDesktopOverrideForTest = null);
+
+      await tester.pumpWidget(
+        wrapWithProviders(const MyHomePage(title: 'PHO')),
+      );
+      await tester.pump();
+
+      final navBarFinder = find.byType(NavigationBar);
+      expect(navBarFinder, findsOneWidget);
+
+      final navBar = tester.widget<NavigationBar>(navBarFinder);
+      expect(navBar.destinations.length, 4);
+
+      final lastDest = navBar.destinations[3] as NavigationDestination;
+      expect(lastDest.label, '设置');
+
+      // 点击底部最右侧“设置”导航项，应切换到 SettingsRoute
+      await tester.tap(find.descendant(
+        of: navBarFinder,
+        matching: find.text('设置'),
+      ));
+      await tester.pump();
+
+      expect(find.byType(SettingsRoute), findsOneWidget);
+      expect(find.text('选择相册'), findsOneWidget);
+      expect(find.text('云端设置'), findsOneWidget);
     });
   });
 }

@@ -202,5 +202,6 @@
   "rateLimitHits": "触发 429 限流次数",
   "resetStats": "重置统计计数",
   "recentLogs": "最近请求流水",
-  "refreshStats": "刷新统计"
+  "refreshStats": "刷新统计",
+  "transferring": "正在传输"
 }

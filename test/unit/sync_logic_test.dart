@@ -35,9 +35,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 使调用方的 `.catchError()` 能正确捕获。
 class MockRemoteStorageClient extends Mock implements RemoteStorageClient {
   @override
-  Future<void> uploadAssetEntity(AssetEntity? asset) async =>
+  Future<void> uploadAssetEntity(AssetEntity? asset, {String album = ""}) async =>
       super.noSuchMethod(
-        Invocation.method(#uploadAssetEntity, [asset]),
+        Invocation.method(#uploadAssetEntity, [asset], {#album: album}),
         returnValue: Future<void>.value(),
         returnValueForMissingStub: Future<void>.value(),
       );

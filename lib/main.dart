@@ -13,6 +13,7 @@ import 'package:img_syncer/state_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'gallery_body.dart';
 import 'sync_body.dart';
+import 'settings_route.dart';
 import 'package:adaptive_theme/adaptive_theme.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/services.dart';
@@ -284,6 +285,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
                             );
                           },
                         ),
+                        const SettingsRoute(),
                       ],
                     ),
                   ),
@@ -309,6 +311,11 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
                           icon: const Icon(Icons.cloud_sync_outlined),
                           selectedIcon: const Icon(Icons.cloud_sync),
                           label: l10n.sync,
+                        ),
+                        NavigationDestination(
+                          icon: const Icon(Icons.settings_outlined),
+                          selectedIcon: const Icon(Icons.settings),
+                          label: l10n.settings,
                         ),
                       ],
                     ),

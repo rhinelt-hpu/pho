@@ -135,8 +135,14 @@ Future<SyncResult> runSyncOnce({
       continue;
     }
     await sem.acquire();
+    if (!stateModel.uploadProgress.containsKey(localId)) {
+      stateModel.updateUploadProgress(localId, 0, 100);
+    }
     unawaited(
       storage.uploadAssetEntity(asset.local!).then((_) {
+        if (stateModel.uploadProgress.containsKey(localId)) {
+          stateModel.finishUpload(localId, true);
+        }
         if (failedTimes > 0) {
           failedTimes--;
         }
@@ -144,6 +150,9 @@ Future<SyncResult> runSyncOnce({
         callbacks?.onProgress?.call(completed, total, failed);
         sem.release();
       }).catchError((e) {
+        if (stateModel.uploadProgress.containsKey(localId)) {
+          stateModel.finishUpload(localId, false);
+        }
         failedTimes++;
         completed++;
         failed++;

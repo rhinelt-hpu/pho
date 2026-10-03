@@ -71,152 +71,43 @@ class SyncBodyState extends State<SyncBody> {
     _scrollSubject.close();
   }
 
-  Widget settingRows() {
-    final ButtonStyle style = FilledButton.styleFrom(
-        shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppRadius.buttonFull),
-    ));
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  height: 60,
-                  width: constraints.maxWidth * 0.5,
-                  padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.paddingStandard,
-                      AppSpacing.sm,
-                      AppSpacing.paddingSmall,
-                      AppSpacing.sm),
-                  child: FilledButton.tonal(
-                    style: style,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const ChooseAlbumRoute()),
-                      );
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.folder_outlined,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(l10n.localFolder),
-                      ],
-                    ),
-                  ),
-                ),
-                Container(
-                  height: 60,
-                  width: constraints.maxWidth * 0.5,
-                  padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.paddingSmall,
-                      AppSpacing.sm,
-                      AppSpacing.paddingStandard,
-                      AppSpacing.sm),
-                  child: FilledButton.tonal(
-                    style: style,
-                    onPressed: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SettingStorageRoute(),
-                          ));
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.cloud_outlined,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(l10n.cloudStorage),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            (Platform.isIOS ||
-                    Platform.isAndroid ||
-                    isDebug
-                ? Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          if (Platform.isAndroid || Platform.isIOS)
-                            Container(
-                              height: 60,
-                              width: constraints.maxWidth * 0.5,
-                              padding: const EdgeInsets.fromLTRB(
-                                  AppSpacing.paddingStandard,
-                                  AppSpacing.sm,
-                                  AppSpacing.paddingSmall,
-                                  AppSpacing.sm),
-                              child: FilledButton.tonal(
-                                style: style,
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                            const BackgroundSyncSettingRoute()),
-                                  );
-                                },
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.cloud_sync_outlined,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(l10n.backgroundSync),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          Container(
-                            height: 60,
-                            width: constraints.maxWidth * 0.5,
-                            padding: const EdgeInsets.fromLTRB(
-                                AppSpacing.paddingSmall,
-                                AppSpacing.sm,
-                                AppSpacing.paddingStandard,
-                                AppSpacing.sm),
-                            child: FilledButton.tonal(
-                              style: FilledButton.styleFrom(
-                                  shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                    AppRadius.buttonFull),
-                              )),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const SettingsRoute()),
-                                );
-                              },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.settings_outlined),
-                                  const SizedBox(width: 10),
-                                  Text(l10n.settings),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : const SizedBox(height: 0, width: 0)),
-          ],
+  Widget _buildSectionHeader(BuildContext context, String title, {int? count, bool highlight = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: highlight ? colorScheme.primary : null,
+          fontWeight: highlight ? FontWeight.bold : null,
         );
-      },
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.xs, 0),
+            child: Text(
+              title,
+              style: textStyle,
+            ),
+          ),
+          if (count != null)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: Text(
+                '($count)',
+                style: textStyle,
+              ),
+            )
+          else
+            const SizedBox(width: AppSpacing.xs),
+          const Flexible(
+            child: Divider(
+              height: 10,
+              thickness: 1,
+              indent: 0,
+              endIndent: AppSpacing.md,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -273,9 +164,151 @@ class SyncBodyState extends State<SyncBody> {
       uploadedIds[id] = true;
     }
     final all = assetModel.localAssets;
+
+    // 1. 构建“正在传输”列表（包含正在上传的本地照片与正在下载的云端照片）
+    List<Widget> transferringChildren = [];
+    final Map<String, dynamic> localAssetById = {};
+    for (var asset in all) {
+      if (asset.local != null) {
+        localAssetById[asset.local!.id] = asset;
+      }
+    }
+
+    for (final entry in stateModel.uploadProgress.entries) {
+      final id = entry.key;
+      final percent = stateModel.getUploadPercent(id);
+      final asset = localAssetById[id];
+      if (asset != null) {
+        if (!asset.loadThumbnailFinished()) {
+          asset.thumbnailDataAsync().then((value) {
+            if (mounted) setState(() {});
+          });
+        }
+        if (!asset.hasGotTitle()) {
+          asset.getLocalFile().then((value) {
+            if (mounted) setState(() {});
+          });
+        }
+      }
+      transferringChildren.add(
+        ListTile(
+          key: ValueKey('transfer_upload_$id'),
+          leading: SizedBox(
+            width: 60,
+            height: 60,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.small),
+              child: asset != null && asset.loadThumbnailFinished()
+                  ? Image(image: asset.thumbnailProvider(), fit: BoxFit.cover)
+                  : ThumbnailSkeleton(width: 60, height: 60),
+            ),
+          ),
+          title: asset != null
+              ? (asset.localTitle != null && asset.localTitle!.isNotEmpty
+                  ? Text(
+                      asset.localTitle!,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  : FutureBuilder<String>(
+                      future: asset.name(),
+                      builder: (context, name) => Text(
+                        name.data ?? "",
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ))
+              : Text(id, overflow: TextOverflow.ellipsis),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "${l10n.uploading} ${(percent * 100).clamp(0, 100).toInt()}%",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
+                child: LinearProgressIndicator(
+                  value: percent > 0 ? percent.clamp(0.0, 1.0) : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    for (final entry in stateModel.downloadProgress.entries) {
+      final key = entry.key;
+      final percent = stateModel.getDownloadPercent(key);
+      dynamic remoteAsset;
+      for (final a in assetModel.remoteAssets) {
+        if (a.remote != null &&
+            (basename(a.remote!.path) == key || a.remote!.path == key)) {
+          remoteAsset = a;
+          break;
+        }
+      }
+      transferringChildren.add(
+        ListTile(
+          key: ValueKey('transfer_download_$key'),
+          leading: SizedBox(
+            width: 60,
+            height: 60,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.small),
+              child: remoteAsset != null && remoteAsset.loadThumbnailFinished()
+                  ? Image(
+                      image: remoteAsset.thumbnailProvider(),
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.cloud_download_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+            ),
+          ),
+          title: Text(
+            basename(key),
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "${l10n.downloading} ${(percent * 100).clamp(0, 100).toInt()}%",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
+                child: LinearProgressIndicator(
+                  value: percent > 0 ? percent.clamp(0.0, 1.0) : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 2. 构建“未同步照片”列表（排除正在上传中的照片，避免在两个列表中重复出现）
     List<Widget> listChildren = [];
     final Set<String> seenUnsyncedIds = {};
-    double currentScrollOffset = 0;
+    double currentScrollOffset = transferringChildren.length * 72.0;
     for (var asset in all) {
       // columnBuilder 为同步函数，使用 localTitle 获取扩展名；
       // 若 localTitle 为空则扩展名为空字符串，filterTypeMap 不会匹配到空串，
@@ -290,6 +323,9 @@ class SyncBodyState extends State<SyncBody> {
         continue; // 保底去重：同一物理文件绝不重复渲染和重复计数
       }
       seenUnsyncedIds.add(asset.local!.id);
+      if (stateModel.uploadProgress.containsKey(asset.local!.id)) {
+        continue; // 正在上传的项已在上方“正在传输”列表中展示
+      }
       final totalHeight = MediaQuery.of(context).size.height;
       bool needLoadThumbnail = false;
       if (currentScrollOffset > scrollOffset - (2 * totalHeight) &&
@@ -318,13 +354,18 @@ class SyncBodyState extends State<SyncBody> {
           ),
         ),
         title: needLoadThumbnail
-            ? FutureBuilder(
-                future: asset.name(),
-                builder: (context, name) => Text(
-                  name.data ?? "",
-                  overflow: TextOverflow.ellipsis,
-                ),
-              )
+            ? (asset.localTitle != null && asset.localTitle!.isNotEmpty
+                ? Text(
+                    asset.localTitle!,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : FutureBuilder(
+                    future: asset.name(),
+                    builder: (context, name) => Text(
+                      name.data ?? "",
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ))
             : null,
         subtitle: needLoadThumbnail
             ? Consumer<StateModel>(
@@ -360,6 +401,7 @@ class SyncBodyState extends State<SyncBody> {
       listChildren.add(child);
       currentScrollOffset += 72; // ListTile's height
     }
+    final int totalUnsyncedCount = seenUnsyncedIds.length;
     return Scaffold(
       appBar: AppBar(
         title: Align(
@@ -377,7 +419,7 @@ class SyncBodyState extends State<SyncBody> {
             child: Text(
               syncing
                   ? "${stateModel.syncCompleted}/${stateModel.syncTotal} (${(stateModel.syncPercent * 100).toInt()}%)"
-                  : "${listChildren.length} ${l10n.notSync}",
+                  : "$totalUnsyncedCount ${l10n.notSync}",
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
@@ -436,27 +478,9 @@ class SyncBodyState extends State<SyncBody> {
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          settingRows(),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.sm, 0),
-                child: Text(
-                  l10n.unsynchronizedPhotos,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              const Flexible(
-                child: Divider(
-                  height: 10,
-                  thickness: 1,
-                  indent: 0,
-                  endIndent: AppSpacing.md,
-                ),
-              ),
-            ],
-          ),
-          if (!settingModel.isRemoteStorageSetted)
+          if (!settingModel.isRemoteStorageSetted &&
+              transferringChildren.isEmpty) ...[
+            _buildSectionHeader(context, l10n.unsynchronizedPhotos),
             Container(
               height: 250,
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
@@ -467,22 +491,39 @@ class SyncBodyState extends State<SyncBody> {
                         color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ),
             ),
-          model.refreshingUnsynchronized && listChildren.isEmpty
-              ? Container(
-                  height: 250,
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                  child: Center(
-                    heightFactor: 10,
-                    child: Text(l10n.refreshingPleaseWait,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                  ),
-                )
-              : Flexible(
-                  child: ListView(
-                  controller: _scrollController,
-                  children: listChildren,
-                )),
+          ] else if (model.refreshingUnsynchronized &&
+              listChildren.isEmpty &&
+              transferringChildren.isEmpty) ...[
+            _buildSectionHeader(context, l10n.unsynchronizedPhotos),
+            Container(
+              height: 250,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+              child: Center(
+                heightFactor: 10,
+                child: Text(l10n.refreshingPleaseWait,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ),
+            ),
+          ] else
+            Flexible(
+              child: ListView(
+                controller: _scrollController,
+                children: [
+                  if (transferringChildren.isNotEmpty) ...[
+                    _buildSectionHeader(
+                      context,
+                      l10n.transferring,
+                      count: transferringChildren.length,
+                      highlight: true,
+                    ),
+                    ...transferringChildren,
+                  ],
+                  _buildSectionHeader(context, l10n.unsynchronizedPhotos),
+                  ...listChildren,
+                ],
+              ),
+            ),
         ],
       ),
     );

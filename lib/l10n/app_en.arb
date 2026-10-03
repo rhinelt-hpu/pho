@@ -202,5 +202,6 @@
   "rateLimitHits": "HTTP 429 Rate Limit Hits",
   "resetStats": "Reset Counter",
   "recentLogs": "Recent Request Logs",
-  "refreshStats": "Refresh Stats"
+  "refreshStats": "Refresh Stats",
+  "transferring": "Transferring"
 }

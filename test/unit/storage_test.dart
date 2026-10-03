@@ -28,6 +28,7 @@ void main() {
     bool omitContentLength = false;
 
     setUp(() async {
+      lastAliveTime = DateTime.now();
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       port = server.port;
       httpBaseUrl = 'http://127.0.0.1:$port';

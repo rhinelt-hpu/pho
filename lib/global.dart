@@ -18,9 +18,9 @@ import 'package:path/path.dart' as p;
 import 'package:img_syncer/cache/thumbnail_cache.dart';
 import 'event_bus.dart';
 
-late String httpBaseUrl;
-late int grpcPort;
-late int httpPort;
+String httpBaseUrl = "http://127.0.0.1:10001";
+int grpcPort = 10000;
+int httpPort = 10001;
 bool useRemoteServer = false;
 bool isDebug = false;
 

@@ -622,4 +622,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get refreshStats => '刷新统计';
+
+  @override
+  String get transferring => '正在传输';
 }

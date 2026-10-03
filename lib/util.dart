@@ -96,7 +96,12 @@ String? mimeTypeByExtension(String ext) {
   }
 }
 
+bool? isDesktopOverrideForTest;
+
 bool isDesktop() {
+  if (isDesktopOverrideForTest != null) {
+    return isDesktopOverrideForTest!;
+  }
   return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 }
 
