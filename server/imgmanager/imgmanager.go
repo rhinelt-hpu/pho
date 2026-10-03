@@ -35,6 +35,8 @@ type ImgManager struct {
 	defaultAlbum   string
 	defaultAlbumMu sync.RWMutex
 	manifest       *ManifestManager
+	localCacheDir  string
+	localCacheDirMu sync.RWMutex
 	actCh          chan action
 	stopCh         chan struct{}
 	wg             sync.WaitGroup
@@ -81,6 +83,20 @@ func (im *ImgManager) SetDirectoryType(dirType pb.DirectoryType) {
 	im.dirType = dirType
 }
 
+// SetLocalCacheDir 设置本地元数据缓存目录（通常为 App 的 Support / Data 目录）
+func (im *ImgManager) SetLocalCacheDir(dir string) {
+	im.localCacheDirMu.Lock()
+	im.localCacheDir = dir
+	im.localCacheDirMu.Unlock()
+
+	if im.manifest != nil && dir != "" {
+		_ = os.MkdirAll(dir, 0755)
+		cachePath := filepath.Join(dir, "manifest_cache.json")
+		im.manifest.SetLocalPath(cachePath)
+		_ = im.manifest.LoadLocal()
+	}
+}
+
 func (im *ImgManager) GetDefaultAlbum() string {
 	im.defaultAlbumMu.RLock()
 	defer im.defaultAlbumMu.RUnlock()
@@ -105,7 +121,12 @@ func (im *ImgManager) SetDrive(dri StorageDrive) {
 	im.driveMu.Unlock()
 	go im.MigrateLegacyRootFolders()
 	go func() {
-		_ = im.manifest.Sync(dri)
+		err := im.manifest.Sync(dri)
+		log.Printf("[INFO] Manifest sync complete, watermark: %d, records: %d, err: %v", im.manifest.GetMaxWatermark(), im.manifest.RecordCount(), err)
+		// 如果远端没有任何 manifest 记录，且当前 manifest 也为空，执行首次自举（Bootstrap）
+		if err == nil && im.manifest.RecordCount() == 0 && im.manifest.GetMaxWatermark() == 0 {
+			im.bootstrapManifest(dri)
+		}
 	}()
 }
 
@@ -706,6 +727,10 @@ func isIgnoredDir(name string) bool {
 	return false
 }
 
+func isIgnoredFile(name string) bool {
+	return strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".tmp")
+}
+
 func isYearOrDateDir(name string) bool {
 	if len(name) == 4 {
 		if _, err := strconv.Atoi(name); err == nil {
@@ -857,6 +882,23 @@ func (im *ImgManager) RangeByAlbumAndDate(album string, date time.Time, f func(i
 }
 
 func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate time.Time, f func(info ImgInfo) bool) error {
+	// 1. 如果 Manifest 处于就绪状态，优先基于内存元数据瞬时响应，彻底避免远端多级 PROPFIND
+	if im.manifest != nil && im.manifest.IsInitialized() {
+		records := im.manifest.GetActiveRecords()
+		if len(records) > 0 {
+			count := 0
+			err := im.rangeRecords(records, album, minDate, maxDate, func(info ImgInfo) bool {
+				count++
+				return f(info)
+			})
+			// 如果命中记录则直接返回；若未命中则降级检查物理磁盘（兼容外部或老版本直接写入的文件）
+			if err == nil && count > 0 {
+				log.Printf("[INFO] RangeByAlbumAndDateRange HIT MANIFEST: album=%s, returned=%d", album, count)
+				return nil
+			}
+		}
+	}
+
 	d, unlock := im.drive()
 	defer unlock()
 
@@ -919,6 +961,134 @@ func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate ti
 	return nil
 }
 
+func parseRecordDate(fp, path string) time.Time {
+	if len(fp) >= 14 {
+		if t, err := time.Parse("20060102150405", fp[:14]); err == nil {
+			return t
+		}
+	}
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i := 0; i+2 < len(parts); i++ {
+		if len(parts[i]) == 4 && len(parts[i+1]) == 2 && len(parts[i+2]) == 2 {
+			y, ey := strconv.Atoi(parts[i])
+			m, em := strconv.Atoi(parts[i+1])
+			d, ed := strconv.Atoi(parts[i+2])
+			if ey == nil && em == nil && ed == nil && m >= 1 && m <= 12 && d >= 1 && d <= 31 {
+				return time.Date(y, time.Month(m), d, 0, 0, 0, 0, time.Local)
+			}
+		}
+	}
+	return time.Time{}
+}
+
+func (im *ImgManager) rangeRecords(records []ManifestRecord, album string, minDate, maxDate time.Time, f func(info ImgInfo) bool) error {
+	defaultAlbum := im.GetDefaultAlbum()
+	filtered := make([]ManifestRecord, 0, len(records))
+
+	for _, rec := range records {
+		if album != "" {
+			if album == defaultAlbum {
+				if rec.Album != album && rec.Album != "" {
+					continue
+				}
+			} else {
+				if rec.Album != album {
+					continue
+				}
+			}
+		}
+
+		recDate := parseRecordDate(rec.Fingerprint, rec.Path)
+		if !minDate.IsZero() && recDate.Before(minDate) {
+			continue
+		}
+		if !maxDate.IsZero() && recDate.After(maxDate) {
+			continue
+		}
+
+		filtered = append(filtered, rec)
+	}
+
+	sort.Slice(filtered, func(i, j int) bool {
+		dateI := parseRecordDate(filtered[i].Fingerprint, filtered[i].Path)
+		dateJ := parseRecordDate(filtered[j].Fingerprint, filtered[j].Path)
+		if dateI.Equal(dateJ) {
+			return filtered[i].Fingerprint > filtered[j].Fingerprint
+		}
+		return dateI.After(dateJ)
+	})
+
+	for _, rec := range filtered {
+		isLive := strings.HasSuffix(rec.Path, ".live.jpg") || strings.Contains(rec.Path, "_live_")
+		if !f(ImgInfo{
+			Path:        rec.Path,
+			Size:        rec.Size,
+			IsLivePhoto: isLive,
+		}) {
+			break
+		}
+	}
+	return nil
+}
+
+func (im *ImgManager) bootstrapManifest(d StorageDrive) {
+	records := make([]ManifestRecord, 0)
+	defaultName := im.GetDefaultAlbum()
+
+	// 1. 扫描根目录历史照片
+	rootInfos := im.collectDirInfos(d, ".", time.Time{})
+	for _, di := range rootInfos {
+		d.Range(di.dir, func(info fs.FileInfo) bool {
+			if !info.IsDir() && !isIgnoredFile(info.Name()) {
+				p := filepath.Join(di.dir, info.Name())
+				records = append(records, ManifestRecord{
+					Fingerprint: info.Name(),
+					Album:       defaultName,
+					Path:        p,
+					Size:        info.Size(),
+					Deleted:     false,
+					UpdatedAt:   info.ModTime().Unix(),
+				})
+			}
+			return true
+		})
+	}
+
+	// 2. 扫描所有相册目录照片
+	entries, err := im.listDir(d, ".")
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
+				continue
+			}
+			albumName := entry.Name()
+			albumDirInfos := im.collectDirInfos(d, albumName, time.Time{})
+			for _, di := range albumDirInfos {
+				d.Range(di.dir, func(info fs.FileInfo) bool {
+					if !info.IsDir() && !isIgnoredFile(info.Name()) {
+						p := filepath.Join(di.dir, info.Name())
+						records = append(records, ManifestRecord{
+							Fingerprint: info.Name(),
+							Album:       albumName,
+							Path:        p,
+							Size:        info.Size(),
+							Deleted:     false,
+							UpdatedAt:   info.ModTime().Unix(),
+						})
+					}
+					return true
+				})
+			}
+		}
+	}
+
+	if len(records) > 0 {
+		_ = im.manifest.AppendChunk(d, records)
+		_ = im.manifest.Compact(d)
+		_ = im.manifest.SaveLocal()
+	}
+}
+
 // ListAlbums 列出所有云端相册（默认相册排首位，附带数量与最新封面）
 func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 	d, unlock := im.drive()
@@ -946,6 +1116,59 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 	orderedNames := make([]string, 0, len(albumNames)+1)
 	orderedNames = append(orderedNames, defaultName)
 	orderedNames = append(orderedNames, albumNames...)
+
+	// 1. 如果 Manifest 处于可用状态，优先基于内存记录计算相册内照片总数与封面，0 额外网络开销！
+	if im.manifest != nil && im.manifest.IsInitialized() && im.manifest.RecordCount() > 0 {
+		records := im.manifest.GetActiveRecords()
+		result := make([]AlbumInfo, 0, len(orderedNames))
+		for _, name := range orderedNames {
+			var count int64
+			var cover string
+			var latestTime time.Time
+
+			for _, rec := range records {
+				isMatch := false
+				if name == defaultName {
+					isMatch = (rec.Album == defaultName || rec.Album == "")
+				} else {
+					isMatch = (rec.Album == name)
+				}
+				if isMatch {
+					count++
+					t := parseRecordDate(rec.Fingerprint, rec.Path)
+					if cover == "" || t.After(latestTime) {
+						latestTime = t
+						cover = rec.Path
+					}
+				}
+			}
+
+			// 如果默认相册在 manifest 中为 0，保底检查是否有根目录存量旧照片
+			if count == 0 && name == defaultName {
+				rootInfos := im.collectDirInfos(d, ".", time.Time{})
+				for _, di := range rootInfos {
+					d.Range(di.dir, func(info fs.FileInfo) bool {
+						if !info.IsDir() {
+							count++
+							if cover == "" {
+								cover = filepath.Join(di.dir, info.Name())
+							}
+						}
+						return true
+					})
+				}
+			}
+
+			result = append(result, AlbumInfo{
+				Name:      name,
+				Count:     count,
+				CoverPath: cover,
+				IsDefault: name == defaultName,
+			})
+		}
+		log.Printf("[INFO] ListAlbums HIT MANIFEST: albums=%d", len(result))
+		return result, nil
+	}
 
 	result := make([]AlbumInfo, 0, len(orderedNames))
 	for _, name := range orderedNames {

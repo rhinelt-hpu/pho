@@ -38,6 +38,17 @@ class _FakeImgSyncerClient_0 extends _i1.SmartFake
         );
 }
 
+class _FakeSyncManifestResponse_1 extends _i1.SmartFake
+    implements _i2.SyncManifestResponse {
+  _FakeSyncManifestResponse_1(
+    Object parent,
+    Invocation parentInvocation,
+  ) : super(
+          parent,
+          parentInvocation,
+        );
+}
+
 /// A class which mocks [RemoteStorageClient].
 ///
 /// See the documentation for Mockito's code generation for more information.
@@ -57,21 +68,30 @@ class MockRemoteStorageClient extends _i1.Mock
       ) as _i2.ImgSyncerClient);
 
   @override
-  _i4.Future<void> uploadXFile(_i5.XFile? file) => (super.noSuchMethod(
+  _i4.Future<void> uploadXFile(
+    _i5.XFile? file, {
+    String? album = '',
+  }) =>
+      (super.noSuchMethod(
         Invocation.method(
           #uploadXFile,
           [file],
+          {#album: album},
         ),
         returnValue: _i4.Future<void>.value(),
         returnValueForMissingStub: _i4.Future<void>.value(),
       ) as _i4.Future<void>);
 
   @override
-  _i4.Future<void> uploadAssetEntity(_i6.AssetEntity? asset) =>
+  _i4.Future<void> uploadAssetEntity(
+    _i6.AssetEntity? asset, {
+    String? album = '',
+  }) =>
       (super.noSuchMethod(
         Invocation.method(
           #uploadAssetEntity,
           [asset],
+          {#album: album},
         ),
         returnValue: _i4.Future<void>.value(),
         returnValueForMissingStub: _i4.Future<void>.value(),
@@ -81,8 +101,9 @@ class MockRemoteStorageClient extends _i1.Mock
   _i4.Future<List<_i7.RemoteImage>> listImages(
     String? date,
     int? offset,
-    dynamic maxReturn,
-  ) =>
+    dynamic maxReturn, {
+    String? album = '',
+  }) =>
       (super.noSuchMethod(
         Invocation.method(
           #listImages,
@@ -91,8 +112,97 @@ class MockRemoteStorageClient extends _i1.Mock
             offset,
             maxReturn,
           ],
+          {#album: album},
         ),
         returnValue:
             _i4.Future<List<_i7.RemoteImage>>.value(<_i7.RemoteImage>[]),
       ) as _i4.Future<List<_i7.RemoteImage>>);
+
+  @override
+  _i4.Future<List<_i2.AlbumInfo>> listAlbums() => (super.noSuchMethod(
+        Invocation.method(
+          #listAlbums,
+          [],
+        ),
+        returnValue: _i4.Future<List<_i2.AlbumInfo>>.value(<_i2.AlbumInfo>[]),
+      ) as _i4.Future<List<_i2.AlbumInfo>>);
+
+  @override
+  _i4.Future<void> createAlbum(String? name) => (super.noSuchMethod(
+        Invocation.method(
+          #createAlbum,
+          [name],
+        ),
+        returnValue: _i4.Future<void>.value(),
+        returnValueForMissingStub: _i4.Future<void>.value(),
+      ) as _i4.Future<void>);
+
+  @override
+  _i4.Future<void> deleteAlbum(String? name) => (super.noSuchMethod(
+        Invocation.method(
+          #deleteAlbum,
+          [name],
+        ),
+        returnValue: _i4.Future<void>.value(),
+        returnValueForMissingStub: _i4.Future<void>.value(),
+      ) as _i4.Future<void>);
+
+  @override
+  _i4.Future<void> renameAlbum(
+    String? oldName,
+    String? newName,
+  ) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #renameAlbum,
+          [
+            oldName,
+            newName,
+          ],
+        ),
+        returnValue: _i4.Future<void>.value(),
+        returnValueForMissingStub: _i4.Future<void>.value(),
+      ) as _i4.Future<void>);
+
+  @override
+  _i4.Future<List<String>> moveAssets(
+    List<String>? paths,
+    String? targetAlbum,
+  ) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #moveAssets,
+          [
+            paths,
+            targetAlbum,
+          ],
+        ),
+        returnValue: _i4.Future<List<String>>.value(<String>[]),
+      ) as _i4.Future<List<String>>);
+
+  @override
+  _i4.Future<_i2.SyncManifestResponse> syncManifest() => (super.noSuchMethod(
+        Invocation.method(
+          #syncManifest,
+          [],
+        ),
+        returnValue: _i4.Future<_i2.SyncManifestResponse>.value(
+            _FakeSyncManifestResponse_1(
+          this,
+          Invocation.method(
+            #syncManifest,
+            [],
+          ),
+        )),
+      ) as _i4.Future<_i2.SyncManifestResponse>);
+
+  @override
+  _i4.Future<void> setLocalCacheDir(String? path) => (super.noSuchMethod(
+        Invocation.method(
+          #setLocalCacheDir,
+          [path],
+        ),
+        returnValue: _i4.Future<void>.value(),
+        returnValueForMissingStub: _i4.Future<void>.value(),
+      ) as _i4.Future<void>);
 }

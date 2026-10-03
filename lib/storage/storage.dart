@@ -358,6 +358,19 @@ class RemoteStorage implements RemoteStorageClient {
     }
     return rsp.newPaths;
   }
+
+  @override
+  Future<SyncManifestResponse> syncManifest() async {
+    return await cli.syncManifest(SyncManifestRequest()).timeout(const Duration(seconds: 30));
+  }
+
+  @override
+  Future<void> setLocalCacheDir(String path) async {
+    final rsp = await cli.setLocalCacheDir(SetLocalCacheDirRequest(path: path)).timeout(const Duration(seconds: 5));
+    if (!rsp.success) {
+      throw Exception("setLocalCacheDir failed: ${rsp.message}");
+    }
+  }
 }
 
 class RemoteImage {

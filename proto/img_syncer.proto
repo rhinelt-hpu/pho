@@ -28,6 +28,9 @@ service ImgSyncer {
   // TODO(open-source): 补齐更多公有云盘后端 (待开源实现):
   // rpc SetDriveBaiduNetDisk (SetDriveBaiduNetDiskRequest) returns (SetDriveBaiduNetDiskResponse) {}
   // rpc StartBaiduNetdiskLogin (StartBaiduNetdiskLoginRequest) returns (StartBaiduNetdiskLoginResponse) {}
+  // Manifest Cache
+  rpc SetLocalCacheDir (SetLocalCacheDirRequest) returns (SetLocalCacheDirResponse) {}
+  rpc SyncManifest (SyncManifestRequest) returns (SyncManifestResponse) {}
   // Ping
   rpc Ping (PingRequest) returns (PingResponse) {}
 }
@@ -221,6 +224,22 @@ message ListDriveNFSDirResponse {
   bool success = 1;
   string message = 2;
   repeated string dirs = 3;
+}
+
+message SetLocalCacheDirRequest {
+  string path = 1;
+}
+message SetLocalCacheDirResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SyncManifestRequest {}
+message SyncManifestResponse {
+  bool success = 1;
+  string message = 2;
+  int64 watermark = 3;
+  int32 recordCount = 4;
 }
 
 message PingRequest {}

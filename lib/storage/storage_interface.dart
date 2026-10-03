@@ -16,4 +16,6 @@ abstract class RemoteStorageClient {
   Future<void> deleteAlbum(String name);
   Future<void> renameAlbum(String oldName, String newName);
   Future<List<String>> moveAssets(List<String> paths, String targetAlbum);
+  Future<SyncManifestResponse> syncManifest();
+  Future<void> setLocalCacheDir(String path);
 }

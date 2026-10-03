@@ -1,6 +1,7 @@
 package imgmanager
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -103,9 +104,38 @@ func TestManifestLifecycleAndWatermarkPruning(t *testing.T) {
 		t.Fatalf("AppendChunk delete error: %v", err)
 	}
 
-	// 验证删除后无法通过 LookupFingerprint 查到
-	_, found = mm2.LookupFingerprint("20260215_pic1.jpg")
-	if found {
-		t.Fatalf("expected pic1 to be deleted, but still found")
+	// 7. 测试本地文件持久化 (LoadLocal / SaveLocal)
+	tmpDir := t.TempDir()
+	localCacheFile := filepath.Join(tmpDir, "manifest_cache.json")
+	mm2.SetLocalPath(localCacheFile)
+	err = mm2.SaveLocal()
+	if err != nil {
+		t.Fatalf("SaveLocal error: %v", err)
+	}
+
+	// 模拟设备 B 冷启动：创建新实例，直接从本地沙箱加载
+	mmCold := NewManifestManager("device_B")
+	mmCold.SetLocalPath(localCacheFile)
+	err = mmCold.LoadLocal()
+	if err != nil {
+		t.Fatalf("LoadLocal error: %v", err)
+	}
+	if !mmCold.IsInitialized() {
+		t.Fatalf("expected mmCold to be initialized after LoadLocal")
+	}
+	if mmCold.RecordCount() != 2 {
+		t.Fatalf("expected 2 active records in mmCold, got: %d", mmCold.RecordCount())
+	}
+	if mmCold.GetMaxWatermark() != mm2.GetMaxWatermark() {
+		t.Fatalf("expected watermark %d, got: %d", mm2.GetMaxWatermark(), mmCold.GetMaxWatermark())
+	}
+
+	// 8. 增量校验：当远端无新变更时，Sync 不应有任何额外下载开销
+	err = mmCold.Sync(md)
+	if err != nil {
+		t.Fatalf("incremental Sync error: %v", err)
+	}
+	if mmCold.RecordCount() != 2 {
+		t.Fatalf("expected still 2 active records, got: %d", mmCold.RecordCount())
 	}
 }

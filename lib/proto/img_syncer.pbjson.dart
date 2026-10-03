@@ -558,6 +558,58 @@ final $typed_data.Uint8List listDriveNFSDirResponseDescriptor = $convert.base64D
     'ChdMaXN0RHJpdmVORlNEaXJSZXNwb25zZRIYCgdzdWNjZXNzGAEgASgIUgdzdWNjZXNzEhgKB2'
     '1lc3NhZ2UYAiABKAlSB21lc3NhZ2USEgoEZGlycxgDIAMoCVIEZGlycw==');
 
+@$core.Deprecated('Use setLocalCacheDirRequestDescriptor instead')
+const SetLocalCacheDirRequest$json = {
+  '1': 'SetLocalCacheDirRequest',
+  '2': [
+    {'1': 'path', '3': 1, '4': 1, '5': 9, '10': 'path'},
+  ],
+};
+
+/// Descriptor for `SetLocalCacheDirRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setLocalCacheDirRequestDescriptor = $convert.base64Decode(
+    'ChdTZXRMb2NhbENhY2hlRGlyUmVxdWVzdBISCgRwYXRoGAEgASgJUgRwYXRo');
+
+@$core.Deprecated('Use setLocalCacheDirResponseDescriptor instead')
+const SetLocalCacheDirResponse$json = {
+  '1': 'SetLocalCacheDirResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `SetLocalCacheDirResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setLocalCacheDirResponseDescriptor = $convert.base64Decode(
+    'ChhTZXRMb2NhbENhY2hlRGlyUmVzcG9uc2USGAoHc3VjY2VzcxgBIAEoCFIHc3VjY2VzcxIYCg'
+    'dtZXNzYWdlGAIgASgJUgdtZXNzYWdl');
+
+@$core.Deprecated('Use syncManifestRequestDescriptor instead')
+const SyncManifestRequest$json = {
+  '1': 'SyncManifestRequest',
+};
+
+/// Descriptor for `SyncManifestRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List syncManifestRequestDescriptor = $convert.base64Decode(
+    'ChNTeW5jTWFuaWZlc3RSZXF1ZXN0');
+
+@$core.Deprecated('Use syncManifestResponseDescriptor instead')
+const SyncManifestResponse$json = {
+  '1': 'SyncManifestResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'watermark', '3': 3, '4': 1, '5': 3, '10': 'watermark'},
+    {'1': 'recordCount', '3': 4, '4': 1, '5': 5, '10': 'recordCount'},
+  ],
+};
+
+/// Descriptor for `SyncManifestResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List syncManifestResponseDescriptor = $convert.base64Decode(
+    'ChRTeW5jTWFuaWZlc3RSZXNwb25zZRIYCgdzdWNjZXNzGAEgASgIUgdzdWNjZXNzEhgKB21lc3'
+    'NhZ2UYAiABKAlSB21lc3NhZ2USHAoJd2F0ZXJtYXJrGAMgASgDUgl3YXRlcm1hcmsSIAoLcmVj'
+    'b3JkQ291bnQYBCABKAVSC3JlY29yZENvdW50');
+
 @$core.Deprecated('Use pingRequestDescriptor instead')
 const PingRequest$json = {
   '1': 'PingRequest',

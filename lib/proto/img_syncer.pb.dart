@@ -2490,6 +2490,244 @@ class ListDriveNFSDirResponse extends $pb.GeneratedMessage {
   $core.List<$core.String> get dirs => $_getList(2);
 }
 
+class SetLocalCacheDirRequest extends $pb.GeneratedMessage {
+  factory SetLocalCacheDirRequest({
+    $core.String? path,
+  }) {
+    final $result = create();
+    if (path != null) {
+      $result.path = path;
+    }
+    return $result;
+  }
+  SetLocalCacheDirRequest._() : super();
+  factory SetLocalCacheDirRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory SetLocalCacheDirRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetLocalCacheDirRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'path')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  SetLocalCacheDirRequest clone() => SetLocalCacheDirRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  SetLocalCacheDirRequest copyWith(void Function(SetLocalCacheDirRequest) updates) => super.copyWith((message) => updates(message as SetLocalCacheDirRequest)) as SetLocalCacheDirRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetLocalCacheDirRequest create() => SetLocalCacheDirRequest._();
+  SetLocalCacheDirRequest createEmptyInstance() => create();
+  static $pb.PbList<SetLocalCacheDirRequest> createRepeated() => $pb.PbList<SetLocalCacheDirRequest>();
+  @$core.pragma('dart2js:noInline')
+  static SetLocalCacheDirRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SetLocalCacheDirRequest>(create);
+  static SetLocalCacheDirRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get path => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set path($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasPath() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPath() => clearField(1);
+}
+
+class SetLocalCacheDirResponse extends $pb.GeneratedMessage {
+  factory SetLocalCacheDirResponse({
+    $core.bool? success,
+    $core.String? message,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    return $result;
+  }
+  SetLocalCacheDirResponse._() : super();
+  factory SetLocalCacheDirResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory SetLocalCacheDirResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetLocalCacheDirResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  SetLocalCacheDirResponse clone() => SetLocalCacheDirResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  SetLocalCacheDirResponse copyWith(void Function(SetLocalCacheDirResponse) updates) => super.copyWith((message) => updates(message as SetLocalCacheDirResponse)) as SetLocalCacheDirResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetLocalCacheDirResponse create() => SetLocalCacheDirResponse._();
+  SetLocalCacheDirResponse createEmptyInstance() => create();
+  static $pb.PbList<SetLocalCacheDirResponse> createRepeated() => $pb.PbList<SetLocalCacheDirResponse>();
+  @$core.pragma('dart2js:noInline')
+  static SetLocalCacheDirResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SetLocalCacheDirResponse>(create);
+  static SetLocalCacheDirResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+}
+
+class SyncManifestRequest extends $pb.GeneratedMessage {
+  factory SyncManifestRequest() => create();
+  SyncManifestRequest._() : super();
+  factory SyncManifestRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory SyncManifestRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SyncManifestRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  SyncManifestRequest clone() => SyncManifestRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  SyncManifestRequest copyWith(void Function(SyncManifestRequest) updates) => super.copyWith((message) => updates(message as SyncManifestRequest)) as SyncManifestRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SyncManifestRequest create() => SyncManifestRequest._();
+  SyncManifestRequest createEmptyInstance() => create();
+  static $pb.PbList<SyncManifestRequest> createRepeated() => $pb.PbList<SyncManifestRequest>();
+  @$core.pragma('dart2js:noInline')
+  static SyncManifestRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SyncManifestRequest>(create);
+  static SyncManifestRequest? _defaultInstance;
+}
+
+class SyncManifestResponse extends $pb.GeneratedMessage {
+  factory SyncManifestResponse({
+    $core.bool? success,
+    $core.String? message,
+    $fixnum.Int64? watermark,
+    $core.int? recordCount,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    if (watermark != null) {
+      $result.watermark = watermark;
+    }
+    if (recordCount != null) {
+      $result.recordCount = recordCount;
+    }
+    return $result;
+  }
+  SyncManifestResponse._() : super();
+  factory SyncManifestResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory SyncManifestResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SyncManifestResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..aInt64(3, _omitFieldNames ? '' : 'watermark')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'recordCount', $pb.PbFieldType.O3, protoName: 'recordCount')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  SyncManifestResponse clone() => SyncManifestResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  SyncManifestResponse copyWith(void Function(SyncManifestResponse) updates) => super.copyWith((message) => updates(message as SyncManifestResponse)) as SyncManifestResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SyncManifestResponse create() => SyncManifestResponse._();
+  SyncManifestResponse createEmptyInstance() => create();
+  static $pb.PbList<SyncManifestResponse> createRepeated() => $pb.PbList<SyncManifestResponse>();
+  @$core.pragma('dart2js:noInline')
+  static SyncManifestResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SyncManifestResponse>(create);
+  static SyncManifestResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get watermark => $_getI64(2);
+  @$pb.TagNumber(3)
+  set watermark($fixnum.Int64 v) { $_setInt64(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasWatermark() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearWatermark() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get recordCount => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set recordCount($core.int v) { $_setSignedInt32(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasRecordCount() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRecordCount() => clearField(4);
+}
+
 class PingRequest extends $pb.GeneratedMessage {
   factory PingRequest() => create();
   PingRequest._() : super();

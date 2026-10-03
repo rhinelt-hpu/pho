@@ -54,6 +54,12 @@ class MockUIAlbumStorage implements RemoteStorageClient {
 
   @override
   Future<List<String>> moveAssets(List<String> paths, String targetAlbum) async => paths;
+
+  @override
+  Future<SyncManifestResponse> syncManifest() async => SyncManifestResponse(success: true);
+
+  @override
+  Future<void> setLocalCacheDir(String path) async {}
 }
 
 Widget createTestApp(Widget home) {

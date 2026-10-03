@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:img_syncer/l10n/app_localizations.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:img_syncer/cache/thumbnail_cache.dart';
 import 'event_bus.dart';
@@ -182,6 +184,18 @@ Future<void> checkServer() async {
 }
 
 Future<void> initDrive() async {
+  try {
+    final appDir = await getApplicationSupportDirectory();
+    final manifestCacheDir = Directory(p.join(appDir.path, 'manifest'));
+    if (!await manifestCacheDir.exists()) {
+      await manifestCacheDir.create(recursive: true);
+    }
+    await storage.cli
+        .setLocalCacheDir(SetLocalCacheDirRequest(path: manifestCacheDir.path))
+        .timeout(const Duration(seconds: 3));
+  } catch (e) {
+    logger.addLog("setLocalCacheDir: $e");
+  }
   final prefs = await SharedPreferences.getInstance();
   var drive = prefs.getString("drive");
   drive ??= "SMB";

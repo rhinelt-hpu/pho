@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"path/filepath"
 	"time"
 
@@ -38,6 +39,31 @@ func (a *api) SetDirectoryType(ctx context.Context, req *pb.SetDirectoryTypeRequ
 	rsp = &pb.SetDirectoryTypeResponse{Success: true}
 	a.im.SetDirectoryType(req.DirectoryType)
 	return
+}
+
+func (a *api) SetLocalCacheDir(ctx context.Context, req *pb.SetLocalCacheDirRequest) (*pb.SetLocalCacheDirResponse, error) {
+	if req.Path == "" {
+		return &pb.SetLocalCacheDirResponse{Success: false, Message: "path cannot be empty"}, nil
+	}
+	a.im.SetLocalCacheDir(req.Path)
+	log.Printf("[INFO] SetLocalCacheDir: %s, loaded records: %d, watermark: %d", req.Path, a.im.Manifest().RecordCount(), a.im.Manifest().GetMaxWatermark())
+	return &pb.SetLocalCacheDirResponse{Success: true}, nil
+}
+
+func (a *api) SyncManifest(ctx context.Context, req *pb.SyncManifestRequest) (*pb.SyncManifestResponse, error) {
+	d := a.im.Drive()
+	if d == nil {
+		return &pb.SyncManifestResponse{Success: false, Message: "drive not initialized"}, nil
+	}
+	err := a.im.Manifest().Sync(d)
+	if err != nil {
+		return &pb.SyncManifestResponse{Success: false, Message: err.Error()}, nil
+	}
+	return &pb.SyncManifestResponse{
+		Success:     true,
+		Watermark:   a.im.Manifest().GetMaxWatermark(),
+		RecordCount: int32(a.im.Manifest().RecordCount()),
+	}, nil
 }
 
 func (a *api) ListByDate(ctx context.Context, req *pb.ListByDateRequest) (rsp *pb.ListByDateResponse, err error) {

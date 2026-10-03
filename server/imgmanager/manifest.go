@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -50,6 +51,7 @@ type ManifestManager struct {
 	maxWatermark int64
 	deviceID     string
 	initialized  bool
+	localPath    string // 本地持久化缓存路径（如 app_data/manifest_cache.json）
 }
 
 func NewManifestManager(deviceID string) *ManifestManager {
@@ -60,6 +62,63 @@ func NewManifestManager(deviceID string) *ManifestManager {
 		records:  make(map[string]ManifestRecord),
 		deviceID: deviceID,
 	}
+}
+
+// SetLocalPath 设置本地持久化沙箱路径
+func (mm *ManifestManager) SetLocalPath(path string) {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	mm.localPath = path
+}
+
+// LoadLocal 从本地磁盘读取持久化快照，实现首屏 0 网络开销极速初始化
+func (mm *ManifestManager) LoadLocal() error {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	if mm.localPath == "" {
+		return nil
+	}
+	data, err := os.ReadFile(mm.localPath)
+	if err != nil {
+		return err
+	}
+	var snap ManifestSnapshot
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return err
+	}
+	mm.records = snap.Records
+	mm.maxWatermark = snap.Watermark
+	mm.initialized = true
+	return nil
+}
+
+// saveLocalLocked 将当前内存元数据原子落盘到本地沙箱（调用前需持有锁）
+func (mm *ManifestManager) saveLocalLocked() error {
+	if mm.localPath == "" {
+		return nil
+	}
+	_ = os.MkdirAll(filepath.Dir(mm.localPath), 0755)
+	snap := ManifestSnapshot{
+		Watermark: mm.maxWatermark,
+		Timestamp: time.Now().Unix(),
+		Records:   mm.records,
+	}
+	data, err := json.Marshal(snap)
+	if err != nil {
+		return err
+	}
+	tmpPath := mm.localPath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, mm.localPath)
+}
+
+// SaveLocal 公共手动保存接口
+func (mm *ManifestManager) SaveLocal() error {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	return mm.saveLocalLocked()
 }
 
 // Sync 从远端 .manifest/ 目录加载基线快照与增量日志
@@ -109,8 +168,10 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 		}
 	}
 
-	// 2. 加载最高基线快照
-	if bestSnapshotName != "" {
+	// 2. 加载最高基线快照（仅当远端快照高于本地已同步的水位线时才下载）
+	hasChanges := false
+	startWatermark := mm.maxWatermark
+	if bestSnapshotName != "" && snapshotWatermark > mm.maxWatermark {
 		rc, _, err := d.Download(filepath.Join(ManifestDir, bestSnapshotName))
 		if err == nil {
 			defer rc.Close()
@@ -118,8 +179,12 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 			if err := json.NewDecoder(rc).Decode(&snap); err == nil {
 				mm.records = snap.Records
 				mm.maxWatermark = snap.Watermark
+				startWatermark = snap.Watermark
+				hasChanges = true
 			}
 		}
+	} else if snapshotWatermark > startWatermark {
+		startWatermark = snapshotWatermark
 	}
 
 	// 3. 排序所有 chunk
@@ -127,10 +192,10 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 		return chunks[i].watermark < chunks[j].watermark
 	})
 
-	// 4. 水位线过滤与日志重放：严格跳过 <= snapshotWatermark 的切片！
+	// 4. 水位线过滤与日志重放：严格跳过 <= startWatermark 的切片！
 	for _, chunk := range chunks {
-		if chunk.watermark <= snapshotWatermark {
-			continue // 绝不重复回放已纳入快照的旧切片
+		if chunk.watermark <= startWatermark {
+			continue // 绝不重复回放已纳入快照或本地已有的旧切片
 		}
 		rc, _, err := d.Download(filepath.Join(ManifestDir, chunk.name))
 		if err != nil {
@@ -153,6 +218,11 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 		if chunk.watermark > mm.maxWatermark {
 			mm.maxWatermark = chunk.watermark
 		}
+		hasChanges = true
+	}
+
+	if hasChanges {
+		_ = mm.saveLocalLocked()
 	}
 
 	mm.initialized = true
@@ -197,6 +267,7 @@ func (mm *ManifestManager) AppendChunk(d StorageDrive, records []ManifestRecord)
 			mm.records[rec.Fingerprint] = rec
 		}
 	}
+	_ = mm.saveLocalLocked()
 	return nil
 }
 
@@ -261,4 +332,24 @@ func (mm *ManifestManager) IsInitialized() bool {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
 	return mm.initialized
+}
+
+// GetMaxWatermark 返回当前最高水位线序号
+func (mm *ManifestManager) GetMaxWatermark() int64 {
+	mm.mu.RLock()
+	defer mm.mu.RUnlock()
+	return mm.maxWatermark
+}
+
+// RecordCount 返回当前有效记录总数
+func (mm *ManifestManager) RecordCount() int {
+	mm.mu.RLock()
+	defer mm.mu.RUnlock()
+	count := 0
+	for _, rec := range mm.records {
+		if !rec.Deleted {
+			count++
+		}
+	}
+	return count
 }

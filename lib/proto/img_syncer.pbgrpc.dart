@@ -89,6 +89,14 @@ class ImgSyncerClient extends $grpc.Client {
       '/img_syncer.ImgSyncer/ListDriveNFSDir',
       ($0.ListDriveNFSDirRequest value) => value.writeToBuffer(),
       ($core.List<$core.int> value) => $0.ListDriveNFSDirResponse.fromBuffer(value));
+  static final _$setLocalCacheDir = $grpc.ClientMethod<$0.SetLocalCacheDirRequest, $0.SetLocalCacheDirResponse>(
+      '/img_syncer.ImgSyncer/SetLocalCacheDir',
+      ($0.SetLocalCacheDirRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.SetLocalCacheDirResponse.fromBuffer(value));
+  static final _$syncManifest = $grpc.ClientMethod<$0.SyncManifestRequest, $0.SyncManifestResponse>(
+      '/img_syncer.ImgSyncer/SyncManifest',
+      ($0.SyncManifestRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.SyncManifestResponse.fromBuffer(value));
   static final _$ping = $grpc.ClientMethod<$0.PingRequest, $0.PingResponse>(
       '/img_syncer.ImgSyncer/Ping',
       ($0.PingRequest value) => value.writeToBuffer(),
@@ -166,6 +174,14 @@ class ImgSyncerClient extends $grpc.Client {
 
   $grpc.ResponseFuture<$0.ListDriveNFSDirResponse> listDriveNFSDir($0.ListDriveNFSDirRequest request, {$grpc.CallOptions? options}) {
     return $createUnaryCall(_$listDriveNFSDir, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.SetLocalCacheDirResponse> setLocalCacheDir($0.SetLocalCacheDirRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$setLocalCacheDir, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.SyncManifestResponse> syncManifest($0.SyncManifestRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$syncManifest, request, options: options);
   }
 
   $grpc.ResponseFuture<$0.PingResponse> ping($0.PingRequest request, {$grpc.CallOptions? options}) {
@@ -297,6 +313,20 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.ListDriveNFSDirRequest.fromBuffer(value),
         ($0.ListDriveNFSDirResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.SetLocalCacheDirRequest, $0.SetLocalCacheDirResponse>(
+        'SetLocalCacheDir',
+        setLocalCacheDir_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.SetLocalCacheDirRequest.fromBuffer(value),
+        ($0.SetLocalCacheDirResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.SyncManifestRequest, $0.SyncManifestResponse>(
+        'SyncManifest',
+        syncManifest_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.SyncManifestRequest.fromBuffer(value),
+        ($0.SyncManifestResponse value) => value.writeToBuffer()));
     $addMethod($grpc.ServiceMethod<$0.PingRequest, $0.PingResponse>(
         'Ping',
         ping_Pre,
@@ -370,6 +400,14 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
     return listDriveNFSDir(call, await request);
   }
 
+  $async.Future<$0.SetLocalCacheDirResponse> setLocalCacheDir_Pre($grpc.ServiceCall call, $async.Future<$0.SetLocalCacheDirRequest> request) async {
+    return setLocalCacheDir(call, await request);
+  }
+
+  $async.Future<$0.SyncManifestResponse> syncManifest_Pre($grpc.ServiceCall call, $async.Future<$0.SyncManifestRequest> request) async {
+    return syncManifest(call, await request);
+  }
+
   $async.Future<$0.PingResponse> ping_Pre($grpc.ServiceCall call, $async.Future<$0.PingRequest> request) async {
     return ping(call, await request);
   }
@@ -391,5 +429,7 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
   $async.Future<$0.ListDriveWebdavDirResponse> listDriveWebdavDir($grpc.ServiceCall call, $0.ListDriveWebdavDirRequest request);
   $async.Future<$0.SetDriveNFSResponse> setDriveNFS($grpc.ServiceCall call, $0.SetDriveNFSRequest request);
   $async.Future<$0.ListDriveNFSDirResponse> listDriveNFSDir($grpc.ServiceCall call, $0.ListDriveNFSDirRequest request);
+  $async.Future<$0.SetLocalCacheDirResponse> setLocalCacheDir($grpc.ServiceCall call, $0.SetLocalCacheDirRequest request);
+  $async.Future<$0.SyncManifestResponse> syncManifest($grpc.ServiceCall call, $0.SyncManifestRequest request);
   $async.Future<$0.PingResponse> ping($grpc.ServiceCall call, $0.PingRequest request);
 }

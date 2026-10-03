@@ -21,7 +21,6 @@ func (a *api) SetDriveWebdav(ctx context.Context, req *pb.SetDriveWebdavRequest)
 		rsp.Success, rsp.Message = false, fmt.Sprintf("connect to %s failed: %s", req.Addr, err.Error())
 		return
 	}
-	a.im.SetDrive(d)
 	if req.Root != "" {
 		err := d.SetRootPath(req.Root)
 		if err != nil {
@@ -29,6 +28,7 @@ func (a *api) SetDriveWebdav(ctx context.Context, req *pb.SetDriveWebdavRequest)
 			return
 		}
 	}
+	a.im.SetDrive(d)
 	return
 }
 

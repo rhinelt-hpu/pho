@@ -64,6 +64,12 @@ class MockAlbumRemoteStorage implements RemoteStorageClient {
     lastTargetAlbum = targetAlbum;
     return paths.map((p) => '$targetAlbum/${p.split('/').last}').toList();
   }
+
+  @override
+  Future<SyncManifestResponse> syncManifest() async => SyncManifestResponse(success: true);
+
+  @override
+  Future<void> setLocalCacheDir(String path) async {}
 }
 
 void main() {

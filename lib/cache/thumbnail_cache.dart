@@ -15,10 +15,15 @@ class ThumbnailCache {
   static Future<void> init() async {
     if (_initialized && _cacheDir != null) return;
     try {
-      final tempDir = await getTemporaryDirectory();
-      _cacheDir = Directory(p.join(tempDir.path, 'pho_thumbnail_cache'));
+      final appDir = await getApplicationSupportDirectory();
+      _cacheDir = Directory(p.join(appDir.path, 'pho_thumbnail_cache'));
     } catch (_) {
-      _cacheDir = Directory(p.join(Directory.systemTemp.path, 'pho_thumbnail_cache'));
+      try {
+        final tempDir = await getTemporaryDirectory();
+        _cacheDir = Directory(p.join(tempDir.path, 'pho_thumbnail_cache'));
+      } catch (_) {
+        _cacheDir = Directory(p.join(Directory.systemTemp.path, 'pho_thumbnail_cache'));
+      }
     }
     try {
       if (!await _cacheDir!.exists()) {
