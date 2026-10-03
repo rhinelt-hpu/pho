@@ -191,17 +191,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
   @override
   void initState() {
     SnackBarManager.init(context);
-    // W7-T1: 恢复警告 - 检测空syncedIDs但有历史刷新记录的情况
-    SharedPreferences.getInstance().then((prefs) {
-      final syncedIds = prefs.getString('synced_ids');
-      final lastRefresh = prefs.getInt('last_refersh_unsync');
-      if (syncedIds != null &&
-          syncedIds == '[]' &&
-          lastRefresh != null &&
-          lastRefresh != 0) {
-        SnackBarManager.showSnackBar("之前同步状态丢失，建议连接 WiFi 后保持应用前台以重新校验同步状态");
-      }
-    });
     SharedPreferences.getInstance().then((prefs) async {
       final seedColorValue = prefs.getInt("seed_color");
       if (seedColorValue != null) {
