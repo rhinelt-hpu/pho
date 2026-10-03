@@ -24,6 +24,7 @@ import 'package:img_syncer/choose_album_route.dart';
 import 'package:img_syncer/setting_storage_route.dart';
 import 'package:img_syncer/widgets/thumbnail_skeleton.dart';
 import 'package:img_syncer/widgets/cloud_album_sheet.dart';
+import 'package:img_syncer/widgets/local_album_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class GalleryBody extends StatefulWidget {
@@ -522,12 +523,13 @@ class GalleryBodyState extends State<GalleryBody>
             children: [],
           ),
           actions: [
-            if (!widget.useLocal)
-              IconButton(
-                icon: const Icon(Icons.photo_library_outlined),
-                tooltip: l10n.cloudAlbums,
-                onPressed: () => CloudAlbumSheet.show(context),
-              ),
+            IconButton(
+              icon: const Icon(Icons.photo_library_outlined),
+              tooltip: widget.useLocal ? l10n.chooseAlbum : l10n.cloudAlbums,
+              onPressed: () => widget.useLocal
+                  ? LocalAlbumSheet.show(context)
+                  : CloudAlbumSheet.show(context),
+            ),
             MenuAnchor(
               builder: (BuildContext context, MenuController controller,
                   Widget? child) {
@@ -546,13 +548,7 @@ class GalleryBodyState extends State<GalleryBody>
                 widget.useLocal
                     ? MenuItemButton(
                         child: Text(l10n.chooseAlbum),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const ChooseAlbumRoute()),
-                          );
-                        },
+                        onPressed: () => LocalAlbumSheet.show(context),
                       )
                     : MenuItemButton(
                         child: Text(l10n.cloudAlbums),
@@ -601,7 +597,9 @@ class GalleryBodyState extends State<GalleryBody>
             centerTitle: true,
             title: InkWell(
               borderRadius: BorderRadius.circular(AppRadius.small),
-              onTap: !widget.useLocal ? () => CloudAlbumSheet.show(context) : null,
+              onTap: () => widget.useLocal
+                  ? LocalAlbumSheet.show(context)
+                  : CloudAlbumSheet.show(context),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -615,12 +613,15 @@ class GalleryBodyState extends State<GalleryBody>
                     ),
                   ),
                   const SizedBox(width: AppSpacing.xs),
-                  Consumer<AssetModel>(
-                    builder: (context, aModel, child) {
-                      final albumName =
-                          !widget.useLocal && aModel.currentCloudAlbum.isNotEmpty
+                  Consumer2<AssetModel, SettingModel>(
+                    builder: (context, aModel, sModel, child) {
+                      final albumName = widget.useLocal
+                          ? (sModel.localFolder.isNotEmpty
+                              ? sModel.localFolder
+                              : l10n.allPhotos)
+                          : (aModel.currentCloudAlbum.isNotEmpty
                               ? aModel.currentCloudAlbum
-                              : "Pho";
+                              : l10n.allPhotos);
                       return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -630,16 +631,11 @@ class GalleryBodyState extends State<GalleryBody>
                                 .textTheme
                                 .headlineLarge!
                                 .copyWith(
-                                  fontFamily: albumName == "Pho"
-                                      ? "Sriracha-Regular"
-                                      : null,
-                                  fontSize: albumName == "Pho" ? null : 20,
+                                  fontSize: 20,
                                 ),
                           ),
-                          if (!widget.useLocal) ...[
-                            const SizedBox(width: 4),
-                            const Icon(Icons.arrow_drop_down, size: 20),
-                          ],
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_drop_down, size: 20),
                         ],
                       );
                     },
