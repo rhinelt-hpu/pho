@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -77,6 +78,7 @@ func parseContentRangeTotal(cr string) int64 {
 type retryTransport struct {
 	base        http.RoundTripper
 	sem         chan struct{}
+	basePath    string
 	lastSizeMap sync.Map
 }
 
@@ -123,21 +125,32 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	var totalSize int64 = -1
-	if req.Method == http.MethodGet {
+	if req.Method == http.MethodGet &&
+		(resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) {
+		var totalSize int64 = -1
 		if resp.StatusCode == http.StatusPartialContent {
 			totalSize = parseContentRangeTotal(resp.Header.Get("Content-Range"))
 		} else if resp.StatusCode == http.StatusOK {
 			totalSize = resp.ContentLength
 		}
 		t.lastSizeMap.Store(req.URL.Path, totalSize)
+		if t.basePath != "" && strings.HasPrefix(req.URL.Path, t.basePath) {
+			rel := "/" + strings.TrimPrefix(strings.TrimPrefix(req.URL.Path, t.basePath), "/")
+			t.lastSizeMap.Store(rel, totalSize)
+		}
+		if totalSize >= 0 {
+			resp.Body = &semReleaseReadCloser{
+				ReadCloser: resp.Body,
+				release:    releaseSem,
+				size:       totalSize,
+			}
+			return resp, nil
+		}
 	}
 
-	resp.Body = &semReleaseReadCloser{
-		ReadCloser: resp.Body,
-		release:    releaseSem,
-		size:       totalSize,
-	}
+	// 非流式成功 GET 请求（如 PROPFIND/PUT/MKCOL/401/404 或无 Content-Length 需回退 Stat 的请求）
+	// 在 RoundTrip 完成时立即释放信号量槽位，防止 401 未关闭 Body 泄漏槽位或回退 Stat 时嵌套死锁
+	releaseSem()
 	return resp, nil
 }
 
@@ -149,9 +162,14 @@ func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
 		MaxIdleConnsPerHost: MaxRemoteConcurrency,
 		IdleConnTimeout:     90 * time.Second,
 	}
+	var basePath string
+	if parsed, err := neturl.Parse(url); err == nil && parsed.Path != "" && parsed.Path != "/" {
+		basePath = strings.TrimSuffix(parsed.Path, "/")
+	}
 	rt := &retryTransport{
-		base: baseTransport,
-		sem:  sem,
+		base:     baseTransport,
+		sem:      sem,
+		basePath: basePath,
 	}
 	d := &Webdav{
 		url:       url,
