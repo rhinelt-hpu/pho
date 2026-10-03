@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -19,7 +20,8 @@ import (
 type mockDrive struct {
 	mu          sync.Mutex
 	files       map[string][]byte
-	deleteCalls []string          // 记录所有 Delete 调用
+	dirs        map[string]bool
+	deleteCalls []string                  // 记录所有 Delete 调用
 	rangeFiles  map[string][]mockDirEntry // 自定义目录结构（用于 RangeByDate 测试）
 }
 
@@ -39,6 +41,7 @@ func (m mockDirEntry) Sys() interface{}   { return nil }
 func newMockDrive() *mockDrive {
 	return &mockDrive{
 		files:       make(map[string][]byte),
+		dirs:        make(map[string]bool),
 		deleteCalls: make([]string, 0),
 		rangeFiles:  make(map[string][]mockDirEntry),
 	}
@@ -47,8 +50,17 @@ func newMockDrive() *mockDrive {
 func (m *mockDrive) IsExist(path string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	_, ok := m.files[path]
-	return ok, nil
+	cleaned := filepath.Clean(filepath.ToSlash(path))
+	if _, ok := m.files[path]; ok {
+		return true, nil
+	}
+	if _, ok := m.files[cleaned]; ok {
+		return true, nil
+	}
+	if m.dirs[path] || m.dirs[cleaned] {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (m *mockDrive) Upload(path string, reader io.ReadCloser, size int64, lastModified time.Time) error {
@@ -59,6 +71,11 @@ func (m *mockDrive) Upload(path string, reader io.ReadCloser, size int64, lastMo
 		return err
 	}
 	m.files[path] = data
+	cleaned := filepath.Clean(filepath.ToSlash(path))
+	m.files[cleaned] = data
+	for p := filepath.Dir(cleaned); p != "." && p != "/" && p != ""; p = filepath.Dir(p) {
+		m.dirs[p] = true
+	}
 	return nil
 }
 
@@ -88,8 +105,12 @@ func (m *mockDrive) DownloadWithOffset(path string, offset int64) (io.ReadCloser
 func (m *mockDrive) Delete(path string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	cleaned := filepath.Clean(filepath.ToSlash(path))
 	delete(m.files, path)
-	m.deleteCalls = append(m.deleteCalls, path)
+	delete(m.files, cleaned)
+	delete(m.dirs, path)
+	delete(m.dirs, cleaned)
+	m.deleteCalls = append(m.deleteCalls, cleaned)
 	return nil
 }
 
@@ -110,8 +131,8 @@ func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error {
 	}
 	defer m.mu.Unlock()
 
-	prefix := dir
-	if prefix == "." {
+	prefix := filepath.Clean(filepath.ToSlash(dir))
+	if prefix == "." || prefix == "/" {
 		prefix = ""
 	}
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
@@ -121,8 +142,9 @@ func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error {
 	var infos []memFileInfo
 	seen := make(map[string]bool)
 	for path, data := range m.files {
-		if prefix == "" || strings.HasPrefix(path, prefix) {
-			name := strings.TrimPrefix(path, prefix)
+		pClean := filepath.Clean(filepath.ToSlash(path))
+		if prefix == "" || strings.HasPrefix(pClean, prefix) {
+			name := strings.TrimPrefix(pClean, prefix)
 			if strings.Contains(name, "/") {
 				subDir := strings.Split(name, "/")[0]
 				if !seen[subDir] {
@@ -134,7 +156,7 @@ func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error {
 						modTime: time.Now(),
 					})
 				}
-			} else if !seen[name] {
+			} else if !seen[name] && name != "" {
 				seen[name] = true
 				infos = append(infos, memFileInfo{
 					name:    name,
@@ -142,6 +164,25 @@ func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error {
 					isDir:   false,
 					modTime: time.Now(),
 				})
+			}
+		}
+	}
+
+	for d := range m.dirs {
+		dClean := filepath.Clean(filepath.ToSlash(d))
+		if prefix == "" || strings.HasPrefix(dClean, prefix) {
+			rel := strings.TrimPrefix(dClean, prefix)
+			if rel != "" {
+				subDir := strings.Split(rel, "/")[0]
+				if !seen[subDir] {
+					seen[subDir] = true
+					infos = append(infos, memFileInfo{
+						name:    subDir,
+						size:    0,
+						isDir:   true,
+						modTime: time.Now(),
+					})
+				}
 			}
 		}
 	}
@@ -166,15 +207,31 @@ func (m *mockDrive) Close() error {
 func (m *mockDrive) Move(oldPath, newPath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	cleanedOld := filepath.Clean(filepath.ToSlash(oldPath))
+	cleanedNew := filepath.Clean(filepath.ToSlash(newPath))
 	data, ok := m.files[oldPath]
+	if !ok {
+		data, ok = m.files[cleanedOld]
+	}
 	if ok {
 		m.files[newPath] = data
+		m.files[cleanedNew] = data
 		delete(m.files, oldPath)
+		delete(m.files, cleanedOld)
+		for p := filepath.Dir(cleanedNew); p != "." && p != "/" && p != ""; p = filepath.Dir(p) {
+			m.dirs[p] = true
+		}
 	}
 	return nil
 }
 
 func (m *mockDrive) Mkdir(dir string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cleaned := filepath.Clean(filepath.ToSlash(dir))
+	for p := cleaned; p != "." && p != "/" && p != ""; p = filepath.Dir(p) {
+		m.dirs[p] = true
+	}
 	return nil
 }
 

@@ -530,6 +530,10 @@ class AssetModel extends ChangeNotifier {
       await refreshRemote(false);
     }
     await refreshCloudAlbums();
+    if (currentCloudAlbum.isNotEmpty && !cloudAlbums.any((a) => a.name == currentCloudAlbum)) {
+      currentCloudAlbum = "";
+      await refreshRemote(false);
+    }
     notifyListeners();
     return newPaths;
   }

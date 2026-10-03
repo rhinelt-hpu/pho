@@ -322,3 +322,115 @@ func TestAlbumLifecycle(t *testing.T) {
 		t.Fatalf("DeleteAlbum error: %v", err)
 	}
 }
+
+// TestMoveAssets_CleanEmptyDirectoriesAndAlbums 验证移动照片后若文件夹或相册变为空，会自动自底向上删除空目录与相册
+func TestMoveAssets_CleanEmptyDirectoriesAndAlbums(t *testing.T) {
+	md := newMockDrive()
+	im := NewImgManager(Option{WorkerNum: 1})
+	defer im.Close()
+	im.dri = md
+
+	date := time.Date(2026, 5, 20, 10, 0, 0, 0, time.Local)
+	content := []byte("dummy image content")
+
+	// 1. 创建源相册 "临时相册" 并上传 1 张照片及缩略图
+	srcAlbum := "临时相册"
+	targetAlbum := "归档相册"
+	srcPath := filepath.Join(srcAlbum, date.Format("2006/01/02"), "img1.jpg")
+	srcThumb := filepath.Join(defaultThumbnailDir, srcPath)
+
+	_ = md.Upload(srcPath, io.NopCloser(bytes.NewReader(content)), int64(len(content)), date)
+	_ = md.Upload(srcThumb, io.NopCloser(bytes.NewReader(content)), int64(len(content)), date)
+
+	// 验证上传后源目录及相册均存在
+	exist, _ := md.IsExist(srcAlbum)
+	if !exist {
+		t.Fatalf("expected srcAlbum to exist")
+	}
+	exist, _ = md.IsExist(filepath.Dir(srcPath))
+	if !exist {
+		t.Fatalf("expected src dir to exist")
+	}
+
+	// 2. 将照片从 "临时相册" 移动到 "归档相册"
+	newPaths, err := im.MoveAssets([]string{srcPath}, targetAlbum)
+	if err != nil {
+		t.Fatalf("MoveAssets failed: %v", err)
+	}
+	if len(newPaths) != 1 {
+		t.Fatalf("expected 1 new path, got %v", newPaths)
+	}
+
+	// 3. 验证移动后：变为空的叶子日期目录、中间月份/年份目录、以及空相册自身均被自动删除
+	dateDir := filepath.Dir(srcPath) // 临时相册/2026/05/20
+	monthDir := filepath.Dir(dateDir) // 临时相册/2026/05
+	yearDir := filepath.Dir(monthDir) // 临时相册/2026
+
+	for _, d := range []string{dateDir, monthDir, yearDir, srcAlbum} {
+		if exist, _ := md.IsExist(d); exist {
+			t.Errorf("expected dir %s to be deleted after move, but it still exists", d)
+		}
+	}
+
+	// 缩略图目录对应的空相册及空日期目录也应一并被删除
+	thumbDateDir := filepath.Join(defaultThumbnailDir, dateDir)
+	thumbAlbumDir := filepath.Join(defaultThumbnailDir, srcAlbum)
+	if exist, _ := md.IsExist(thumbDateDir); exist {
+		t.Errorf("expected thumb date dir %s to be deleted, but exists", thumbDateDir)
+	}
+	if exist, _ := md.IsExist(thumbAlbumDir); exist {
+		t.Errorf("expected thumb album dir %s to be deleted, but exists", thumbAlbumDir)
+	}
+
+	// 但受保护的 .thumbnail 根目录绝对不能被删除
+	if exist, _ := md.IsExist(defaultThumbnailDir); !exist {
+		t.Errorf("protected thumbnail root %s should NOT be deleted", defaultThumbnailDir)
+	}
+
+	// 4. 验证 ListAlbums 不再包含已变为空并被删除的 "临时相册"
+	albums, err := im.ListAlbums()
+	if err != nil {
+		t.Fatalf("ListAlbums error: %v", err)
+	}
+	for _, a := range albums {
+		if a.Name == srcAlbum {
+			t.Errorf("empty album %s should not appear in ListAlbums", srcAlbum)
+		}
+	}
+
+	// 5. 验证部分移动（目录中仍有其他文件时）：不误删非空目录
+	partAlbum := "活跃相册"
+	p1 := filepath.Join(partAlbum, date.Format("2006/01/02"), "keep.jpg")
+	p2 := filepath.Join(partAlbum, date.Format("2006/01/02"), "move.jpg")
+	_ = md.Upload(p1, io.NopCloser(bytes.NewReader(content)), int64(len(content)), date)
+	_ = md.Upload(p2, io.NopCloser(bytes.NewReader(content)), int64(len(content)), date)
+
+	_, err = im.MoveAssets([]string{p2}, targetAlbum)
+	if err != nil {
+		t.Fatalf("MoveAssets partial failed: %v", err)
+	}
+	// 因为 keep.jpg 还在，日期目录和活跃相册均不应被删除
+	partDateDir := filepath.Dir(p1)
+	if exist, _ := md.IsExist(partDateDir); !exist {
+		t.Errorf("non-empty dir %s should NOT be deleted", partDateDir)
+	}
+	if exist, _ := md.IsExist(partAlbum); !exist {
+		t.Errorf("non-empty album %s should NOT be deleted", partAlbum)
+	}
+
+	// 6. 验证默认相册清空时保护机制：日期目录可删，但默认相册根目录永远保留
+	defAlbum := im.GetDefaultAlbum()
+	defPath := filepath.Join(defAlbum, date.Format("2006/01/02"), "def.jpg")
+	_ = md.Upload(defPath, io.NopCloser(bytes.NewReader(content)), int64(len(content)), date)
+	_, err = im.MoveAssets([]string{defPath}, targetAlbum)
+	if err != nil {
+		t.Fatalf("MoveAssets from default album failed: %v", err)
+	}
+	defDateDir := filepath.Dir(defPath)
+	if exist, _ := md.IsExist(defDateDir); exist {
+		t.Errorf("empty date dir in default album %s should be deleted", defDateDir)
+	}
+	if exist, _ := md.IsExist(defAlbum); !exist {
+		t.Errorf("default album %s must NOT be deleted even when empty", defAlbum)
+	}
+}

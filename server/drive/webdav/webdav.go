@@ -308,6 +308,11 @@ func (d *Webdav) Delete(path string) error {
 	if err != nil {
 		return err
 	}
+	if d.knownDirs != nil {
+		d.mkdirLock.Lock()
+		delete(d.knownDirs, fullPath)
+		d.mkdirLock.Unlock()
+	}
 	return nil
 }
 

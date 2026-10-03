@@ -1312,6 +1312,105 @@ func (im *ImgManager) RenameAlbum(oldName, newName string) error {
 	return nil
 }
 
+// isProtectedDir 判定指定路径是否属于受保护的关键目录（系统目录、根目录、默认相册），不可自动删除
+func (im *ImgManager) isProtectedDir(dir string) bool {
+	cleaned := filepath.Clean(filepath.ToSlash(dir))
+	if cleaned == "." || cleaned == "/" || cleaned == "" {
+		return true
+	}
+	// 保护全局关键系统目录
+	if cleaned == defaultThumbnailDir || cleaned == ManifestDir || cleaned == "lost+found" {
+		return true
+	}
+	// 保护 .manifest 目录下的所有元数据文件
+	if strings.HasPrefix(cleaned, ManifestDir+"/") {
+		return true
+	}
+	// 保护默认相册（及其缩略图根目录）
+	defaultAlbum := im.GetDefaultAlbum()
+	if defaultAlbum != "" {
+		if cleaned == defaultAlbum || cleaned == filepath.Join(defaultThumbnailDir, defaultAlbum) {
+			return true
+		}
+	}
+	// 保护除 .thumbnail 以外的其他根级隐藏目录（如 .stversions、.git 等）
+	if strings.HasPrefix(cleaned, ".") && cleaned != defaultThumbnailDir && !strings.HasPrefix(cleaned, defaultThumbnailDir+"/") {
+		return true
+	}
+	return false
+}
+
+// isDirEmpty 检查指定目录是否为空（不含任何文件或子目录）
+func (im *ImgManager) isDirEmpty(d StorageDrive, dir string) (bool, error) {
+	empty := true
+	err := d.Range(dir, func(info fs.FileInfo) bool {
+		empty = false
+		return false
+	})
+	if err != nil {
+		return false, err
+	}
+	return empty, nil
+}
+
+// cleanEmptyDirsUpwards 自底向上递归/迭代探测并删除所有已变为空的非受保护目录（如日期目录或非默认相册）
+func (im *ImgManager) cleanEmptyDirsUpwards(d StorageDrive, startDir string, deletedDirs map[string]bool) {
+	curr := filepath.Clean(filepath.ToSlash(startDir))
+	for {
+		if im.isProtectedDir(curr) {
+			break
+		}
+		if deletedDirs != nil && deletedDirs[curr] {
+			parent := filepath.Dir(curr)
+			if parent == curr {
+				break
+			}
+			curr = parent
+			continue
+		}
+
+		exists, err := d.IsExist(curr)
+		if err != nil {
+			im.logger.Printf("cleanEmptyDirsUpwards: check exists %s: %v", curr, err)
+			break
+		}
+		if !exists {
+			// 当前目录可能已在外层被整目录移动或删除，继续向上探测其父目录
+			parent := filepath.Dir(curr)
+			if parent == curr || im.isProtectedDir(parent) {
+				break
+			}
+			curr = parent
+			continue
+		}
+
+		empty, err := im.isDirEmpty(d, curr)
+		if err != nil {
+			im.logger.Printf("cleanEmptyDirsUpwards: check empty %s: %v", curr, err)
+			break
+		}
+		if !empty {
+			// 当前目录非空，上层目录必然包含当前目录而无法为空，终止向上探测
+			break
+		}
+
+		if err := d.Delete(curr); err != nil {
+			im.logger.Printf("cleanEmptyDirsUpwards: delete empty dir %s failed: %v", curr, err)
+			break
+		}
+		im.logger.Printf("[INFO] Cleaned empty dir after move: %s", curr)
+		if deletedDirs != nil {
+			deletedDirs[curr] = true
+		}
+
+		parent := filepath.Dir(curr)
+		if parent == curr {
+			break
+		}
+		curr = parent
+	}
+}
+
 // MoveAssets 将指定路径的照片移动至目标相册（联动迁移主图、缩略图与 LivePhoto）
 func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, error) {
 	cleanTarget, err := util.SanitizePath(targetAlbum)
@@ -1322,6 +1421,8 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 	defer unlock()
 
 	newPaths := make([]string, 0, len(paths))
+	srcDirsToClean := make(map[string]bool)
+
 	for _, p := range paths {
 		cleanedPath, err := util.SanitizePath(p)
 		if err != nil {
@@ -1342,6 +1443,11 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 		newSubPath := filepath.Join(subParts...)
 		newMainPath := filepath.Join(cleanTarget, newSubPath)
 
+		if cleanedPath == newMainPath {
+			newPaths = append(newPaths, newMainPath)
+			continue
+		}
+
 		if err := d.Move(cleanedPath, newMainPath); err != nil {
 			im.logger.Printf("MoveAssets: failed to move %s -> %s: %v", cleanedPath, newMainPath, err)
 			continue
@@ -1353,21 +1459,47 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 		newThumb := filepath.Join(defaultThumbnailDir, newMainPath)
 		_ = d.Move(oldThumb, newThumb)
 
-		// 联动迁移 Live Photo
-		dir := filepath.Dir(cleanedPath)
-		if strings.HasPrefix(filepath.Base(dir), "live_") {
+		// 收集待检测的源目录（含普通图片与缩略图目录）
+		srcDir := filepath.Dir(cleanedPath)
+		if strings.HasPrefix(filepath.Base(srcDir), "live_") {
 			newLiveDir := filepath.Dir(newMainPath)
-			_ = d.Move(dir, newLiveDir)
-			_ = d.Move(filepath.Join(defaultThumbnailDir, dir), filepath.Join(defaultThumbnailDir, newLiveDir))
+			_ = d.Move(srcDir, newLiveDir)
+			_ = d.Move(filepath.Join(defaultThumbnailDir, srcDir), filepath.Join(defaultThumbnailDir, newLiveDir))
+			srcDirsToClean[srcDir] = true
+			srcDirsToClean[filepath.Join(defaultThumbnailDir, srcDir)] = true
+			srcDir = filepath.Dir(srcDir)
+		}
+		srcDirsToClean[srcDir] = true
+		srcDirsToClean[filepath.Join(defaultThumbnailDir, srcDir)] = true
+	}
+
+	// 移动完成后，检查源目录结构：若文件夹或相册变为空，自底向上逐层删除，减少冗余空文件夹
+	if len(srcDirsToClean) > 0 {
+		sortedDirs := make([]string, 0, len(srcDirsToClean))
+		for dir := range srcDirsToClean {
+			sortedDirs = append(sortedDirs, dir)
+		}
+		sort.Slice(sortedDirs, func(i, j int) bool {
+			return len(sortedDirs[i]) > len(sortedDirs[j])
+		})
+		deletedDirs := make(map[string]bool)
+		for _, dir := range sortedDirs {
+			im.cleanEmptyDirsUpwards(d, dir, deletedDirs)
 		}
 	}
+
 	if len(newPaths) > 0 && im.manifest != nil {
 		records := make([]ManifestRecord, 0, len(newPaths))
 		for _, np := range newPaths {
+			var size int64
+			if oldRec, found := im.manifest.LookupFingerprint(filepath.Base(np)); found {
+				size = oldRec.Size
+			}
 			records = append(records, ManifestRecord{
 				Fingerprint: filepath.Base(np),
 				Album:       cleanTarget,
 				Path:        np,
+				Size:        size,
 				Deleted:     false,
 				UpdatedAt:   time.Now().Unix(),
 			})
@@ -1398,6 +1530,10 @@ func (im *ImgManager) MigrateLegacyRootFolders() {
 			oldThumb := filepath.Join(defaultThumbnailDir, oldPath)
 			newThumb := filepath.Join(defaultThumbnailDir, defaultName, oldPath)
 			_ = d.Move(oldThumb, newThumb)
+
+			// 迁移完成后若旧目录残留变空，执行清理
+			im.cleanEmptyDirsUpwards(d, oldPath, nil)
+			im.cleanEmptyDirsUpwards(d, oldThumb, nil)
 		}
 	}
 }
