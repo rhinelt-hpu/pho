@@ -44,6 +44,8 @@ class GalleryBody extends StatefulWidget {
 
 enum LocateType { year, month, day }
 
+enum GalleryViewMode { year, month, day }
+
 class LocateInfo {
   LocateInfo({
     this.location = 0,
@@ -64,6 +66,129 @@ class GalleryBodyState extends State<GalleryBody>
   double scrollOffset = 0;
   double maxScrollOffset = 0;
   bool dragging = false;
+
+  GalleryViewMode _viewMode = GalleryViewMode.day;
+  final Map<int, Offset> _pointerPositions = {};
+  double? _pinchStartDistance;
+  bool _hasTriggeredThisPinch = false;
+
+  int get effectiveColumnCount {
+    switch (_viewMode) {
+      case GalleryViewMode.day:
+        return columCount;
+      case GalleryViewMode.month:
+        return 7;
+      case GalleryViewMode.year:
+        return 11;
+    }
+  }
+
+  void _zoomIn() {
+    if (_viewMode == GalleryViewMode.year) {
+      _setViewMode(GalleryViewMode.month);
+    } else if (_viewMode == GalleryViewMode.month) {
+      _setViewMode(GalleryViewMode.day);
+    }
+  }
+
+  void _zoomOut() {
+    if (_viewMode == GalleryViewMode.day) {
+      _setViewMode(GalleryViewMode.month);
+    } else if (_viewMode == GalleryViewMode.month) {
+      _setViewMode(GalleryViewMode.year);
+    }
+  }
+
+  void _setViewMode(GalleryViewMode mode) {
+    if (_viewMode == mode) return;
+    HapticFeedback.lightImpact();
+    final focal = _findCurrentFocalDate();
+    setState(() {
+      _viewMode = mode;
+    });
+    _scrollToFocalDate(focal);
+  }
+
+  DateTime? _findCurrentFocalDate() {
+    if (!_scrollController.hasClients || _dateLocateMap.isEmpty) return null;
+    final currentOffset = _scrollController.offset;
+    DateTime? bestDate;
+    double bestDiff = double.infinity;
+    _dateLocateMap.forEach((date, info) {
+      final diff = (info.location - currentOffset).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestDate = date;
+      }
+    });
+    return bestDate;
+  }
+
+  void _scrollToFocalDate(DateTime? focalDate) {
+    if (focalDate == null || !_scrollController.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients || _dateLocateMap.isEmpty) return;
+      DateTime? matchDate;
+      double minDiff = double.infinity;
+      _dateLocateMap.forEach((date, info) {
+        int daysDiff = date.difference(focalDate).inDays.abs();
+        if (daysDiff < minDiff) {
+          minDiff = daysDiff.toDouble();
+          matchDate = date;
+        }
+      });
+      if (matchDate != null && _dateLocateMap.containsKey(matchDate)) {
+        final target = _dateLocateMap[matchDate]!.location;
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo(target.clamp(0.0, maxScroll));
+      }
+    });
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    _pointerPositions[event.pointer] = event.position;
+    if (_pointerPositions.length == 2) {
+      final points = _pointerPositions.values.toList();
+      _pinchStartDistance = (points[0] - points[1]).distance;
+      _hasTriggeredThisPinch = false;
+    }
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    _pointerPositions[event.pointer] = event.position;
+    if (_pointerPositions.length == 2 &&
+        _pinchStartDistance != null &&
+        _pinchStartDistance! > 30 &&
+        !_hasTriggeredThisPinch) {
+      final points = _pointerPositions.values.toList();
+      final currentDistance = (points[0] - points[1]).distance;
+      final scale = currentDistance / _pinchStartDistance!;
+
+      if (scale < 0.72) {
+        _hasTriggeredThisPinch = true;
+        _zoomOut();
+      } else if (scale > 1.35) {
+        _hasTriggeredThisPinch = true;
+        _zoomIn();
+      }
+    }
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    _pointerPositions.remove(event.pointer);
+    if (_pointerPositions.length < 2) {
+      _pinchStartDistance = null;
+      _hasTriggeredThisPinch = false;
+    }
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    _pointerPositions.remove(event.pointer);
+    if (_pointerPositions.length < 2) {
+      _pinchStartDistance = null;
+      _hasTriggeredThisPinch = false;
+    }
+  }
 
   final Map<int, bool> _selectedIndices = {};
 
@@ -519,8 +644,41 @@ class GalleryBodyState extends State<GalleryBody>
           expandedHeight: 70,
           toolbarHeight: 70,
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          leading: const Row(
-            children: [],
+          leadingWidth: 80,
+          leading: Center(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.small),
+              onTap: () {
+                if (_viewMode == GalleryViewMode.day) {
+                  _setViewMode(GalleryViewMode.month);
+                } else if (_viewMode == GalleryViewMode.month) {
+                  _setViewMode(GalleryViewMode.year);
+                } else {
+                  _setViewMode(GalleryViewMode.day);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _viewMode == GalleryViewMode.day
+                      ? l10n.day
+                      : (_viewMode == GalleryViewMode.month
+                          ? l10n.month
+                          : l10n.year),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                ),
+              ),
+            ),
           ),
           actions: [
             IconButton(
@@ -567,27 +725,13 @@ class GalleryBodyState extends State<GalleryBody>
                     },
                   ),
                 MenuItemButton(
-                  onPressed: settingModel.galleryColumCount > 2
-                      ? () async {
-                          settingModel.setGalleryColumCount(
-                              settingModel.galleryColumCount - 1);
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setInt("galleryColumCount",
-                              settingModel.galleryColumCount);
-                        }
-                      : null,
+                  onPressed:
+                      _viewMode != GalleryViewMode.day ? () => _zoomIn() : null,
                   child: Text(l10n.zoomIn),
                 ),
                 MenuItemButton(
-                  onPressed: settingModel.galleryColumCount < 10
-                      ? () async {
-                          settingModel.setGalleryColumCount(
-                              settingModel.galleryColumCount + 1);
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setInt("galleryColumCount",
-                              settingModel.galleryColumCount);
-                        }
-                      : null,
+                  onPressed:
+                      _viewMode != GalleryViewMode.year ? () => _zoomOut() : null,
                   child: Text(l10n.zoomOut),
                 ),
               ],
@@ -965,14 +1109,15 @@ class GalleryBodyState extends State<GalleryBody>
     _dateLocateMap = {};
     final all = widget.useLocal ? model.localAssets : model.remoteAssets;
     var children = <Widget>[];
+    final currentColumns = effectiveColumnCount;
     double totalwidth;
     if (widget.width == null) {
-      totalwidth = MediaQuery.of(context).size.width - columCount * 2;
+      totalwidth = MediaQuery.of(context).size.width - currentColumns * 2;
     } else {
-      totalwidth = widget.width! - columCount * 2;
+      totalwidth = widget.width! - currentColumns * 2;
     }
     final totalHeight = MediaQuery.of(context).size.height;
-    final imgWidth = totalwidth / columCount;
+    final imgWidth = totalwidth / currentColumns;
     final imgHeight = imgWidth;
 
     var currentChildren = <Widget>[];
@@ -981,11 +1126,27 @@ class GalleryBodyState extends State<GalleryBody>
     double currentScrollOffset = 0;
     for (int i = 0; i < all.length; i++) {
       final date = all[i].dateCreated();
-      if (currentDateTime == null ||
-          date.year != currentDateTime.year ||
-          date.month != currentDateTime.month ||
-          date.day != currentDateTime.day) {
-        if (currentDateTime != null) {
+      bool isNewSection = false;
+      if (currentDateTime == null) {
+        isNewSection = true;
+      } else {
+        switch (_viewMode) {
+          case GalleryViewMode.day:
+            isNewSection = date.year != currentDateTime.year ||
+                date.month != currentDateTime.month ||
+                date.day != currentDateTime.day;
+            break;
+          case GalleryViewMode.month:
+            isNewSection = date.year != currentDateTime.year ||
+                date.month != currentDateTime.month;
+            break;
+          case GalleryViewMode.year:
+            isNewSection = date.year != currentDateTime.year;
+            break;
+        }
+      }
+      if (isNewSection) {
+        if (currentDateTime != null && _viewMode == GalleryViewMode.day) {
           final currentChildrenLength = currentChildren.length;
           bool selectedAll = true;
           for (int j = i - 1; i - j <= currentChildrenLength; j--) {
@@ -1064,28 +1225,56 @@ class GalleryBodyState extends State<GalleryBody>
         _dateLocateMap[date] = LocateInfo(location: currentScrollOffset);
         currentChildren = <Widget>[];
         preDateTime = date;
-        if (currentDateTime == null || date.month != currentDateTime.month) {
-          children.add(
-            Container(
-              height: 90,
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.xl, 0, AppSpacing.md),
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: localeCode == 'zh'
-                          ? '${DateFormat('M', 'zh').format(date)}  '
-                          : '${DateFormat('MMMM', 'en').format(date)} ',
-                      style: textTheme.headlineLarge?.copyWith(
-                        color: colorScheme.onSurface,
+        if (_viewMode == GalleryViewMode.day) {
+          if (currentDateTime == null || date.month != currentDateTime.month) {
+            children.add(
+              Container(
+                height: 90,
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.xl, 0, AppSpacing.md),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: localeCode == 'zh'
+                            ? '${DateFormat('M', 'zh').format(date)}  '
+                            : '${DateFormat('MMMM', 'en').format(date)} ',
+                        style: textTheme.headlineLarge?.copyWith(
+                          color: colorScheme.onSurface,
+                        ),
                       ),
-                    ),
-                    TextSpan(
-                      text: DateFormat('yyyy').format(date),
-                      style: textTheme.headlineLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w400,
+                      TextSpan(
+                        text: DateFormat('yyyy').format(date),
+                        style: textTheme.headlineLarge?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+            currentScrollOffset += 90;
+          }
+          currentScrollOffset += 55;
+        } else if (_viewMode == GalleryViewMode.month) {
+          children.add(
+            GestureDetector(
+              onTap: () => showDateLocateDialog(),
+              child: Container(
+                height: 60,
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Text(
+                      localeCode == 'zh'
+                          ? DateFormat('yyyy年 M月', 'zh').format(date)
+                          : DateFormat('MMMM yyyy', 'en').format(date),
+                      style: textTheme.titleLarge?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -1093,9 +1282,31 @@ class GalleryBodyState extends State<GalleryBody>
               ),
             ),
           );
-          currentScrollOffset += 90;
+          currentScrollOffset += 60;
+        } else if (_viewMode == GalleryViewMode.year) {
+          children.add(
+            GestureDetector(
+              onTap: () => showDateLocateDialog(),
+              child: Container(
+                height: 70,
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Text(
+                      DateFormat('yyyy').format(date),
+                      style: textTheme.headlineMedium?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+          currentScrollOffset += 70;
         }
-        currentScrollOffset += 55;
       }
       bool needLoadThumbnail = false;
       if (currentScrollOffset > scrollOffset - (2 * totalHeight) &&
@@ -1108,37 +1319,54 @@ class GalleryBodyState extends State<GalleryBody>
         }
       }
       var child = GestureDetector(
+          key: ValueKey('gallery_photo_$i'),
           onTap: () async {
-            if (stateModel.isSelectionMode) {
+            if (_viewMode == GalleryViewMode.year) {
               HapticFeedback.lightImpact();
-              toggleSelection(i);
+              final focal = all[i].dateCreated();
+              setState(() {
+                _viewMode = GalleryViewMode.month;
+              });
+              _scrollToFocalDate(focal);
+            } else if (_viewMode == GalleryViewMode.month) {
+              HapticFeedback.lightImpact();
+              final focal = all[i].dateCreated();
+              setState(() {
+                _viewMode = GalleryViewMode.day;
+              });
+              _scrollToFocalDate(focal);
             } else {
-              Navigator.push(
-                context,
-                PageRouteBuilder(
-                  opaque: false,
-                  transitionDuration: const Duration(milliseconds: 300),
-                  reverseTransitionDuration: const Duration(milliseconds: 300),
-                  transitionsBuilder: (BuildContext context,
-                      Animation<double> animation,
-                      Animation<double> secondaryAnimation,
-                      Widget child) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    );
-                  },
-                  pageBuilder: (BuildContext context, _, __) =>
-                      GalleryViewerRoute(
-                    useLocal: widget.useLocal,
-                    originIndex: i,
+              if (stateModel.isSelectionMode) {
+                HapticFeedback.lightImpact();
+                toggleSelection(i);
+              } else {
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    opaque: false,
+                    transitionDuration: const Duration(milliseconds: 300),
+                    reverseTransitionDuration: const Duration(milliseconds: 300),
+                    transitionsBuilder: (BuildContext context,
+                        Animation<double> animation,
+                        Animation<double> secondaryAnimation,
+                        Widget child) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: child,
+                      );
+                    },
+                    pageBuilder: (BuildContext context, _, __) =>
+                        GalleryViewerRoute(
+                      useLocal: widget.useLocal,
+                      originIndex: i,
+                    ),
                   ),
-                ),
-              );
+                );
+              }
             }
           },
           onLongPress: () async {
-            if (!stateModel.isSelectionMode) {
+            if (_viewMode == GalleryViewMode.day && !stateModel.isSelectionMode) {
               HapticFeedback.lightImpact();
               toggleSelection(i);
             }
@@ -1150,104 +1378,113 @@ class GalleryBodyState extends State<GalleryBody>
                   width: imgWidth,
                   height: imgHeight,
                   padding: const EdgeInsets.all(0),
-                  child: Hero(
-                    tag:
-                        "asset_${all[i].hasLocal ? "local" : "remote"}_${all[i].hasLocal ? all[i].local!.id : all[i].remote!.path}",
-                    child: needLoadThumbnail && all[i].loadThumbnailFinished()
-                        ? Image(
-                            image: all[i].thumbnailProvider(),
-                            fit: BoxFit.cover)
-                        : ThumbnailSkeleton(),
-                    flightShuttleBuilder: (BuildContext flightContext,
-                        Animation<double> animation,
-                        HeroFlightDirection flightDirection,
-                        BuildContext fromHeroContext,
-                        BuildContext toHeroContext) {
-                      // 自定义过渡动画小部件
-                      return AnimatedBuilder(
-                        animation: animation,
-                        builder: (BuildContext context, Widget? child) {
-                          return Opacity(
-                              opacity: animation.value,
-                              child: all[i].loadThumbnailFinished()
-                                  ? Image(
-                                      image: all[i].thumbnailProvider(),
-                                      fit: BoxFit.contain,
-                                    )
-                                  : ThumbnailSkeleton());
-                        },
-                      );
-                    },
-                  )),
-              Consumer<StateModel>(builder: (context, stateModel, child) {
-                return FutureBuilder<String>(
-                  future: all[i].name(),
-                  builder: (context, name) {
-                    double percent = 0;
-                    if (!widget.useLocal) {
-                      percent = name.data == null
-                          ? 0
-                          : stateModel.getDownloadPercent(name.data as String);
-                    } else {
-                      percent = stateModel.getUploadPercent(all[i].local!.id);
-                    }
-                    if (percent > 0) {
+                  child: _viewMode == GalleryViewMode.day
+                      ? Hero(
+                          tag:
+                              "asset_${all[i].hasLocal ? "local" : "remote"}_${all[i].hasLocal ? (all[i].local?.id ?? "$i") : (all[i].remote?.path ?? "$i")}",
+                          child: needLoadThumbnail && all[i].loadThumbnailFinished()
+                              ? Image(
+                                  image: all[i].thumbnailProvider(),
+                                  fit: BoxFit.cover)
+                              : ThumbnailSkeleton(),
+                          flightShuttleBuilder: (BuildContext flightContext,
+                              Animation<double> animation,
+                              HeroFlightDirection flightDirection,
+                              BuildContext fromHeroContext,
+                              BuildContext toHeroContext) {
+                            return AnimatedBuilder(
+                              animation: animation,
+                              builder: (BuildContext context, Widget? child) {
+                                return Opacity(
+                                    opacity: animation.value,
+                                    child: all[i].loadThumbnailFinished()
+                                        ? Image(
+                                            image: all[i].thumbnailProvider(),
+                                            fit: BoxFit.contain,
+                                          )
+                                        : ThumbnailSkeleton());
+                              },
+                            );
+                          },
+                        )
+                      : (needLoadThumbnail && all[i].loadThumbnailFinished()
+                          ? Image(
+                              image: all[i].thumbnailProvider(),
+                              fit: BoxFit.cover)
+                          : Container(
+                              color: colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.3))),
+                  ),
+              if (_viewMode == GalleryViewMode.day)
+                Consumer<StateModel>(builder: (context, stateModel, child) {
+                  return FutureBuilder<String>(
+                    future: all[i].name(),
+                    builder: (context, name) {
+                      double percent = 0;
+                      if (!widget.useLocal) {
+                        percent = name.data == null
+                            ? 0
+                            : stateModel.getDownloadPercent(name.data as String);
+                      } else {
+                        percent = stateModel.getUploadPercent(all[i].local!.id);
+                      }
+                      if (percent > 0) {
+                        return Positioned(
+                          bottom: 2,
+                          right: 4,
+                          width: 20,
+                          height: 20,
+                          child: Stack(
+                            children: [
+                              Center(
+                                child: Icon(
+                                    widget.useLocal
+                                        ? Icons.arrow_upward_outlined
+                                        : Icons.arrow_downward_outlined,
+                                    color: colorScheme.onPrimary,
+                                    size: 16),
+                              ),
+                              CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colorScheme.onPrimary,
+                                value: percent,
+                              )
+                            ],
+                          ),
+                        );
+                      }
+                      if (!widget.useLocal ||
+                          !settingModel.isRemoteStorageSetted) {
+                        return const SizedBox(width: 0, height: 0);
+                      }
+                      if (stateModel.lastRefreshUnsyncTime == null) {
+                        return Positioned(
+                            bottom: 2,
+                            right: 4,
+                            width: 15,
+                            height: 15,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ));
+                      }
+                      var icon = Icons.cloud_off_outlined;
+                      if (stateModel.syncedIDs.contains(all[i].local!.id)) {
+                        icon = Icons.cloud_done_outlined;
+                      }
                       return Positioned(
                         bottom: 2,
                         right: 4,
-                        width: 20,
-                        height: 20,
-                        child: Stack(
-                          children: [
-                            Center(
-                              child: Icon(
-                                  widget.useLocal
-                                      ? Icons.arrow_upward_outlined
-                                      : Icons.arrow_downward_outlined,
-                                  color: colorScheme.onPrimary,
-                                  size: 16),
-                            ),
-                            CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colorScheme.onPrimary,
-                              value: percent,
-                            )
-                          ],
+                        child: Icon(
+                          icon,
+                          color: Colors.white,
+                          size: 16,
                         ),
                       );
-                    }
-                    if (!widget.useLocal ||
-                        !settingModel.isRemoteStorageSetted) {
-                      return const SizedBox(width: 0, height: 0);
-                    }
-                    if (stateModel.lastRefreshUnsyncTime == null) {
-                      return Positioned(
-                          bottom: 2,
-                          right: 4,
-                          width: 15,
-                          height: 15,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.onPrimary,
-                          ));
-                    }
-                    var icon = Icons.cloud_off_outlined;
-                    if (stateModel.syncedIDs.contains(all[i].local!.id)) {
-                      icon = Icons.cloud_done_outlined;
-                    }
-                    return Positioned(
-                      bottom: 2,
-                      right: 4,
-                      child: Icon(
-                        icon,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    );
-                  },
-                );
-              }),
-              if (all[i].isLivePhoto())
+                    },
+                  );
+                }),
+              if (_viewMode == GalleryViewMode.day && all[i].isLivePhoto())
                 Positioned(
                   top: 2,
                   right: 2,
@@ -1258,7 +1495,9 @@ class GalleryBodyState extends State<GalleryBody>
                   ),
                 ),
               // video icon
-              if (needLoadThumbnail && all[i].isVideo()) ...[
+              if (_viewMode == GalleryViewMode.day &&
+                  needLoadThumbnail &&
+                  all[i].isVideo()) ...[
                 FutureBuilder(
                     future: all[i].videoDuration(),
                     builder: (context, snapshot) {
@@ -1289,7 +1528,7 @@ class GalleryBodyState extends State<GalleryBody>
               ],
 
               // selection overlay & indicator
-              if (stateModel.isSelectionMode) ...[
+              if (_viewMode == GalleryViewMode.day && stateModel.isSelectionMode) ...[
                 if (_selectedIndices[i] ?? false)
                   Positioned.fill(
                     child: Container(
@@ -1333,75 +1572,77 @@ class GalleryBodyState extends State<GalleryBody>
             ],
           ));
       currentChildren.add(child);
-      if (currentChildren.length % columCount == 1) {
+      if (currentChildren.length % currentColumns == 1) {
         currentScrollOffset += imgHeight + 2;
       }
       currentDateTime = all[i].dateCreated();
 
       if (i == all.length - 1) {
-        final currentChildrenLength = currentChildren.length;
-        bool selectedAll = true;
-        for (int j = i; i - j < currentChildrenLength; j--) {
-          if (!_selectedIndices.containsKey(j) || !_selectedIndices[j]!) {
-            selectedAll = false;
-            break;
+        if (_viewMode == GalleryViewMode.day) {
+          final currentChildrenLength = currentChildren.length;
+          bool selectedAll = true;
+          for (int j = i; i - j < currentChildrenLength; j--) {
+            if (!_selectedIndices.containsKey(j) || !_selectedIndices[j]!) {
+              selectedAll = false;
+              break;
+            }
           }
-        }
-        DateFormat format = localeCode == 'zh'
-            ? DateFormat('M月d日 EEE', 'zh')
-            : DateFormat('EEE, MMM d', 'en');
-        children.add(GestureDetector(
-          child: Container(
-            height: 55,
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.md, 0, AppSpacing.md),
-            child: Row(
-              children: [
-                Text(
-                  format.format(currentDateTime),
-                  style: textTheme.titleMedium?.copyWith(
-                    color: textColor,
-                  ),
-                ),
-                Expanded(
-                    child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Transform.scale(
-                      scale: 1.2,
-                      child: Checkbox(
-                          value: selectedAll,
-                          shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.small)),
-                          onChanged: (isSelect) async {
-                            if (isSelect == null) {
-                              return;
-                            }
-                            if (isSelect) {
-                              for (int j = i;
-                                  i - j < currentChildrenLength;
-                                  j--) {
-                                _selectedIndices[j] = true;
-                              }
-                            } else {
-                              for (int j = i;
-                                  i - j < currentChildrenLength;
-                                  j--) {
-                                _selectedIndices.remove(j);
-                              }
-                            }
-                            HapticFeedback.lightImpact();
-                            updateSelection();
-                          }),
+          DateFormat format = localeCode == 'zh'
+              ? DateFormat('M月d日 EEE', 'zh')
+              : DateFormat('EEE, MMM d', 'en');
+          children.add(GestureDetector(
+            child: Container(
+              height: 55,
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.md, 0, AppSpacing.md),
+              child: Row(
+                children: [
+                  Text(
+                    format.format(currentDateTime),
+                    style: textTheme.titleMedium?.copyWith(
+                      color: textColor,
                     ),
-                  ],
-                )),
-              ],
+                  ),
+                  Expanded(
+                      child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Transform.scale(
+                        scale: 1.2,
+                        child: Checkbox(
+                            value: selectedAll,
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.small)),
+                            onChanged: (isSelect) async {
+                              if (isSelect == null) {
+                                return;
+                              }
+                              if (isSelect) {
+                                for (int j = i;
+                                    i - j < currentChildrenLength;
+                                    j--) {
+                                  _selectedIndices[j] = true;
+                                }
+                              } else {
+                                for (int j = i;
+                                    i - j < currentChildrenLength;
+                                    j--) {
+                                  _selectedIndices.remove(j);
+                                }
+                              }
+                              HapticFeedback.lightImpact();
+                              updateSelection();
+                            }),
+                      ),
+                    ],
+                  )),
+                ],
+              ),
             ),
-          ),
-          onTap: () => showDateLocateDialog(),
-        ));
+            onTap: () => showDateLocateDialog(),
+          ));
+        }
         children.add(Wrap(
           spacing: 2, // 主轴(水平)方向间距
           runSpacing: 2.0, // 纵轴（垂直）方向间距
@@ -1483,42 +1724,49 @@ class GalleryBodyState extends State<GalleryBody>
           child: child!,
         );
       },
-      child: RefreshIndicator(
-        key: _refreshIndicatorKey,
-        onRefresh: refresh,
-        child: Stack(
-          children: [
-            CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  if (widget.showAppBar) appBar(),
-                  Consumer<AssetModel>(builder: contentBuilder),
-                ]),
-            if (!isDesktop())
-              Positioned(top: locaterOffset, right: 0, child: locater()),
-            // 回到顶部按钮
-            Positioned(
-              bottom: 20,
-              right: 20,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Offstage(
-                    offstage: !_showToTopBtn,
-                    child: Container(
-                      margin: const EdgeInsets.only(left: 10),
-                      child: FloatingActionButton.small(
-                        onPressed: _scrollToTop,
-                        heroTag: 'gallery_body_${widget.useLocal}_toTop',
-                        child: const Icon(Icons.arrow_upward),
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _handlePointerDown,
+        onPointerMove: _handlePointerMove,
+        onPointerUp: _handlePointerUp,
+        onPointerCancel: _handlePointerCancel,
+        child: RefreshIndicator(
+          key: _refreshIndicatorKey,
+          onRefresh: refresh,
+          child: Stack(
+            children: [
+              CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    if (widget.showAppBar) appBar(),
+                    Consumer<AssetModel>(builder: contentBuilder),
+                  ]),
+              if (!isDesktop())
+                Positioned(top: locaterOffset, right: 0, child: locater()),
+              // 回到顶部按钮
+              Positioned(
+                bottom: 20,
+                right: 20,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Offstage(
+                      offstage: !_showToTopBtn,
+                      child: Container(
+                        margin: const EdgeInsets.only(left: 10),
+                        child: FloatingActionButton.small(
+                          onPressed: _scrollToTop,
+                          heroTag: 'gallery_body_${widget.useLocal}_toTop',
+                          child: const Icon(Icons.arrow_upward),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
