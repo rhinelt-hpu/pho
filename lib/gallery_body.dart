@@ -857,107 +857,72 @@ class GalleryBodyState extends State<GalleryBody>
   }
 
   List<Widget> _buildDateLocateDialogChildrenMonth() {
-    List<Widget> children = [];
-    DateTime? lastDateTime;
-    double? lastLocation;
-    int totalCount = 0;
-    int currentCount = 0;
-    _dateLocateMap.forEach(
-      (key, value) {
-        totalCount += 1;
-        if (lastDateTime != null &&
-            lastDateTime!.year == key.year &&
-            lastDateTime!.month == key.month &&
-            totalCount != _dateLocateMap.length) {
-          currentCount += value.count;
-          return;
-        }
-        if (totalCount == _dateLocateMap.length) {
-          currentCount += value.count;
-        }
-        if (lastDateTime != null && lastLocation != null) {
-          double loc = lastLocation! < 200 ? 0 : lastLocation! - 200;
-          children.add(ListTile(
-            title: Container(
-              padding: const EdgeInsets.only(left: AppSpacing.md),
-              child: Text(
-                DateFormat('yyyy MMMM',
-                        Localizations.localeOf(context).languageCode)
-                    .format(lastDateTime!),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            trailing: Badge.count(
-              count: currentCount,
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              textStyle: Theme.of(context).textTheme.labelMedium,
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _scrollController.animateTo(loc,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeInOut);
-            },
-          ));
-          currentCount = 0;
-        }
-        currentCount += value.count;
-        lastDateTime = key;
-        lastLocation = value.location;
-      },
-    );
-    return children;
+    final monthMap = <DateTime, LocateInfo>{};
+    _dateLocateMap.forEach((day, info) {
+      final monthKey = DateTime(day.year, day.month);
+      final m = monthMap.putIfAbsent(
+          monthKey, () => LocateInfo(location: info.location));
+      m.count += info.count;
+    });
+    return monthMap.entries.map((entry) {
+      final loc = entry.value.location < 200 ? 0.0 : entry.value.location - 200;
+      return ListTile(
+        title: Container(
+          padding: const EdgeInsets.only(left: AppSpacing.md),
+          child: Text(
+            DateFormat(
+                    'yyyy MMMM', Localizations.localeOf(context).languageCode)
+                .format(entry.key),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        trailing: Badge.count(
+          count: entry.value.count,
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+          textStyle: Theme.of(context).textTheme.labelMedium,
+        ),
+        onTap: () {
+          Navigator.pop(context);
+          _scrollController.animateTo(loc,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut);
+        },
+      );
+    }).toList();
   }
 
   List<Widget> _buildDateLocateDialogChildrenYear() {
-    List<Widget> children = [];
-    DateTime? lastDateTime;
-    double? lastLocation;
-    int totalCount = 0;
-    int currentCount = 0;
-    _dateLocateMap.forEach(
-      (key, value) {
-        totalCount += 1;
-        if (lastDateTime != null &&
-            lastDateTime!.year == key.year &&
-            totalCount != _dateLocateMap.length) {
-          currentCount += value.count;
-          return;
-        }
-        if (totalCount == _dateLocateMap.length) {
-          currentCount += value.count;
-        }
-        if (lastDateTime != null && lastLocation != null) {
-          double loc = lastLocation! < 200 ? 0 : lastLocation! - 200;
-          children.add(ListTile(
-            title: Container(
-              padding: const EdgeInsets.only(left: AppSpacing.md),
-              child: Text(
-                DateFormat('yyyy', Localizations.localeOf(context).languageCode)
-                    .format(lastDateTime!),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            trailing: Badge.count(
-              count: currentCount,
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              textStyle: Theme.of(context).textTheme.labelMedium,
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _scrollController.animateTo(loc,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeInOut);
-            },
-          ));
-          currentCount = 0;
-        }
-        currentCount += value.count;
-        lastDateTime = key;
-        lastLocation = value.location;
-      },
-    );
-    return children;
+    final yearMap = <DateTime, LocateInfo>{};
+    _dateLocateMap.forEach((day, info) {
+      final yearKey = DateTime(day.year);
+      final y = yearMap.putIfAbsent(
+          yearKey, () => LocateInfo(location: info.location));
+      y.count += info.count;
+    });
+    return yearMap.entries.map((entry) {
+      final loc = entry.value.location < 200 ? 0.0 : entry.value.location - 200;
+      return ListTile(
+        title: Container(
+          padding: const EdgeInsets.only(left: AppSpacing.md),
+          child: Text(
+            DateFormat('yyyy', Localizations.localeOf(context).languageCode)
+                .format(entry.key),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        trailing: Badge.count(
+          count: entry.value.count,
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+          textStyle: Theme.of(context).textTheme.labelMedium,
+        ),
+        onTap: () {
+          Navigator.pop(context);
+          _scrollController.animateTo(loc,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut);
+        },
+      );
+    }).toList();
   }
 
   void showDateLocateDialog() {
@@ -1044,6 +1009,9 @@ class GalleryBodyState extends State<GalleryBody>
       mouthLocList.add(value);
       lastDateTime = key;
     });
+    if (mouthLocList.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final perMonthHeight = avaliabileHeight / mouthLocList.length;
     return GestureDetector(
       onVerticalDragStart: (details) => setState(() {
@@ -1061,13 +1029,15 @@ class GalleryBodyState extends State<GalleryBody>
             locaterOffset + details.delta.dy > totalHeight - paddingBottom) {
           return;
         }
-        if ((realOffset / perMonthHeight).floor() !=
-            ((realOffset + details.delta.dy) / perMonthHeight).floor()) {
+        final prevIdx = (realOffset / perMonthHeight)
+            .floor()
+            .clamp(0, mouthLocList.length - 1);
+        final targetIdx = ((realOffset + details.delta.dy) / perMonthHeight)
+            .floor()
+            .clamp(0, mouthLocList.length - 1);
+        if (prevIdx != targetIdx) {
           HapticFeedback.lightImpact();
-          _scrollController.animateTo(
-              mouthLocList[((realOffset + details.delta.dy) / perMonthHeight)
-                      .floor()]
-                  .location,
+          _scrollController.animateTo(mouthLocList[targetIdx].location,
               duration: const Duration(milliseconds: 50),
               curve: Curves.easeInOut);
         }
@@ -1122,7 +1092,6 @@ class GalleryBodyState extends State<GalleryBody>
 
     var currentChildren = <Widget>[];
     DateTime? currentDateTime;
-    DateTime? preDateTime;
     double currentScrollOffset = 0;
     for (int i = 0; i < all.length; i++) {
       final date = all[i].dateCreated();
@@ -1145,6 +1114,7 @@ class GalleryBodyState extends State<GalleryBody>
             break;
         }
       }
+      double sectionStartOffset = currentScrollOffset;
       if (isNewSection) {
         if (currentDateTime != null && _viewMode == GalleryViewMode.day) {
           final currentChildrenLength = currentChildren.length;
@@ -1212,21 +1182,21 @@ class GalleryBodyState extends State<GalleryBody>
           ));
         }
 
-        children.add(Wrap(
-          spacing: 2, // 主轴(水平)方向间距
-          runSpacing: 2.0, // 纵轴（垂直）方向间距
-          alignment: WrapAlignment.start,
-          children: currentChildren,
-        ));
-        if (preDateTime != null) {
-          _dateLocateMap[preDateTime]!.count = currentChildren.length;
+        if (currentDateTime != null) {
+          children.add(Wrap(
+            spacing: 2, // 主轴(水平)方向间距
+            runSpacing: 2.0, // 纵轴（垂直）方向间距
+            alignment: WrapAlignment.start,
+            children: currentChildren,
+          ));
+          currentScrollOffset -= 2;
         }
-        currentScrollOffset -= 2;
-        _dateLocateMap[date] = LocateInfo(location: currentScrollOffset);
+        sectionStartOffset = currentScrollOffset;
         currentChildren = <Widget>[];
-        preDateTime = date;
         if (_viewMode == GalleryViewMode.day) {
-          if (currentDateTime == null || date.month != currentDateTime.month) {
+          if (currentDateTime == null ||
+              date.year != currentDateTime.year ||
+              date.month != currentDateTime.month) {
             children.add(
               Container(
                 height: 90,
@@ -1308,6 +1278,12 @@ class GalleryBodyState extends State<GalleryBody>
           currentScrollOffset += 70;
         }
       }
+      final dayKey = DateTime(date.year, date.month, date.day);
+      final dayLocateOffset =
+          isNewSection ? sectionStartOffset : currentScrollOffset;
+      _dateLocateMap
+          .putIfAbsent(dayKey, () => LocateInfo(location: dayLocateOffset))
+          .count++;
       bool needLoadThumbnail = false;
       if (currentScrollOffset > scrollOffset - (2 * totalHeight) &&
           currentScrollOffset < scrollOffset + (3 * totalHeight)) {

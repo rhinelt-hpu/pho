@@ -225,4 +225,46 @@ void main() {
     // 放大回到“月”
     expect(find.text('月'), findsOneWidget);
   });
+
+  testWidgets('乱序时间照片通过 compareByDateDesc 排序后，年视图严格按年份聚合并支持跳转统计',
+      (WidgetTester tester) async {
+    assetModel.localAssets = [
+      MockLocalAsset(DateTime(2026, 9, 26, 12, 0), '1'),
+      MockLocalAsset(DateTime(2020, 2, 10, 10, 0), '2'),
+      MockLocalAsset(DateTime(2026, 9, 26, 11, 0), '3'),
+      MockLocalAsset(DateTime(2020, 2, 10, 9, 0), '4'),
+    ]..sort(Asset.compareByDateDesc);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<StateModel>.value(value: stateModel),
+          ChangeNotifierProvider<SettingModel>.value(value: settingModel),
+          ChangeNotifierProvider<AssetModel>.value(value: assetModel),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
+          home: Scaffold(
+            body: GalleryBody(useLocal: true),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // 切换到年视图
+    await tester.tap(find.text('天'));
+    await tester.pump();
+    await tester.tap(find.text('月'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // 2026 和 2020 各自只出现一次，不会出现 2026 -> 2020 -> 2026 -> 2020
+    expect(find.text('2026'), findsOneWidget);
+    expect(find.text('2020'), findsOneWidget);
+  });
 }

@@ -702,11 +702,8 @@ class AssetModel extends ChangeNotifier {
             }
             // asset.getLocalFile();
             localAssets.add(asset);
-            // asset.thumbnailDataAsync().then((value) => notifyListeners());
-            if (i % 50 == 0) {
-              notifyListeners();
-            }
           }
+          localAssets.sort(Asset.compareByDateDesc);
           notifyListeners();
           if (!localHasMore) {
             eventBus.fire(FinishGettingLocal());
@@ -751,14 +748,11 @@ class AssetModel extends ChangeNotifier {
           try {
             final asset = Asset(remote: images[i]);
             remoteAssets.add(asset);
-            if (i % 50 == 0) {
-              notifyListeners();
-            }
-            // asset.thumbnailDataAsync().then((value) => notifyListeners());
           } catch (e) {
             logger.addLog(e.toString());
           }
         }
+        remoteAssets.sort(Asset.compareByDateDesc);
         notifyListeners();
       }
     } catch (e) {

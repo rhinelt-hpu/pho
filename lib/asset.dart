@@ -147,9 +147,24 @@ class Asset extends ImageProvider<Asset> {
     }
   }
 
+  DateTime? _dateCreated;
+
+  static int compareByDateDesc(Asset a, Asset b) {
+    final cmp = b.dateCreated().compareTo(a.dateCreated());
+    if (cmp != 0) return cmp;
+    final idA = a.local?.id ?? a.remote?.path ?? '';
+    final idB = b.local?.id ?? b.remote?.path ?? '';
+    return idB.compareTo(idA);
+  }
+
   DateTime dateCreated() {
+    if (_dateCreated != null) return _dateCreated!;
     if (hasLocal) {
-      return local!.createDateTime;
+      var date = local!.createDateTime;
+      if (date.isBefore(DateTime(1990, 1, 1))) {
+        date = local!.modifiedDateTime;
+      }
+      return _dateCreated = date;
     }
     if (hasRemote) {
       final filePath = remote!.path;
@@ -165,7 +180,7 @@ class Asset extends ImageProvider<Asset> {
         var hour = int.parse(matchName.group(4)!);
         var minute = int.parse(matchName.group(5)!);
         var second = int.parse(matchName.group(6)!);
-        return DateTime(year, month, day, hour, minute, second);
+        return _dateCreated = DateTime(year, month, day, hour, minute, second);
       }
 
       // 2. 尝试从路径中匹配 YYYY/MM/DD/（支持前置相册名，如 相机备份/2026/02/26/ 或 2026/02/26/）
@@ -175,7 +190,7 @@ class Asset extends ImageProvider<Asset> {
         var year = int.parse(matchPath1.group(1)!);
         var month = int.parse(matchPath1.group(2)!);
         var day = int.parse(matchPath1.group(3)!);
-        return DateTime(year, month, day);
+        return _dateCreated = DateTime(year, month, day);
       }
 
       // 3. 尝试从路径中匹配 YYYYMMDD/（如 相机备份/20260226/ 或 20260226/）
@@ -185,10 +200,10 @@ class Asset extends ImageProvider<Asset> {
         var year = int.parse(matchPath2.group(1)!);
         var month = int.parse(matchPath2.group(2)!);
         var day = int.parse(matchPath2.group(3)!);
-        return DateTime(year, month, day);
+        return _dateCreated = DateTime(year, month, day);
       }
     }
-    return DateTime.now();
+    return _dateCreated = DateTime.now();
   }
 
   // Uint8List thumbnailData() {
