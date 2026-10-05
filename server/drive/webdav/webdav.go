@@ -224,13 +224,19 @@ func (d *Webdav) SetRootPath(rootPath string) error {
 	}
 	d.rootPath = rootPath
 
-	// 预置已知根目录及其核心隐藏目录，避免后续盲目发送 MKCOL 产生 405
+	// 预置已知根目录及其祖先目录（已通过上方 Stat 校验存在）
 	cleanRoot := filepath.ToSlash(filepath.Clean(rootPath))
 	if d.knownDirs != nil {
 		d.mkdirLock.Lock()
 		d.knownDirs[cleanRoot] = true
-		d.knownDirs[filepath.Join(cleanRoot, defaultThumbnailDir)] = true
-		d.knownDirs[filepath.Join(cleanRoot, defaultManifestDir)] = true
+		cur := ""
+		for _, part := range strings.Split(strings.Trim(cleanRoot, "/"), "/") {
+			if part == "" {
+				continue
+			}
+			cur += "/" + part
+			d.knownDirs[cur] = true
+		}
 		d.mkdirLock.Unlock()
 	}
 
@@ -370,6 +376,17 @@ func (d *Webdav) ensureDir(dir string) error {
 					d.knownDirs[current] = true
 				}
 				continue
+			}
+			// 若因父目录缺失返回 409 Conflict（例如缓存的父目录在远端被清理），回退 MkdirAll 逐级补齐
+			if strings.Contains(errStr, "409") || strings.Contains(errStr, "Conflict") {
+				if mkErr := d.cli.MkdirAll(current, 0755); mkErr == nil ||
+					strings.Contains(mkErr.Error(), "405") ||
+					strings.Contains(mkErr.Error(), "Method Not Allowed") {
+					if d.knownDirs != nil {
+						d.knownDirs[current] = true
+					}
+					continue
+				}
 			}
 			return err
 		}
