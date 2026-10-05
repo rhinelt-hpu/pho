@@ -348,12 +348,11 @@ class AboutRoute extends StatefulWidget {
 
 class _AboutRouteState extends State<AboutRoute> {
   String _version = '26.10.1';
-  bool _checkingUpdate = false;
 
-  static const String _releasesPageUrl =
-      'https://github.com/rhinelt-hpu/pho/releases/latest';
-  static const String _releasesApiUrl =
-      'https://api.github.com/repos/rhinelt-hpu/pho/releases/latest';
+  static const String _latestApkUrl =
+      'https://github.com/rhinelt-hpu/pho/releases/latest/download/app-release.apk';
+  static const String _latestIpaUrl =
+      'https://github.com/rhinelt-hpu/pho/releases/latest/download/pho-ios-unsigned.ipa';
 
   @override
   void initState() {
@@ -373,44 +372,7 @@ class _AboutRouteState extends State<AboutRoute> {
   }
 
   Future<void> _downloadLatestRelease() async {
-    if (_checkingUpdate) return;
-    setState(() {
-      _checkingUpdate = true;
-    });
-    String targetUrl = _releasesPageUrl;
-    try {
-      final resp = await http
-          .get(Uri.parse(_releasesApiUrl), headers: {'Accept': 'application/vnd.github+json'})
-          .timeout(const Duration(seconds: 6));
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
-        if (data is Map) {
-          final htmlUrl = data['html_url']?.toString();
-          if (htmlUrl != null && htmlUrl.isNotEmpty) {
-            targetUrl = htmlUrl;
-          }
-          final assets = data['assets'];
-          if (assets is List) {
-            final ext = Platform.isIOS ? '.ipa' : '.apk';
-            for (final asset in assets) {
-              if (asset is Map) {
-                final name = asset['name']?.toString().toLowerCase() ?? '';
-                final dlUrl = asset['browser_download_url']?.toString() ?? '';
-                if (name.endsWith(ext) && dlUrl.isNotEmpty) {
-                  targetUrl = dlUrl;
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
-    if (mounted) {
-      setState(() {
-        _checkingUpdate = false;
-      });
-    }
+    final targetUrl = Platform.isIOS ? _latestIpaUrl : _latestApkUrl;
     await launchUrl(Uri.parse(targetUrl), mode: LaunchMode.externalApplication);
   }
 
@@ -442,13 +404,7 @@ class _AboutRouteState extends State<AboutRoute> {
                     'Pho - $_version（点击下载最新安装包）',
                     style: TextStyle(color: colorScheme.primary),
                   ),
-                  trailing: _checkingUpdate
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.open_in_new),
+                  trailing: const Icon(Icons.open_in_new),
                   onTap: _downloadLatestRelease,
                 ),
               ),
