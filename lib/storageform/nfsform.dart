@@ -153,18 +153,29 @@ class NFSFormState extends State<NFSForm> {
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.paddingLarge, vertical: AppSpacing.paddingSmall),
       child: FilledButton(
         onPressed: testSuccess
-            ? () {
-                final url = urlController!.text;
-                final rootPath = rootPathController!.text;
-                SharedPreferences.getInstance().then((prefs) {
-                  prefs.setString("nfs_url", url);
-                  prefs.setString("nfs_root_path", rootPath);
-                  prefs.setString("drive", driveName[Drive.nfs]!);
-                });
-                settingModel.setRemoteStorageSetted(true);
+            ? () async {
+                final url = urlController!.text.trim();
+                final rootPath = rootPathController!.text.trim();
+                if (url.isEmpty || rootPath.isEmpty) {
+                  showErrorDialog("URL or root path is empty");
+                  return;
+                }
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString("nfs_url", url);
+                await prefs.setString("nfs_root_path", rootPath);
+                await prefs.setString("drive", driveName[Drive.nfs]!);
+                await initDrive();
+                if (!settingModel.isRemoteStorageSetted) {
+                  if (mounted) {
+                    showErrorDialog(assetModel.remoteLastError ?? "Failed to set root path");
+                  }
+                  return;
+                }
                 assetModel.remoteLastError = null;
                 eventBus.fire(RemoteRefreshEvent(refreshUnSync: true));
-                Navigator.pop(context);
+                if (mounted) {
+                  Navigator.pop(context);
+                }
               }
             : null,
         child: Text(l10n.save),

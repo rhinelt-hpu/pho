@@ -133,6 +133,10 @@ class StorageConfig {
 
   /// 测试配置的连通性，成功返回 null，失败返回错误原因
   Future<String?> testConnection() async {
+    final root = data["rootPath"]?.toString().trim() ?? "";
+    if (root.isEmpty) {
+      return "root path is empty";
+    }
     try {
       switch (drive) {
         case Drive.webDav:
@@ -140,7 +144,7 @@ class StorageConfig {
             addr: data["url"]?.toString() ?? "",
             username: data["username"]?.toString() ?? "",
             password: data["password"]?.toString() ?? "",
-            root: data["rootPath"]?.toString() ?? "",
+            root: root,
             insecure: data["insecure"] == true,
           ));
           if (!rsp.success) return rsp.message;
@@ -154,7 +158,7 @@ class StorageConfig {
             username: data["username"]?.toString() ?? "",
             password: data["password"]?.toString() ?? "",
             share: data["share"]?.toString() ?? "",
-            root: data["rootPath"]?.toString() ?? "",
+            root: root,
           ));
           if (!rsp.success) return rsp.message;
           return null;
@@ -162,6 +166,7 @@ class StorageConfig {
         case Drive.nfs:
           final rsp = await storage.cli.setDriveNFS(SetDriveNFSRequest(
             addr: data["url"]?.toString() ?? "",
+            root: root,
           ));
           if (!rsp.success) return rsp.message;
           return null;

@@ -110,16 +110,24 @@ class WebDavFormState extends State<WebDavForm> {
   }
 
   Future<void> testStorage() async {
-    final url = urlController!.text;
+    final url = urlController!.text.trim();
     final username = usernameController!.text;
     final password = passwordController!.text;
-    final rootPath = rootPathController!.text;
+    final rootPath = rootPathController!.text.trim();
+    if (url.isEmpty || rootPath.isEmpty) {
+      setState(() {
+        testSuccess = false;
+        errormsg = "URL or root path is empty";
+      });
+      return;
+    }
     try {
       final rsp = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
           addr: url, username: username, password: password, root: rootPath,
           insecure: insecure));
       if (!rsp.success) {
         setState(() {
+          testSuccess = false;
           errormsg = rsp.message;
         });
         return;
@@ -130,6 +138,7 @@ class WebDavFormState extends State<WebDavForm> {
       }
     } catch (e) {
       setState(() {
+        testSuccess = false;
         errormsg = e.toString();
       });
       return;
@@ -161,22 +170,33 @@ class WebDavFormState extends State<WebDavForm> {
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.paddingLarge, vertical: AppSpacing.paddingSmall),
       child: FilledButton(
         onPressed: testSuccess
-            ? () {
-                final url = urlController!.text;
+            ? () async {
+                final url = urlController!.text.trim();
                 final username = usernameController!.text;
                 final password = passwordController!.text;
-                final rootPath = rootPathController!.text;
-                SharedPreferences.getInstance().then((value) {
-                  value.setString('webdav_url', url);
-                  value.setString('webdav_username', username);
-                  value.setString('webdav_password', password);
-                  value.setString('webdav_root_path', rootPath);
-                  value.setString('drive', driveName[Drive.webDav]!);
-                });
-                settingModel.setRemoteStorageSetted(true);
+                final rootPath = rootPathController!.text.trim();
+                if (url.isEmpty || rootPath.isEmpty) {
+                  showErrorDialog("URL or root path is empty");
+                  return;
+                }
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('webdav_url', url);
+                await prefs.setString('webdav_username', username);
+                await prefs.setString('webdav_password', password);
+                await prefs.setString('webdav_root_path', rootPath);
+                await prefs.setString('drive', driveName[Drive.webDav]!);
+                await initDrive();
+                if (!settingModel.isRemoteStorageSetted) {
+                  if (mounted) {
+                    showErrorDialog(assetModel.remoteLastError ?? "Failed to set root path");
+                  }
+                  return;
+                }
                 assetModel.remoteLastError = null;
                 eventBus.fire(RemoteRefreshEvent(refreshUnSync: true));
-                Navigator.pop(context);
+                if (mounted) {
+                  Navigator.pop(context);
+                }
               }
             : null,
         child: Text(l10n.save),

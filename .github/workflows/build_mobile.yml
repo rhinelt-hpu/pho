@@ -1,5 +1,8 @@
 name: Build Android APK & iOS IPA
 
+permissions:
+  contents: write
+
 on:
   # 1. 仅在推送版本标签时自动触发构建（如 git push origin v1.0.0）
   push:
@@ -102,6 +105,13 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 14
 
+      - name: Publish Android APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/*.apk
+          generate_release_notes: true
+
   # =============================================================
   # iOS Build Job (macOS Runner)
   # =============================================================
@@ -178,3 +188,10 @@ jobs:
           name: pho-ios-unsigned-ipa
           path: pho-ios-unsigned.ipa
           retention-days: 14
+
+      - name: Publish iOS IPA to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pho-ios-unsigned.ipa
+          generate_release_notes: true

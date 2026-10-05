@@ -119,6 +119,12 @@ func (im *ImgManager) SetDrive(dri StorageDrive) {
 	}
 	im.dri = dri
 	im.driveMu.Unlock()
+	if dri == nil {
+		return
+	}
+	if r, ok := dri.(interface{ IsRootPathSet() bool }); ok && !r.IsRootPathSet() {
+		return
+	}
 	go im.MigrateLegacyRootFolders()
 	go func() {
 		err := im.manifest.Sync(dri)

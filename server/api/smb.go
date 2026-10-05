@@ -25,7 +25,6 @@ func (a *api) SetDriveSMB(ctx context.Context, req *pb.SetDriveSMBRequest) (rsp 
 		return
 	}
 	s := smb.NewSmbDrive(req.Addr, req.Username, req.Password)
-	a.im.SetDrive(s)
 	if req.Share != "" {
 		e := s.SetShare(req.Share)
 		if e != nil {
@@ -40,6 +39,7 @@ func (a *api) SetDriveSMB(ctx context.Context, req *pb.SetDriveSMBRequest) (rsp 
 			}
 		}
 	}
+	a.im.SetDrive(s)
 	return
 }
 

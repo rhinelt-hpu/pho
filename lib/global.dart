@@ -207,10 +207,13 @@ Future<void> initDrive() async {
       final share = prefs.getString("share");
       final root = prefs.getString("rootPath");
       if (addr != null &&
+          addr.trim().isNotEmpty &&
           username != null &&
           password != null &&
           share != null &&
-          root != null) {
+          share.trim().isNotEmpty &&
+          root != null &&
+          root.trim().isNotEmpty) {
         final rsp = await storage.cli.setDriveSMB(SetDriveSMBRequest(
           addr: addr,
           username: username,
@@ -226,6 +229,8 @@ Future<void> initDrive() async {
           settingModel.setRemoteStorageSetted(false);
           assetModel.remoteLastError = rsp.message;
         }
+      } else {
+        settingModel.setRemoteStorageSetted(false);
       }
       break;
     case Drive.webDav:
@@ -234,7 +239,10 @@ Future<void> initDrive() async {
       final password = prefs.getString('webdav_password');
       final root = prefs.getString('webdav_root_path');
       final insecure = prefs.getBool('webdav_insecure') ?? true;
-      if (url != null && root != null) {
+      if (url != null &&
+          url.trim().isNotEmpty &&
+          root != null &&
+          root.trim().isNotEmpty) {
         final rsp = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
           addr: url,
           username: username,
@@ -250,12 +258,17 @@ Future<void> initDrive() async {
           settingModel.setRemoteStorageSetted(false);
           assetModel.remoteLastError = rsp.message;
         }
+      } else {
+        settingModel.setRemoteStorageSetted(false);
       }
       break;
     case Drive.nfs:
       final addr = prefs.getString('nfs_url');
       final root = prefs.getString('nfs_root_path');
-      if (addr != null && root != null) {
+      if (addr != null &&
+          addr.trim().isNotEmpty &&
+          root != null &&
+          root.trim().isNotEmpty) {
         final rsp = await storage.cli.setDriveNFS(SetDriveNFSRequest(
           addr: addr,
           root: root,
@@ -268,6 +281,8 @@ Future<void> initDrive() async {
           settingModel.setRemoteStorageSetted(false);
           assetModel.remoteLastError = rsp.message;
         }
+      } else {
+        settingModel.setRemoteStorageSetted(false);
       }
       break;
   }

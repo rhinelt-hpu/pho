@@ -366,14 +366,23 @@ class _SMBFormState extends State<SMBForm> {
     var form = _formKey.currentState as FormState;
     if (form.validate()) {
       form.save();
+      if (smbAddrController!.text.trim().isEmpty ||
+          smbShareController!.text.trim().isEmpty ||
+          smbRootPathController!.text.trim().isEmpty) {
+        setState(() {
+          testSuccess = false;
+          errormsg = "Address, share or root path is empty";
+        });
+        return;
+      }
       try {
         SetDriveSMBResponse rsp =
             await storage.cli.setDriveSMB(SetDriveSMBRequest(
-          addr: smbAddrController!.text,
+          addr: smbAddrController!.text.trim(),
           username: smbUsernameController!.text,
           password: smbPasswordController!.text,
-          share: smbShareController!.text,
-          root: smbRootPathController!.text,
+          share: smbShareController!.text.trim(),
+          root: smbRootPathController!.text.trim(),
         ));
         if (rsp.success) {
           ListByDateResponse rsp =
@@ -384,16 +393,19 @@ class _SMBFormState extends State<SMBForm> {
             });
           } else {
             setState(() {
+              testSuccess = false;
               errormsg = rsp.message;
             });
           }
         } else {
           setState(() {
+            testSuccess = false;
             errormsg = rsp.message;
           });
         }
       } catch (e) {
         setState(() {
+          testSuccess = false;
           errormsg = e.toString();
         });
       }
@@ -425,19 +437,33 @@ class _SMBFormState extends State<SMBForm> {
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.paddingLarge, vertical: AppSpacing.paddingSmall),
       child: FilledButton(
         onPressed: testSuccess
-            ? () {
-                SharedPreferences.getInstance().then((value) {
-                  value.setString('addr', smbAddrController!.text);
-                  value.setString('username', smbUsernameController!.text);
-                  value.setString('password', smbPasswordController!.text);
-                  value.setString('share', smbShareController!.text);
-                  value.setString('rootPath', smbRootPathController!.text);
-                  value.setString('drive', driveName[Drive.smb]!);
-                });
-                settingModel.setRemoteStorageSetted(true);
+            ? () async {
+                final addr = smbAddrController!.text.trim();
+                final share = smbShareController!.text.trim();
+                final root = smbRootPathController!.text.trim();
+                if (addr.isEmpty || share.isEmpty || root.isEmpty) {
+                  showErrorDialog("Address, share or root path is empty");
+                  return;
+                }
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('addr', addr);
+                await prefs.setString('username', smbUsernameController!.text);
+                await prefs.setString('password', smbPasswordController!.text);
+                await prefs.setString('share', share);
+                await prefs.setString('rootPath', root);
+                await prefs.setString('drive', driveName[Drive.smb]!);
+                await initDrive();
+                if (!settingModel.isRemoteStorageSetted) {
+                  if (mounted) {
+                    showErrorDialog(assetModel.remoteLastError ?? "Failed to set root path");
+                  }
+                  return;
+                }
                 assetModel.remoteLastError = null;
                 eventBus.fire(RemoteRefreshEvent(refreshUnSync: true));
-                Navigator.pop(context);
+                if (mounted) {
+                  Navigator.pop(context);
+                }
               }
             : null,
         child: Text(l10n.save),
