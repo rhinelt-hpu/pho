@@ -57,18 +57,29 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = (keystoreProperties["storeFile"] as String?)?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
+            val customStoreFile = (keystoreProperties["storeFile"] as String?)?.let { file(it) }
+            if (keystorePropertiesFile.exists() && customStoreFile != null && customStoreFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = customStoreFile
+                storePassword = keystoreProperties["storePassword"] as String?
+            } else {
+                // 默认使用仓库内固定的 release 签名证书，确保各构建环境签名公钥指纹完全一致，避免升级覆盖时报“签名不同”
+                val defaultReleaseKeystore = file("pho-release.jks")
+                if (defaultReleaseKeystore.exists()) {
+                    keyAlias = "pho"
+                    keyPassword = "pho123456"
+                    storeFile = defaultReleaseKeystore
+                    storePassword = "pho123456"
+                }
+            }
         }
     }
 
     buildTypes {
         release {
-            // 当 key.properties 存在时使用 release 签名，否则 fallback 到 debug 签名
-            val useReleaseSigning = keystorePropertiesFile.exists()
-            signingConfig = if (useReleaseSigning) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            val releaseSigning = signingConfigs.getByName("release")
+            signingConfig = if (releaseSigning.storeFile?.exists() == true) releaseSigning else signingConfigs.getByName("debug")
             applicationVariants.all {
                 outputs.all {
                     val outputImpl = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
