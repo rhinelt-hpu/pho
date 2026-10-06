@@ -323,6 +323,19 @@ class StateModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void enqueueUploads(Iterable<String> ids) {
+    bool changed = false;
+    for (final id in ids) {
+      if (!uploadProgress.containsKey(id)) {
+        uploadProgress[id] = transmitState();
+        changed = true;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
   void updateUploadProgress(String id, int transmitted, int total) {
     if (!uploadProgress.containsKey(id)) {
       uploadProgress[id] = transmitState();

@@ -72,6 +72,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stop => '停止';
 
   @override
+  String get queued => '排队中';
+
+  @override
   String get uploading => '上传中';
 
   @override

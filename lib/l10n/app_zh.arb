@@ -20,6 +20,7 @@
     "pics": "照片",
     "choose": "选择",
     "stop": "停止",
+    "queued": "排队中",
     "uploading": "上传中",
     "downloading": "下载中",
     "uploadFailed": "上传失败",

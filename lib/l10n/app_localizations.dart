@@ -224,6 +224,12 @@ abstract class AppLocalizations {
   /// **'Stop'**
   String get stop;
 
+  /// No description provided for @queued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued'**
+  String get queued;
+
   /// No description provided for @uploading.
   ///
   /// In en, this message translates to:

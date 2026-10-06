@@ -26,6 +26,7 @@ import 'package:img_syncer/widgets/thumbnail_skeleton.dart';
 import 'package:img_syncer/widgets/cloud_album_sheet.dart';
 import 'package:img_syncer/widgets/local_album_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:async_locks/async_locks.dart';
 
 class GalleryBody extends StatefulWidget {
   GalleryBody({
@@ -191,6 +192,8 @@ class GalleryBodyState extends State<GalleryBody>
   }
 
   final Map<int, bool> _selectedIndices = {};
+  @visibleForTesting
+  Map<int, bool> get selectedIndices => _selectedIndices;
 
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey =
       GlobalKey<RefreshIndicatorState>();
@@ -534,30 +537,71 @@ class GalleryBodyState extends State<GalleryBody>
       SnackBarManager.showSnackBar(l10n.storageNotSetted);
       return;
     }
-    await keepScreenOn(true);
     final all =
         widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets;
     final assets = <Asset>[];
     _selectedIndices.forEach((key, isSelected) {
-      if (isSelected) {
+      if (isSelected && key < all.length) {
         assets.add(all[key]);
       }
     });
-    for (var asset in assets) {
-      final entity = asset.local!;
-      try {
-        await storage.uploadAssetEntity(entity,
-            album: assetModel.currentCloudAlbum);
-      } catch (e) {
-        SnackBarManager.showSnackBar("${l10n.uploadFailed}: $e");
-      }
+    if (assets.isEmpty) {
+      return;
     }
-    await keepScreenOn(false);
-    SnackBarManager.showSnackBar(
-        "${l10n.successfullyUpload} ${assets.length} ${l10n.photos}");
-    eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
 
+    // 1. 立即退出多选模式并关闭 BottomSheet (修复 Bug 1)
     clearSelection();
+
+    // 2. 将所有选中项预先登记入传输队列 (修复 Bug 2: 队列显示)
+    final assetIds = assets
+        .where((a) => a.local != null)
+        .map((a) => a.local!.id)
+        .toList();
+    stateModel.enqueueUploads(assetIds);
+
+    // 3. 按设置的并发数受控上传 (修复 Bug 2: 并发控制)
+    await keepScreenOn(true);
+    int succeeded = 0;
+    int failed = 0;
+    final parallel = settingModel.parallelCount.clamp(1, 8);
+    final sem = Semaphore(parallel);
+    final targetAlbum = assetModel.currentCloudAlbum;
+
+    final futures = <Future<void>>[];
+    for (var asset in assets) {
+      final entity = asset.local;
+      if (entity == null) continue;
+      final localId = entity.id;
+
+      futures.add(() async {
+        await sem.acquire();
+        try {
+          await storageClient.uploadAssetEntity(entity, album: targetAlbum);
+          succeeded++;
+        } catch (e) {
+          failed++;
+          stateModel.finishUpload(localId, false);
+          SnackBarManager.showSnackBar("${l10n.uploadFailed}: $e");
+        } finally {
+          sem.release();
+        }
+      }());
+    }
+
+    try {
+      await Future.wait(futures);
+    } finally {
+      await keepScreenOn(false);
+    }
+
+    if (failed == 0) {
+      SnackBarManager.showSnackBar(
+          "${l10n.successfullyUpload} $succeeded ${l10n.photos}");
+    } else {
+      SnackBarManager.showSnackBar(
+          "${l10n.successfullyUpload} $succeeded, ${l10n.uploadFailed} $failed ${l10n.photos}");
+    }
+    eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
   }
 
   void _moveSelectedToAlbum() {

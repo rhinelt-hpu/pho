@@ -222,9 +222,13 @@ class SyncBodyState extends State<SyncBody> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "${l10n.uploading} ${(percent * 100).clamp(0, 100).toInt()}%",
+                entry.value.total == 0
+                    ? l10n.queued
+                    : "${l10n.uploading} ${(percent * 100).clamp(0, 100).toInt()}%",
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: entry.value.total == 0
+                      ? Theme.of(context).colorScheme.outline
+                      : Theme.of(context).colorScheme.primary,
                   fontSize: 12,
                 ),
               ),
@@ -232,7 +236,9 @@ class SyncBodyState extends State<SyncBody> {
               Container(
                 padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
                 child: LinearProgressIndicator(
-                  value: percent > 0 ? percent.clamp(0.0, 1.0) : null,
+                  value: entry.value.total == 0
+                      ? 0.0
+                      : (percent > 0 ? percent.clamp(0.0, 1.0) : null),
                 ),
               ),
             ],

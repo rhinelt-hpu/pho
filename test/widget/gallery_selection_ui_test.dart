@@ -10,6 +10,19 @@ import 'package:img_syncer/l10n/app_localizations.dart';
 import 'package:img_syncer/state_model.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mockito/mockito.dart';
+import 'package:img_syncer/storage/storage_interface.dart';
+import 'package:img_syncer/storage/storage.dart';
+
+class MockRemoteStorageClient extends Mock implements RemoteStorageClient {
+  @override
+  Future<void> uploadAssetEntity(AssetEntity? asset, {String album = ""}) async =>
+      super.noSuchMethod(
+        Invocation.method(#uploadAssetEntity, [asset], {#album: album}),
+        returnValue: Future<void>.value(),
+        returnValueForMissingStub: Future<void>.value(),
+      );
+}
 
 class _MockAsset extends Asset {
   final String _id;
@@ -171,5 +184,73 @@ void main() {
     expect(find.byType(GalleryBody), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.circle_outlined), findsNothing);
+  });
+
+  testWidgets('多选照片点击上传：应立即自动退出多选模式并将所有选中项登记入传输队列', (tester) async {
+    final mockStorage = MockRemoteStorageClient();
+    setStorageForTest(mockStorage);
+
+    assetModel.localAssets = [
+      _MockAsset(id: 'photo_1'),
+      _MockAsset(id: 'photo_2'),
+      _MockAsset(id: 'photo_3'),
+    ];
+    // 模拟远端存储已配置
+    settingModel.isRemoteStorageSetted = true;
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingModel>.value(value: settingModel),
+          ChangeNotifierProvider<AssetModel>.value(value: assetModel),
+          ChangeNotifierProvider<StateModel>.value(value: stateModel),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: GalleryBody(useLocal: true, showAppBar: false),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final state = tester.state<GalleryBodyState>(find.byType(GalleryBody));
+    // 勾选 3 张照片
+    state.toggleSelection(0);
+    state.toggleSelection(1);
+    state.toggleSelection(2);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(stateModel.isSelectionMode, isTrue);
+    expect(state.selectedIndices.length, 3);
+
+    // 触发批量上传
+    state.uploadSelected();
+    await tester.pump();
+
+    // 验证 Bug 1: 立即自动退出多选模式
+    expect(stateModel.isSelectionMode, isFalse);
+    expect(state.selectedIndices, isEmpty);
+
+    // 验证 Bug 2: 选中的 3 张照片全部预先登记到传输队列 uploadProgress 中
+    expect(stateModel.uploadProgress.containsKey('photo_1'), isTrue);
+    expect(stateModel.uploadProgress.containsKey('photo_2'), isTrue);
+    expect(stateModel.uploadProgress.containsKey('photo_3'), isTrue);
+    expect(stateModel.uploadProgress.length, 3);
+
+    // 等待 mock 上传任务完成
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // 恢复全局 storage 默认实例
+    setStorageForTest(storage);
   });
 }

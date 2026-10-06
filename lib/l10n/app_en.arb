@@ -20,6 +20,7 @@
   "pics": "pics",
   "choose": "Choose",
   "stop": "Stop",
+  "queued": "Queued",
   "uploading": "Uploading",
   "downloading": "Downloading",
   "uploadFailed": "Upload failed",

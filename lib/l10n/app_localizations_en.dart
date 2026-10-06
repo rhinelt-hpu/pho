@@ -72,6 +72,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stop => 'Stop';
 
   @override
+  String get queued => 'Queued';
+
+  @override
   String get uploading => 'Uploading';
 
   @override
