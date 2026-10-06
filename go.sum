@@ -5,8 +5,6 @@ github.com/fregie/PrintVersion v0.1.0 h1:ElfIOjRlGxPGQ7IhkJpN3fp4cj1t1dQa6QBrsxo
 github.com/fregie/PrintVersion v0.1.0/go.mod h1:rMKNhXgnKKCCBExlrh3xYI4dO07s30BQZXZeYBo+T8g=
 github.com/fregie/go-nfs-client v1.0.0 h1:FqW9LwSdN0s44A9fHiBMMWJJ5WSje4FcGvlN520gv5A=
 github.com/fregie/go-nfs-client v1.0.0/go.mod h1:PR0ieYaFWXw830/yR4KR3jIlZA5dtM3eq+EsSnJzi+M=
-github.com/fregie/gowebdav v1.0.0 h1:DaC95MP6Uj9MRGzbA7IYDVxCtSVJUAN5qVjhIrKGK6Y=
-github.com/fregie/gowebdav v1.0.0/go.mod h1:S9yMcKuIT5KPZua8l6Nrq3WNwATpgL1rvGPG9kVE6os=
 github.com/geoffgarside/ber v1.1.0 h1:qTmFG4jJbwiSzSXoNJeHcOprVzZ8Ulde2Rrrifu5U9w=
 github.com/geoffgarside/ber v1.1.0/go.mod h1:jVPKeCbj6MvQZhwLYsGwaGI52oUorHoHKNecGT85ZCc=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=

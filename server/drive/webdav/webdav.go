@@ -370,8 +370,10 @@ func (d *Webdav) ensureDir(dir string) error {
 		err := d.cli.Mkdir(current, 0755)
 		if err != nil {
 			errStr := err.Error()
-			// WebDAV RFC 4918 Section 9.3.1: MKCOL 访问已存在集合必须返回 405 Method Not Allowed，视为成功并缓存
-			if strings.Contains(errStr, "405") || strings.Contains(errStr, "Method Not Allowed") {
+			// WebDAV RFC 4918: 访问已存在集合返回 405 Method Not Allowed；
+			// 并发事务锁定时返回 423 Locked，均代表该集合存在，视为成功并缓存
+			if strings.Contains(errStr, "405") || strings.Contains(errStr, "Method Not Allowed") ||
+				strings.Contains(errStr, "423") || strings.Contains(errStr, "Locked") {
 				if d.knownDirs != nil {
 					d.knownDirs[current] = true
 				}
@@ -381,7 +383,9 @@ func (d *Webdav) ensureDir(dir string) error {
 			if strings.Contains(errStr, "409") || strings.Contains(errStr, "Conflict") {
 				if mkErr := d.cli.MkdirAll(current, 0755); mkErr == nil ||
 					strings.Contains(mkErr.Error(), "405") ||
-					strings.Contains(mkErr.Error(), "Method Not Allowed") {
+					strings.Contains(mkErr.Error(), "Method Not Allowed") ||
+					strings.Contains(mkErr.Error(), "423") ||
+					strings.Contains(mkErr.Error(), "Locked") {
 					if d.knownDirs != nil {
 						d.knownDirs[current] = true
 					}
@@ -414,7 +418,9 @@ func (d *Webdav) Upload(path string, reader io.ReadCloser, size int64, lastModif
 	if err := d.ensureDir(filepath.Dir(fullPath)); err != nil {
 		return err
 	}
-	err := d.cli.WriteStream(fullPath, reader, size, 0666)
+	// ensureDir 已完整校验并缓存父目录层级；此处使用 WriteStreamRaw 直接流式 PUT，
+	// 彻底避免 gowebdav 默认 WriteStream 在每次单文件写入时盲发 MKCOL 导致并发 423 Locked 报错
+	err := d.cli.WriteStreamRaw(fullPath, reader, size, 0666)
 	if err != nil {
 		return err
 	}
