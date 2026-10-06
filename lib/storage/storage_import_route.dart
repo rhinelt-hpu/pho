@@ -197,6 +197,17 @@ class _StorageImportRouteState extends State<StorageImportRoute> {
                       Text('用户名: ${config.username}', style: textTheme.bodyMedium),
                     if (config.rootPath != null && config.rootPath!.isNotEmpty)
                       Text('根路径: ${config.rootPath}', style: textTheme.bodyMedium),
+                    if (config.metaEnabled && config.metaDrive != null) ...[
+                      const Divider(height: 16),
+                      Text(
+                        '元数据/缩略图存储: ${driveName[config.metaDrive] ?? ""}',
+                        style: textTheme.titleSmall,
+                      ),
+                      if (config.metaSummary != null)
+                        Text('加速服务器: ${config.metaSummary}', style: textTheme.bodyMedium),
+                      if (config.metaRootPath != null && config.metaRootPath!.isNotEmpty)
+                        Text('加速根路径: ${config.metaRootPath}', style: textTheme.bodyMedium),
+                    ],
                     if (testError != null) ...[
                       const SizedBox(height: 12),
                       Container(

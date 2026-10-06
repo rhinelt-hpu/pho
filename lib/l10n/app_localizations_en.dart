@@ -652,4 +652,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get transferring => 'Transferring';
+
+  @override
+  String get enableMetaStorage => 'Separate Metadata & Thumbnail Storage';
+
+  @override
+  String get enableMetaStorageDesc =>
+      'Store metadata (.manifest) and thumbnails on a faster storage backend';
+
+  @override
+  String get metaStorageType => 'Metadata & Thumbnail Storage Type';
+
+  @override
+  String get rebuildMetaAndThumbnails => 'Rebuild Metadata & Thumbnails';
+
+  @override
+  String get rebuildMetaAndThumbnailsDesc =>
+      'Scan primary storage to rebuild metadata index and backfill thumbnails from local album';
+
+  @override
+  String get rebuildingMetaAndThumbnails =>
+      'Rebuilding metadata & thumbnails...';
+
+  @override
+  String rebuildSuccess(Object count, Object thumbCount) {
+    return 'Rebuild complete: indexed $count photos, backfilled $thumbCount thumbnails';
+  }
 }

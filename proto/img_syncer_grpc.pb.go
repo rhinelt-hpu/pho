@@ -42,9 +42,11 @@ type ImgSyncerClient interface {
 	// TODO(open-source): 补齐更多公有云盘后端 (待开源实现):
 	// rpc SetDriveBaiduNetDisk (SetDriveBaiduNetDiskRequest) returns (SetDriveBaiduNetDiskResponse) {}
 	// rpc StartBaiduNetdiskLogin (StartBaiduNetdiskLoginRequest) returns (StartBaiduNetdiskLoginResponse) {}
-	// Manifest Cache
+	// Manifest Cache & Meta Drive
 	SetLocalCacheDir(ctx context.Context, in *SetLocalCacheDirRequest, opts ...grpc.CallOption) (*SetLocalCacheDirResponse, error)
 	SyncManifest(ctx context.Context, in *SyncManifestRequest, opts ...grpc.CallOption) (*SyncManifestResponse, error)
+	ClearMetaDrive(ctx context.Context, in *ClearMetaDriveRequest, opts ...grpc.CallOption) (*ClearMetaDriveResponse, error)
+	RebuildManifest(ctx context.Context, in *RebuildManifestRequest, opts ...grpc.CallOption) (*RebuildManifestResponse, error)
 	// Ping
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 }
@@ -250,6 +252,24 @@ func (c *imgSyncerClient) SyncManifest(ctx context.Context, in *SyncManifestRequ
 	return out, nil
 }
 
+func (c *imgSyncerClient) ClearMetaDrive(ctx context.Context, in *ClearMetaDriveRequest, opts ...grpc.CallOption) (*ClearMetaDriveResponse, error) {
+	out := new(ClearMetaDriveResponse)
+	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/ClearMetaDrive", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *imgSyncerClient) RebuildManifest(ctx context.Context, in *RebuildManifestRequest, opts ...grpc.CallOption) (*RebuildManifestResponse, error) {
+	out := new(RebuildManifestResponse)
+	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/RebuildManifest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *imgSyncerClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
 	out := new(PingResponse)
 	err := c.cc.Invoke(ctx, "/img_syncer.ImgSyncer/Ping", in, out, opts...)
@@ -287,9 +307,11 @@ type ImgSyncerServer interface {
 	// TODO(open-source): 补齐更多公有云盘后端 (待开源实现):
 	// rpc SetDriveBaiduNetDisk (SetDriveBaiduNetDiskRequest) returns (SetDriveBaiduNetDiskResponse) {}
 	// rpc StartBaiduNetdiskLogin (StartBaiduNetdiskLoginRequest) returns (StartBaiduNetdiskLoginResponse) {}
-	// Manifest Cache
+	// Manifest Cache & Meta Drive
 	SetLocalCacheDir(context.Context, *SetLocalCacheDirRequest) (*SetLocalCacheDirResponse, error)
 	SyncManifest(context.Context, *SyncManifestRequest) (*SyncManifestResponse, error)
+	ClearMetaDrive(context.Context, *ClearMetaDriveRequest) (*ClearMetaDriveResponse, error)
+	RebuildManifest(context.Context, *RebuildManifestRequest) (*RebuildManifestResponse, error)
 	// Ping
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	mustEmbedUnimplementedImgSyncerServer()
@@ -355,6 +377,12 @@ func (UnimplementedImgSyncerServer) SetLocalCacheDir(context.Context, *SetLocalC
 }
 func (UnimplementedImgSyncerServer) SyncManifest(context.Context, *SyncManifestRequest) (*SyncManifestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SyncManifest not implemented")
+}
+func (UnimplementedImgSyncerServer) ClearMetaDrive(context.Context, *ClearMetaDriveRequest) (*ClearMetaDriveResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearMetaDrive not implemented")
+}
+func (UnimplementedImgSyncerServer) RebuildManifest(context.Context, *RebuildManifestRequest) (*RebuildManifestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RebuildManifest not implemented")
 }
 func (UnimplementedImgSyncerServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
@@ -722,6 +750,42 @@ func _ImgSyncer_SyncManifest_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ImgSyncer_ClearMetaDrive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearMetaDriveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImgSyncerServer).ClearMetaDrive(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/img_syncer.ImgSyncer/ClearMetaDrive",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImgSyncerServer).ClearMetaDrive(ctx, req.(*ClearMetaDriveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ImgSyncer_RebuildManifest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RebuildManifestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImgSyncerServer).RebuildManifest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/img_syncer.ImgSyncer/RebuildManifest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImgSyncerServer).RebuildManifest(ctx, req.(*RebuildManifestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ImgSyncer_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PingRequest)
 	if err := dec(in); err != nil {
@@ -818,6 +882,14 @@ var ImgSyncer_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SyncManifest",
 			Handler:    _ImgSyncer_SyncManifest_Handler,
+		},
+		{
+			MethodName: "ClearMetaDrive",
+			Handler:    _ImgSyncer_ClearMetaDrive_Handler,
+		},
+		{
+			MethodName: "RebuildManifest",
+			Handler:    _ImgSyncer_RebuildManifest_Handler,
 		},
 		{
 			MethodName: "Ping",

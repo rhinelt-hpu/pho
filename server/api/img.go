@@ -51,7 +51,7 @@ func (a *api) SetLocalCacheDir(ctx context.Context, req *pb.SetLocalCacheDirRequ
 }
 
 func (a *api) SyncManifest(ctx context.Context, req *pb.SyncManifestRequest) (*pb.SyncManifestResponse, error) {
-	d := a.im.Drive()
+	d := a.im.MetaDrive()
 	if d == nil {
 		return &pb.SyncManifestResponse{Success: false, Message: "drive not initialized"}, nil
 	}
@@ -63,6 +63,26 @@ func (a *api) SyncManifest(ctx context.Context, req *pb.SyncManifestRequest) (*p
 		Success:     true,
 		Watermark:   a.im.Manifest().GetMaxWatermark(),
 		RecordCount: int32(a.im.Manifest().RecordCount()),
+	}, nil
+}
+
+func (a *api) ClearMetaDrive(ctx context.Context, req *pb.ClearMetaDriveRequest) (*pb.ClearMetaDriveResponse, error) {
+	a.im.SetMetaDrive(nil)
+	return &pb.ClearMetaDriveResponse{Success: true}, nil
+}
+
+func (a *api) RebuildManifest(ctx context.Context, req *pb.RebuildManifestRequest) (*pb.RebuildManifestResponse, error) {
+	watermark, count, err := a.im.RebuildManifest()
+	if err != nil {
+		return &pb.RebuildManifestResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.RebuildManifestResponse{
+		Success:     true,
+		Watermark:   watermark,
+		RecordCount: int32(count),
 	}, nil
 }
 

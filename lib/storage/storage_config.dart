@@ -13,11 +13,17 @@ class StorageConfig {
 
   final Drive drive;
   final Map<String, dynamic> data;
+  final bool metaEnabled;
+  final Drive? metaDrive;
+  final Map<String, dynamic>? metaData;
   final DateTime createdAt;
 
   StorageConfig({
     required this.drive,
     required this.data,
+    this.metaEnabled = false,
+    this.metaDrive,
+    this.metaData,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -27,6 +33,11 @@ class StorageConfig {
         "version": currentVersion,
         "drive": driveName[drive] ?? "WebDAV",
         "data": data,
+        if (metaEnabled && metaDrive != null && metaData != null) ...{
+          "meta_enabled": true,
+          "meta_drive": driveName[metaDrive] ?? "WebDAV",
+          "meta_data": metaData,
+        },
         "created_at": createdAt.millisecondsSinceEpoch,
       };
 
@@ -75,13 +86,57 @@ class StorageConfig {
       if (dataMap is! Map) return null;
 
       final createdAtMs = decoded['created_at'] is int ? decoded['created_at'] as int : null;
+      final metaEnabled = decoded['meta_enabled'] == true;
+      Drive? metaDrive;
+      Map<String, dynamic>? metaData;
+      if (metaEnabled && decoded['meta_data'] is Map) {
+        metaDrive = getDrive(decoded['meta_drive']?.toString() ?? 'WebDAV');
+        metaData = Map<String, dynamic>.from(decoded['meta_data'] as Map);
+      }
       return StorageConfig(
         drive: drive,
         data: Map<String, dynamic>.from(dataMap),
+        metaEnabled: metaEnabled && metaDrive != null && metaData != null,
+        metaDrive: metaDrive,
+        metaData: metaData,
         createdAt: createdAtMs != null ? DateTime.fromMillisecondsSinceEpoch(createdAtMs) : null,
       );
     } catch (_) {
       return null;
+    }
+  }
+
+  static Map<String, dynamic>? _readDriveDataFromPrefs(
+      SharedPreferences prefs, Drive drive,
+      {String prefix = ''}) {
+    switch (drive) {
+      case Drive.webDav:
+        final url = prefs.getString('${prefix}webdav_url');
+        if (url == null || url.trim().isEmpty) return null;
+        return {
+          "url": url,
+          "username": prefs.getString('${prefix}webdav_username') ?? "",
+          "password": prefs.getString('${prefix}webdav_password') ?? "",
+          "rootPath": prefs.getString('${prefix}webdav_root_path') ?? "",
+          "insecure": prefs.getBool('${prefix}webdav_insecure') ?? true,
+        };
+      case Drive.smb:
+        final addr = prefs.getString("${prefix}addr");
+        if (addr == null || addr.trim().isEmpty) return null;
+        return {
+          "addr": addr,
+          "username": prefs.getString("${prefix}username") ?? "",
+          "password": prefs.getString("${prefix}password") ?? "",
+          "share": prefs.getString("${prefix}share") ?? "",
+          "rootPath": prefs.getString("${prefix}rootPath") ?? "",
+        };
+      case Drive.nfs:
+        final url = prefs.getString("${prefix}nfs_url");
+        if (url == null || url.trim().isEmpty) return null;
+        return {
+          "url": url,
+          "rootPath": prefs.getString("${prefix}nfs_root_path") ?? "",
+        };
     }
   }
 
@@ -90,83 +145,67 @@ class StorageConfig {
     final prefs = sharedPrefs ?? await SharedPreferences.getInstance();
     final driveStr = prefs.getString("drive") ?? "WebDAV";
     final drive = getDrive(driveStr);
+    final primaryData = _readDriveDataFromPrefs(prefs, drive);
+    if (primaryData == null) return null;
 
-    switch (drive) {
-      case Drive.webDav:
-        final url = prefs.getString('webdav_url');
-        if (url == null || url.trim().isEmpty) return null;
-        return StorageConfig(
-          drive: Drive.webDav,
-          data: {
-            "url": url,
-            "username": prefs.getString('webdav_username') ?? "",
-            "password": prefs.getString('webdav_password') ?? "",
-            "rootPath": prefs.getString('webdav_root_path') ?? "",
-            "insecure": prefs.getBool('webdav_insecure') ?? true,
-          },
-        );
-      case Drive.smb:
-        final addr = prefs.getString("addr");
-        if (addr == null || addr.trim().isEmpty) return null;
-        return StorageConfig(
-          drive: Drive.smb,
-          data: {
-            "addr": addr,
-            "username": prefs.getString("username") ?? "",
-            "password": prefs.getString("password") ?? "",
-            "share": prefs.getString("share") ?? "",
-            "rootPath": prefs.getString("rootPath") ?? "",
-          },
-        );
-      case Drive.nfs:
-        final url = prefs.getString("nfs_url");
-        if (url == null || url.trim().isEmpty) return null;
-        return StorageConfig(
-          drive: Drive.nfs,
-          data: {
-            "url": url,
-            "rootPath": prefs.getString("nfs_root_path") ?? "",
-          },
-        );
+    final metaEnabled = prefs.getBool("meta_drive_enabled") ?? false;
+    Drive? metaDrive;
+    Map<String, dynamic>? metaData;
+    if (metaEnabled) {
+      metaDrive = getDrive(prefs.getString("meta_drive") ?? "WebDAV");
+      metaData = _readDriveDataFromPrefs(prefs, metaDrive, prefix: 'meta_');
     }
+
+    return StorageConfig(
+      drive: drive,
+      data: primaryData,
+      metaEnabled: metaEnabled && metaData != null,
+      metaDrive: metaData != null ? metaDrive : null,
+      metaData: metaData,
+    );
   }
 
-  /// 测试配置的连通性，成功返回 null，失败返回错误原因
-  Future<String?> testConnection() async {
-    final root = data["rootPath"]?.toString().trim() ?? "";
+  static Future<String?> _testSingleDrive(
+      Drive targetDrive, Map<String, dynamic> targetData,
+      {required bool isMetaDrive}) async {
+    final root = targetData["rootPath"]?.toString().trim() ?? "";
     if (root.isEmpty) {
       return "root path is empty";
     }
     try {
-      switch (drive) {
+      switch (targetDrive) {
         case Drive.webDav:
           final rsp = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
-            addr: data["url"]?.toString() ?? "",
-            username: data["username"]?.toString() ?? "",
-            password: data["password"]?.toString() ?? "",
+            addr: targetData["url"]?.toString() ?? "",
+            username: targetData["username"]?.toString() ?? "",
+            password: targetData["password"]?.toString() ?? "",
             root: root,
-            insecure: data["insecure"] == true,
+            insecure: targetData["insecure"] == true,
+            isMetaDrive: isMetaDrive,
           ));
           if (!rsp.success) return rsp.message;
-          final rspList = await storage.cli.listDriveWebdavDir(ListDriveWebdavDirRequest());
+          final rspList = await storage.cli.listDriveWebdavDir(
+              ListDriveWebdavDirRequest(isMetaDrive: isMetaDrive));
           if (!rspList.success) return rspList.message;
           return null;
 
         case Drive.smb:
           final rsp = await storage.cli.setDriveSMB(SetDriveSMBRequest(
-            addr: data["addr"]?.toString() ?? "",
-            username: data["username"]?.toString() ?? "",
-            password: data["password"]?.toString() ?? "",
-            share: data["share"]?.toString() ?? "",
+            addr: targetData["addr"]?.toString() ?? "",
+            username: targetData["username"]?.toString() ?? "",
+            password: targetData["password"]?.toString() ?? "",
+            share: targetData["share"]?.toString() ?? "",
             root: root,
+            isMetaDrive: isMetaDrive,
           ));
           if (!rsp.success) return rsp.message;
           return null;
 
         case Drive.nfs:
           final rsp = await storage.cli.setDriveNFS(SetDriveNFSRequest(
-            addr: data["url"]?.toString() ?? "",
+            addr: targetData["url"]?.toString() ?? "",
             root: root,
+            isMetaDrive: isMetaDrive,
           ));
           if (!rsp.success) return rsp.message;
           return null;
@@ -176,47 +215,82 @@ class StorageConfig {
     }
   }
 
+  /// 测试配置的连通性，成功返回 null，失败返回错误原因
+  Future<String?> testConnection() async {
+    final primaryErr =
+        await _testSingleDrive(drive, data, isMetaDrive: false);
+    if (primaryErr != null) return primaryErr;
+
+    if (metaEnabled && metaDrive != null && metaData != null) {
+      final metaErr =
+          await _testSingleDrive(metaDrive!, metaData!, isMetaDrive: true);
+      if (metaErr != null) return metaErr;
+    }
+    return null;
+  }
+
+  static Future<void> _saveDriveDataToPrefs(
+      SharedPreferences prefs, Drive targetDrive, Map<String, dynamic> targetData,
+      {String prefix = ''}) async {
+    await prefs.setString("${prefix}drive", driveName[targetDrive]!);
+    switch (targetDrive) {
+      case Drive.webDav:
+        await prefs.setString('${prefix}webdav_url', targetData["url"]?.toString() ?? "");
+        await prefs.setString('${prefix}webdav_username', targetData["username"]?.toString() ?? "");
+        await prefs.setString('${prefix}webdav_password', targetData["password"]?.toString() ?? "");
+        await prefs.setString('${prefix}webdav_root_path', targetData["rootPath"]?.toString() ?? "");
+        await prefs.setBool('${prefix}webdav_insecure', targetData["insecure"] == true);
+        break;
+      case Drive.smb:
+        await prefs.setString('${prefix}addr', targetData["addr"]?.toString() ?? "");
+        await prefs.setString('${prefix}username', targetData["username"]?.toString() ?? "");
+        await prefs.setString('${prefix}password', targetData["password"]?.toString() ?? "");
+        await prefs.setString('${prefix}share', targetData["share"]?.toString() ?? "");
+        await prefs.setString('${prefix}rootPath', targetData["rootPath"]?.toString() ?? "");
+        break;
+      case Drive.nfs:
+        await prefs.setString('${prefix}nfs_url', targetData["url"]?.toString() ?? "");
+        await prefs.setString('${prefix}nfs_root_path', targetData["rootPath"]?.toString() ?? "");
+        break;
+    }
+  }
+
   /// 写入本地 SharedPreferences 并立即生效
   Future<void> saveToPrefsAndApply([SharedPreferences? sharedPrefs]) async {
     final prefs = sharedPrefs ?? await SharedPreferences.getInstance();
-    await prefs.setString("drive", driveName[drive]!);
-
-    switch (drive) {
-      case Drive.webDav:
-        await prefs.setString('webdav_url', data["url"]?.toString() ?? "");
-        await prefs.setString('webdav_username', data["username"]?.toString() ?? "");
-        await prefs.setString('webdav_password', data["password"]?.toString() ?? "");
-        await prefs.setString('webdav_root_path', data["rootPath"]?.toString() ?? "");
-        await prefs.setBool('webdav_insecure', data["insecure"] == true);
-        break;
-      case Drive.smb:
-        await prefs.setString('addr', data["addr"]?.toString() ?? "");
-        await prefs.setString('username', data["username"]?.toString() ?? "");
-        await prefs.setString('password', data["password"]?.toString() ?? "");
-        await prefs.setString('share', data["share"]?.toString() ?? "");
-        await prefs.setString('rootPath', data["rootPath"]?.toString() ?? "");
-        break;
-      case Drive.nfs:
-        await prefs.setString('nfs_url', data["url"]?.toString() ?? "");
-        await prefs.setString('nfs_root_path', data["rootPath"]?.toString() ?? "");
-        break;
+    await _saveDriveDataToPrefs(prefs, drive, data);
+    await prefs.setBool(
+        'meta_drive_enabled', metaEnabled && metaDrive != null && metaData != null);
+    if (metaEnabled && metaDrive != null && metaData != null) {
+      await _saveDriveDataToPrefs(prefs, metaDrive!, metaData!, prefix: 'meta_');
     }
     await initDrive();
   }
 
-  /// 获取用于 UI 展示的摘要信息
-  String get summary {
-    switch (drive) {
+  static String _formatSummary(Drive d, Map<String, dynamic> m) {
+    switch (d) {
       case Drive.webDav:
-        return data["url"]?.toString() ?? "";
+        return m["url"]?.toString() ?? "";
       case Drive.smb:
-        final addr = data["addr"]?.toString() ?? "";
-        final share = data["share"]?.toString() ?? "";
+        final addr = m["addr"]?.toString() ?? "";
+        final share = m["share"]?.toString() ?? "";
         return "$addr/$share";
       case Drive.nfs:
-        return data["url"]?.toString() ?? "";
+        return m["url"]?.toString() ?? "";
     }
   }
+
+  /// 获取用于 UI 展示的摘要信息
+  String get summary => _formatSummary(drive, data);
+
+  /// 获取副存储用于 UI 展示的摘要信息
+  String? get metaSummary =>
+      (metaEnabled && metaDrive != null && metaData != null)
+          ? _formatSummary(metaDrive!, metaData!)
+          : null;
+
+  /// 获取副存储用于 UI 展示的根路径
+  String? get metaRootPath => metaData?["rootPath"]?.toString();
 
   /// 获取用于 UI 展示的用户名
   String? get username {

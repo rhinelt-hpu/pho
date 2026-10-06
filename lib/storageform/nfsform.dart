@@ -9,7 +9,16 @@ import 'package:img_syncer/global.dart';
 import 'package:img_syncer/design_tokens.dart';
 
 class NFSForm extends StatefulWidget {
-  const NFSForm({Key? key}) : super(key: key);
+  final bool isMetaDrive;
+  final bool showActions;
+  final VoidCallback? onChanged;
+
+  const NFSForm({
+    Key? key,
+    this.isMetaDrive = false,
+    this.showActions = true,
+    this.onChanged,
+  }) : super(key: key);
 
   @override
   NFSFormState createState() => NFSFormState();
@@ -24,14 +33,21 @@ class NFSFormState extends State<NFSForm> {
   String? errormsg;
   String currentPath = "";
 
+  String get _prefix => widget.isMetaDrive ? 'meta_' : '';
+
+  void _notifyChanged() {
+    widget.onChanged?.call();
+  }
+
   @override
   void initState() {
     super.initState();
-    urlController = TextEditingController();
-    rootPathController = TextEditingController();
+    urlController = TextEditingController()..addListener(_notifyChanged);
+    rootPathController = TextEditingController()..addListener(_notifyChanged);
     SharedPreferences.getInstance().then((prefs) {
-      final url = prefs.getString("nfs_url");
-      final rootPath = prefs.getString("nfs_root_path");
+      if (!mounted) return;
+      final url = prefs.getString("${_prefix}nfs_url");
+      final rootPath = prefs.getString("${_prefix}nfs_root_path");
       if (url != null) {
         urlController!.text = url;
       }
@@ -43,19 +59,20 @@ class NFSFormState extends State<NFSForm> {
 
   Future<bool> checkNFS() async {
     final url = urlController!.text;
-    final rootPath = rootPathController!.text;
     if (url.isEmpty) {
       return false;
     }
     try {
-      final rsp1 = await storage.cli.setDriveNFS(SetDriveNFSRequest(addr: url));
+      final rsp1 = await storage.cli.setDriveNFS(
+          SetDriveNFSRequest(addr: url, isMetaDrive: widget.isMetaDrive));
       if (!rsp1.success) {
         setState(() {
           errormsg = rsp1.message;
         });
         return false;
       }
-      final rsp2 = await storage.cli.listDriveNFSDir(ListDriveNFSDirRequest());
+      final rsp2 = await storage.cli.listDriveNFSDir(
+          ListDriveNFSDirRequest(isMetaDrive: widget.isMetaDrive));
       if (!rsp2.success) {
         setState(() {
           errormsg = rsp2.message;
@@ -72,8 +89,8 @@ class NFSFormState extends State<NFSForm> {
   }
 
   Future<List<String>> getRootPath(String dir) async {
-    final rsp =
-        await storage.cli.listDriveNFSDir(ListDriveNFSDirRequest(dir: dir));
+    final rsp = await storage.cli.listDriveNFSDir(
+        ListDriveNFSDirRequest(dir: dir, isMetaDrive: widget.isMetaDrive));
     if (!rsp.success) {
       setState(() {
         errormsg = rsp.message;
@@ -82,34 +99,55 @@ class NFSFormState extends State<NFSForm> {
     return rsp.dirs;
   }
 
-  Future<void> testStorage() async {
-    final url = urlController!.text;
-    final rootPath = rootPathController!.text;
+  Future<String?> validateAndTest() async {
+    final url = urlController!.text.trim();
+    final rootPath = rootPathController!.text.trim();
     if (url.isEmpty || rootPath.isEmpty) {
       setState(() {
+        testSuccess = false;
         errormsg = "URL or root path is empty";
       });
-      return;
+      return errormsg;
     }
     try {
-      final rsp = await storage.cli
-          .setDriveNFS(SetDriveNFSRequest(addr: url, root: rootPath));
+      final rsp = await storage.cli.setDriveNFS(SetDriveNFSRequest(
+          addr: url, root: rootPath, isMetaDrive: widget.isMetaDrive));
       if (!rsp.success) {
         setState(() {
+          testSuccess = false;
           errormsg = rsp.message;
         });
-        return;
+        return errormsg;
       } else {
         setState(() {
           testSuccess = true;
         });
+        return null;
       }
     } catch (e) {
       setState(() {
+        testSuccess = false;
         errormsg = e.toString();
       });
-      return;
+      return errormsg;
     }
+  }
+
+  Future<void> testStorage() async {
+    await validateAndTest();
+  }
+
+  Future<String?> saveToPrefs([SharedPreferences? sharedPrefs]) async {
+    final url = urlController!.text.trim();
+    final rootPath = rootPathController!.text.trim();
+    if (url.isEmpty || rootPath.isEmpty) {
+      return "URL or root path is empty";
+    }
+    final prefs = sharedPrefs ?? await SharedPreferences.getInstance();
+    await prefs.setString("${_prefix}nfs_url", url);
+    await prefs.setString("${_prefix}nfs_root_path", rootPath);
+    await prefs.setString("${_prefix}drive", driveName[Drive.nfs]!);
+    return null;
   }
 
   void showErrorDialog(String msg) {
@@ -231,13 +269,14 @@ class NFSFormState extends State<NFSForm> {
               ),
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              testStorageButtun(),
-              saveButtun(),
-            ],
-          )
+          if (widget.showActions)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                testStorageButtun(),
+                saveButtun(),
+              ],
+            )
         ],
       ),
     );

@@ -434,3 +434,113 @@ func TestMoveAssets_CleanEmptyDirectoriesAndAlbums(t *testing.T) {
 		t.Errorf("default album %s must NOT be deleted even when empty", defAlbum)
 	}
 }
+
+// TestDualDriveRoutingAndRebuild 验证主存储与独立「元数据及缩略图存储后端」分离路由、回退链路、相册骨架与元数据重建
+func TestDualDriveRoutingAndRebuild(t *testing.T) {
+	mainDrive := newMockDrive()
+	metaDrive := newMockDrive()
+
+	im := NewImgManager(Option{WorkerNum: 1})
+	defer im.Close()
+	im.SetDrive(mainDrive)
+	im.SetMetaDrive(metaDrive)
+	// 等待异步 Sync 初始化完成
+	time.Sleep(20 * time.Millisecond)
+
+	date := time.Date(2026, 8, 10, 15, 0, 0, 0, time.Local)
+	origData := []byte("original-high-res-image")
+	thumbData := []byte("fast-thumbnail-image")
+
+	// 1. 创建相册：主存储创建相册目录，副存储创建 .thumbnail/<album> 骨架
+	album := "高速相册测试"
+	if err := im.CreateAlbum(album); err != nil {
+		t.Fatalf("CreateAlbum failed: %v", err)
+	}
+	if exist, _ := mainDrive.IsExist(album); !exist {
+		t.Fatalf("expected album dir on mainDrive")
+	}
+	if exist, _ := metaDrive.IsExist(filepath.Join(defaultThumbnailDir, album)); !exist {
+		t.Fatalf("expected .thumbnail/%s skeleton on metaDrive", album)
+	}
+
+	// 2. 上传缩略图与原图：缩略图与 .manifest 仅落入 metaDrive，原图仅落入 mainDrive
+	if err := im.UploadThumbnail(bytes.NewReader(thumbData), int64(len(thumbData)), "picA.jpg", date, WithAlbum(album)); err != nil {
+		t.Fatalf("UploadThumbnail failed: %v", err)
+	}
+	if err := im.Upload(bytes.NewReader(origData), int64(len(origData)), "picA.jpg", date, WithAlbum(album)); err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	expectedRelPath := filepath.Join(album, date.Format("2006/01/02"), "picA.jpg")
+	expectedThumbPath := filepath.Join(defaultThumbnailDir, expectedRelPath)
+
+	if _, ok := mainDrive.files[expectedRelPath]; !ok {
+		t.Fatalf("expected original image on mainDrive at %s", expectedRelPath)
+	}
+	if _, ok := mainDrive.files[expectedThumbPath]; ok {
+		t.Fatalf("thumbnail should NOT be written to mainDrive when metaDrive is enabled")
+	}
+	if _, ok := metaDrive.files[expectedThumbPath]; !ok {
+		t.Fatalf("expected thumbnail on metaDrive at %s", expectedThumbPath)
+	}
+
+	// 验证 .manifest 切片写在 metaDrive 而非 mainDrive
+	hasManifestOnMeta := false
+	for k := range metaDrive.files {
+		if strings.HasPrefix(k, ManifestDir+"/") {
+			hasManifestOnMeta = true
+			break
+		}
+	}
+	if !hasManifestOnMeta {
+		t.Fatalf("expected .manifest files on metaDrive")
+	}
+	for k := range mainDrive.files {
+		if strings.HasPrefix(k, ManifestDir+"/") {
+			t.Fatalf("unexpected .manifest file %s on mainDrive", k)
+		}
+	}
+
+	// 3. 读取缩略图：命中 metaDrive
+	thumbImg, err := im.GetThumbnail(expectedRelPath)
+	if err != nil {
+		t.Fatalf("GetThumbnail failed: %v", err)
+	}
+	gotThumb, _ := io.ReadAll(thumbImg.Content)
+	thumbImg.Content.Close()
+	if !bytes.Equal(gotThumb, thumbData) {
+		t.Fatalf("expected thumbnail from metaDrive, got %q", string(gotThumb))
+	}
+
+	// 4. 缩略图缺失回退链路：删除 metaDrive 上的缩略图，验证直接回退到 mainDrive 原图
+	_ = metaDrive.Delete(expectedThumbPath)
+	fallbackImg, err := im.GetThumbnail(expectedRelPath)
+	if err != nil {
+		t.Fatalf("GetThumbnail fallback failed: %v", err)
+	}
+	gotFallback, _ := io.ReadAll(fallbackImg.Content)
+	fallbackImg.Content.Close()
+	if !bytes.Equal(gotFallback, origData) {
+		t.Fatalf("expected fallback to mainDrive original image, got %q", string(gotFallback))
+	}
+
+	// 5. 验证 RebuildManifest：模拟切换到一个全新的空副存储 metaDrive2，执行 RebuildManifest 重建元数据与相册骨架
+	metaDrive2 := newMockDrive()
+	im.SetMetaDrive(metaDrive2)
+	wm, count, err := im.RebuildManifest()
+	if err != nil {
+		t.Fatalf("RebuildManifest failed: %v", err)
+	}
+	if wm <= 0 || count != 1 {
+		t.Fatalf("expected watermark > 0 and count == 1 after RebuildManifest, got wm=%d count=%d", wm, count)
+	}
+	if exist, _ := metaDrive2.IsExist(filepath.Join(defaultThumbnailDir, album)); !exist {
+		t.Fatalf("expected RebuildManifest to recreate .thumbnail/%s on new metaDrive", album)
+	}
+
+	// 6. 停用副存储 (SetMetaDrive(nil))：自动切回主存储
+	im.SetMetaDrive(nil)
+	if im.HasDedicatedMetaDrive() {
+		t.Fatalf("expected HasDedicatedMetaDrive() == false after SetMetaDrive(nil)")
+	}
+}

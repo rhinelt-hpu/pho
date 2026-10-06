@@ -28,9 +28,11 @@ service ImgSyncer {
   // TODO(open-source): 补齐更多公有云盘后端 (待开源实现):
   // rpc SetDriveBaiduNetDisk (SetDriveBaiduNetDiskRequest) returns (SetDriveBaiduNetDiskResponse) {}
   // rpc StartBaiduNetdiskLogin (StartBaiduNetdiskLoginRequest) returns (StartBaiduNetdiskLoginResponse) {}
-  // Manifest Cache
+  // Manifest Cache & Meta Drive
   rpc SetLocalCacheDir (SetLocalCacheDirRequest) returns (SetLocalCacheDirResponse) {}
   rpc SyncManifest (SyncManifestRequest) returns (SyncManifestResponse) {}
+  rpc ClearMetaDrive (ClearMetaDriveRequest) returns (ClearMetaDriveResponse) {}
+  rpc RebuildManifest (RebuildManifestRequest) returns (RebuildManifestResponse) {}
   // Ping
   rpc Ping (PingRequest) returns (PingResponse) {}
 }
@@ -155,13 +157,16 @@ message SetDriveSMBRequest {
   string password = 3;
   string share = 4;
   string root = 5;
+  bool isMetaDrive = 6;
 }
 message SetDriveSMBResponse {
   bool success = 1;
   string message = 2;
 }
 
-message ListDriveSMBSharesRequest {}
+message ListDriveSMBSharesRequest {
+  bool isMetaDrive = 1;
+}
 message ListDriveSMBSharesResponse {
   bool success = 1;
   string message = 2;
@@ -171,6 +176,7 @@ message ListDriveSMBSharesResponse {
 message ListDriveSMBDirRequest {
   string share = 1;
   string dir = 2;
+  bool isMetaDrive = 3;
 }
 message ListDriveSMBDirResponse {
   bool success = 1;
@@ -181,6 +187,7 @@ message ListDriveSMBDirResponse {
 message SetDriveSMBShareRequest {
   string share = 1;
   string root = 2;
+  bool isMetaDrive = 3;
 }
 message SetDriveSMBShareResponse {
   bool success = 1;
@@ -193,6 +200,7 @@ message SetDriveWebdavRequest {
   string password = 3;
   string root = 4;
   bool insecure = 5;
+  bool isMetaDrive = 6;
 }
 message SetDriveWebdavResponse {
   bool success = 1;
@@ -201,6 +209,7 @@ message SetDriveWebdavResponse {
 
 message ListDriveWebdavDirRequest {
   string dir = 1;
+  bool isMetaDrive = 2;
 }
 message ListDriveWebdavDirResponse {
   bool success = 1;
@@ -211,6 +220,7 @@ message ListDriveWebdavDirResponse {
 message SetDriveNFSRequest {
   string addr = 1;
   string root = 2;
+  bool isMetaDrive = 3;
 }
 message SetDriveNFSResponse {
   bool success = 1;
@@ -219,6 +229,7 @@ message SetDriveNFSResponse {
 
 message ListDriveNFSDirRequest {
   string dir = 1;
+  bool isMetaDrive = 2;
 }
 message ListDriveNFSDirResponse {
   bool success = 1;
@@ -236,6 +247,20 @@ message SetLocalCacheDirResponse {
 
 message SyncManifestRequest {}
 message SyncManifestResponse {
+  bool success = 1;
+  string message = 2;
+  int64 watermark = 3;
+  int32 recordCount = 4;
+}
+
+message ClearMetaDriveRequest {}
+message ClearMetaDriveResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RebuildManifestRequest {}
+message RebuildManifestResponse {
   bool success = 1;
   string message = 2;
   int64 watermark = 3;

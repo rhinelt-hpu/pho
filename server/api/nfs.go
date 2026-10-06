@@ -26,13 +26,20 @@ func (a *api) SetDriveNFS(ctx context.Context, req *pb.SetDriveNFSRequest) (rsp 
 			return
 		}
 	}
-	a.im.SetDrive(d)
+	if req.IsMetaDrive {
+		a.im.SetMetaDrive(d)
+	} else {
+		a.im.SetDrive(d)
+	}
 	return
 }
 
 func (a *api) ListDriveNFSDir(ctx context.Context, req *pb.ListDriveNFSDirRequest) (rsp *pb.ListDriveNFSDirResponse, e error) {
 	rsp = &pb.ListDriveNFSDirResponse{Success: true}
 	dri := a.im.Drive()
+	if req.IsMetaDrive {
+		dri = a.im.MetaDriveRaw()
+	}
 	if dri == nil {
 		rsp.Success, rsp.Message = false, "drive is not set"
 		return

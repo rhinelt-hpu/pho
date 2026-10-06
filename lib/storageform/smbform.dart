@@ -8,12 +8,22 @@ import 'package:img_syncer/global.dart';
 import 'package:img_syncer/design_tokens.dart';
 
 class SMBForm extends StatefulWidget {
-  const SMBForm({Key? key}) : super(key: key);
+  final bool isMetaDrive;
+  final bool showActions;
+  final VoidCallback? onChanged;
+
+  const SMBForm({
+    Key? key,
+    this.isMetaDrive = false,
+    this.showActions = true,
+    this.onChanged,
+  }) : super(key: key);
+
   @override
-  _SMBFormState createState() => _SMBFormState();
+  SMBFormState createState() => SMBFormState();
 }
 
-class _SMBFormState extends State<SMBForm> {
+class SMBFormState extends State<SMBForm> {
   @protected
   final GlobalKey _formKey = GlobalKey<FormState>();
   TextEditingController? smbAddrController;
@@ -28,20 +38,27 @@ class _SMBFormState extends State<SMBForm> {
 
   String currentPath = "";
 
+  String get _prefix => widget.isMetaDrive ? 'meta_' : '';
+
+  void _notifyChanged() {
+    widget.onChanged?.call();
+  }
+
   @override
   void initState() {
     super.initState();
-    smbAddrController = TextEditingController();
-    smbUsernameController = TextEditingController();
-    smbPasswordController = TextEditingController();
-    smbShareController = TextEditingController();
-    smbRootPathController = TextEditingController();
+    smbAddrController = TextEditingController()..addListener(_notifyChanged);
+    smbUsernameController = TextEditingController()..addListener(_notifyChanged);
+    smbPasswordController = TextEditingController()..addListener(_notifyChanged);
+    smbShareController = TextEditingController()..addListener(_notifyChanged);
+    smbRootPathController = TextEditingController()..addListener(_notifyChanged);
     SharedPreferences.getInstance().then((prefs) {
-      final smbAddr = prefs.getString("addr");
-      final smbUsername = prefs.getString("username");
-      final smbPassword = prefs.getString("password");
-      final smbShare = prefs.getString("share");
-      final smbRootPath = prefs.getString("rootPath");
+      if (!mounted) return;
+      final smbAddr = prefs.getString("${_prefix}addr");
+      final smbUsername = prefs.getString("${_prefix}username");
+      final smbPassword = prefs.getString("${_prefix}password");
+      final smbShare = prefs.getString("${_prefix}share");
+      final smbRootPath = prefs.getString("${_prefix}rootPath");
       smbAddrController!.text = smbAddr ?? "";
       smbUsernameController!.text = smbUsername ?? "";
       smbPasswordController!.text = smbPassword ?? "";
@@ -57,6 +74,7 @@ class _SMBFormState extends State<SMBForm> {
           username: smbUsername,
           password: smbPassword,
           share: smbShare,
+          isMetaDrive: widget.isMetaDrive,
         ));
         smbRootPathController!.text = "";
       });
@@ -71,6 +89,7 @@ class _SMBFormState extends State<SMBForm> {
       addr: a,
       username: u,
       password: p,
+      isMetaDrive: widget.isMetaDrive,
     ));
     if (!rsp1.success) {
       setState(() {
@@ -78,8 +97,8 @@ class _SMBFormState extends State<SMBForm> {
       });
       return false;
     }
-    final rsp2 =
-        await storage.cli.listDriveSMBShares(ListDriveSMBSharesRequest());
+    final rsp2 = await storage.cli.listDriveSMBShares(
+        ListDriveSMBSharesRequest(isMetaDrive: widget.isMetaDrive));
     if (!rsp2.success) {
       setState(() {
         errormsg = rsp2.message;
@@ -97,6 +116,7 @@ class _SMBFormState extends State<SMBForm> {
     final rsp = await storage.cli.listDriveSMBDir(ListDriveSMBDirRequest(
       share: smbShareController!.text,
       dir: dir,
+      isMetaDrive: widget.isMetaDrive,
     ));
     if (!rsp.success) {
       setState(() {
@@ -180,13 +200,14 @@ class _SMBFormState extends State<SMBForm> {
           ),
         ),
       ),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          testStorageButtun(),
-          saveButtun(),
-        ],
-      ),
+      if (widget.showActions)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            testStorageButtun(),
+            saveButtun(),
+          ],
+        ),
     ];
     return Form(
       key: _formKey,
@@ -362,7 +383,7 @@ class _SMBFormState extends State<SMBForm> {
     );
   }
 
-  Future<void> testStorage() async {
+  Future<String?> validateAndTest() async {
     var form = _formKey.currentState as FormState;
     if (form.validate()) {
       form.save();
@@ -373,7 +394,7 @@ class _SMBFormState extends State<SMBForm> {
           testSuccess = false;
           errormsg = "Address, share or root path is empty";
         });
-        return;
+        return errormsg;
       }
       try {
         SetDriveSMBResponse rsp =
@@ -383,33 +404,66 @@ class _SMBFormState extends State<SMBForm> {
           password: smbPasswordController!.text,
           share: smbShareController!.text.trim(),
           root: smbRootPathController!.text.trim(),
+          isMetaDrive: widget.isMetaDrive,
         ));
         if (rsp.success) {
-          ListByDateResponse rsp =
-              await storage.cli.listByDate(ListByDateRequest());
-          if (rsp.success) {
+          if (widget.isMetaDrive) {
             setState(() {
               testSuccess = true;
             });
+            return null;
+          }
+          ListByDateResponse listRsp =
+              await storage.cli.listByDate(ListByDateRequest());
+          if (listRsp.success) {
+            setState(() {
+              testSuccess = true;
+            });
+            return null;
           } else {
             setState(() {
               testSuccess = false;
-              errormsg = rsp.message;
+              errormsg = listRsp.message;
             });
+            return errormsg;
           }
         } else {
           setState(() {
             testSuccess = false;
             errormsg = rsp.message;
           });
+          return errormsg;
         }
       } catch (e) {
         setState(() {
           testSuccess = false;
           errormsg = e.toString();
         });
+        return errormsg;
       }
     }
+    return "Form validation failed";
+  }
+
+  Future<void> testStorage() async {
+    await validateAndTest();
+  }
+
+  Future<String?> saveToPrefs([SharedPreferences? sharedPrefs]) async {
+    final addr = smbAddrController!.text.trim();
+    final share = smbShareController!.text.trim();
+    final root = smbRootPathController!.text.trim();
+    if (addr.isEmpty || share.isEmpty || root.isEmpty) {
+      return "Address, share or root path is empty";
+    }
+    final prefs = sharedPrefs ?? await SharedPreferences.getInstance();
+    await prefs.setString('${_prefix}addr', addr);
+    await prefs.setString('${_prefix}username', smbUsernameController!.text);
+    await prefs.setString('${_prefix}password', smbPasswordController!.text);
+    await prefs.setString('${_prefix}share', share);
+    await prefs.setString('${_prefix}rootPath', root);
+    await prefs.setString('${_prefix}drive', driveName[Drive.smb]!);
+    return null;
   }
 
   Widget testStorageButtun() {

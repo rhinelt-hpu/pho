@@ -1417,6 +1417,7 @@ class SetDriveSMBRequest extends $pb.GeneratedMessage {
     $core.String? password,
     $core.String? share,
     $core.String? root,
+    $core.bool? isMetaDrive,
   }) {
     final $result = create();
     if (addr != null) {
@@ -1434,6 +1435,9 @@ class SetDriveSMBRequest extends $pb.GeneratedMessage {
     if (root != null) {
       $result.root = root;
     }
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
+    }
     return $result;
   }
   SetDriveSMBRequest._() : super();
@@ -1446,6 +1450,7 @@ class SetDriveSMBRequest extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'password')
     ..aOS(4, _omitFieldNames ? '' : 'share')
     ..aOS(5, _omitFieldNames ? '' : 'root')
+    ..aOB(6, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -1514,6 +1519,15 @@ class SetDriveSMBRequest extends $pb.GeneratedMessage {
   $core.bool hasRoot() => $_has(4);
   @$pb.TagNumber(5)
   void clearRoot() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get isMetaDrive => $_getBF(5);
+  @$pb.TagNumber(6)
+  set isMetaDrive($core.bool v) { $_setBool(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasIsMetaDrive() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearIsMetaDrive() => clearField(6);
 }
 
 class SetDriveSMBResponse extends $pb.GeneratedMessage {
@@ -1581,12 +1595,21 @@ class SetDriveSMBResponse extends $pb.GeneratedMessage {
 }
 
 class ListDriveSMBSharesRequest extends $pb.GeneratedMessage {
-  factory ListDriveSMBSharesRequest() => create();
+  factory ListDriveSMBSharesRequest({
+    $core.bool? isMetaDrive,
+  }) {
+    final $result = create();
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
+    }
+    return $result;
+  }
   ListDriveSMBSharesRequest._() : super();
   factory ListDriveSMBSharesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
   factory ListDriveSMBSharesRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ListDriveSMBSharesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -1610,6 +1633,15 @@ class ListDriveSMBSharesRequest extends $pb.GeneratedMessage {
   @$core.pragma('dart2js:noInline')
   static ListDriveSMBSharesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListDriveSMBSharesRequest>(create);
   static ListDriveSMBSharesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get isMetaDrive => $_getBF(0);
+  @$pb.TagNumber(1)
+  set isMetaDrive($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasIsMetaDrive() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearIsMetaDrive() => clearField(1);
 }
 
 class ListDriveSMBSharesResponse extends $pb.GeneratedMessage {
@@ -1688,6 +1720,7 @@ class ListDriveSMBDirRequest extends $pb.GeneratedMessage {
   factory ListDriveSMBDirRequest({
     $core.String? share,
     $core.String? dir,
+    $core.bool? isMetaDrive,
   }) {
     final $result = create();
     if (share != null) {
@@ -1695,6 +1728,9 @@ class ListDriveSMBDirRequest extends $pb.GeneratedMessage {
     }
     if (dir != null) {
       $result.dir = dir;
+    }
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
     }
     return $result;
   }
@@ -1705,6 +1741,7 @@ class ListDriveSMBDirRequest extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ListDriveSMBDirRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'share')
     ..aOS(2, _omitFieldNames ? '' : 'dir')
+    ..aOB(3, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -1746,6 +1783,15 @@ class ListDriveSMBDirRequest extends $pb.GeneratedMessage {
   $core.bool hasDir() => $_has(1);
   @$pb.TagNumber(2)
   void clearDir() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get isMetaDrive => $_getBF(2);
+  @$pb.TagNumber(3)
+  set isMetaDrive($core.bool v) { $_setBool(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasIsMetaDrive() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIsMetaDrive() => clearField(3);
 }
 
 class ListDriveSMBDirResponse extends $pb.GeneratedMessage {
@@ -1824,6 +1870,7 @@ class SetDriveSMBShareRequest extends $pb.GeneratedMessage {
   factory SetDriveSMBShareRequest({
     $core.String? share,
     $core.String? root,
+    $core.bool? isMetaDrive,
   }) {
     final $result = create();
     if (share != null) {
@@ -1831,6 +1878,9 @@ class SetDriveSMBShareRequest extends $pb.GeneratedMessage {
     }
     if (root != null) {
       $result.root = root;
+    }
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
     }
     return $result;
   }
@@ -1841,6 +1891,7 @@ class SetDriveSMBShareRequest extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetDriveSMBShareRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'share')
     ..aOS(2, _omitFieldNames ? '' : 'root')
+    ..aOB(3, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -1882,6 +1933,15 @@ class SetDriveSMBShareRequest extends $pb.GeneratedMessage {
   $core.bool hasRoot() => $_has(1);
   @$pb.TagNumber(2)
   void clearRoot() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get isMetaDrive => $_getBF(2);
+  @$pb.TagNumber(3)
+  set isMetaDrive($core.bool v) { $_setBool(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasIsMetaDrive() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIsMetaDrive() => clearField(3);
 }
 
 class SetDriveSMBShareResponse extends $pb.GeneratedMessage {
@@ -1955,6 +2015,7 @@ class SetDriveWebdavRequest extends $pb.GeneratedMessage {
     $core.String? password,
     $core.String? root,
     $core.bool? insecure,
+    $core.bool? isMetaDrive,
   }) {
     final $result = create();
     if (addr != null) {
@@ -1972,6 +2033,9 @@ class SetDriveWebdavRequest extends $pb.GeneratedMessage {
     if (insecure != null) {
       $result.insecure = insecure;
     }
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
+    }
     return $result;
   }
   SetDriveWebdavRequest._() : super();
@@ -1984,6 +2048,7 @@ class SetDriveWebdavRequest extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'password')
     ..aOS(4, _omitFieldNames ? '' : 'root')
     ..aOB(5, _omitFieldNames ? '' : 'insecure')
+    ..aOB(6, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -2052,6 +2117,15 @@ class SetDriveWebdavRequest extends $pb.GeneratedMessage {
   $core.bool hasInsecure() => $_has(4);
   @$pb.TagNumber(5)
   void clearInsecure() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get isMetaDrive => $_getBF(5);
+  @$pb.TagNumber(6)
+  set isMetaDrive($core.bool v) { $_setBool(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasIsMetaDrive() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearIsMetaDrive() => clearField(6);
 }
 
 class SetDriveWebdavResponse extends $pb.GeneratedMessage {
@@ -2121,10 +2195,14 @@ class SetDriveWebdavResponse extends $pb.GeneratedMessage {
 class ListDriveWebdavDirRequest extends $pb.GeneratedMessage {
   factory ListDriveWebdavDirRequest({
     $core.String? dir,
+    $core.bool? isMetaDrive,
   }) {
     final $result = create();
     if (dir != null) {
       $result.dir = dir;
+    }
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
     }
     return $result;
   }
@@ -2134,6 +2212,7 @@ class ListDriveWebdavDirRequest extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ListDriveWebdavDirRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'dir')
+    ..aOB(2, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -2166,6 +2245,15 @@ class ListDriveWebdavDirRequest extends $pb.GeneratedMessage {
   $core.bool hasDir() => $_has(0);
   @$pb.TagNumber(1)
   void clearDir() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get isMetaDrive => $_getBF(1);
+  @$pb.TagNumber(2)
+  set isMetaDrive($core.bool v) { $_setBool(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasIsMetaDrive() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearIsMetaDrive() => clearField(2);
 }
 
 class ListDriveWebdavDirResponse extends $pb.GeneratedMessage {
@@ -2244,6 +2332,7 @@ class SetDriveNFSRequest extends $pb.GeneratedMessage {
   factory SetDriveNFSRequest({
     $core.String? addr,
     $core.String? root,
+    $core.bool? isMetaDrive,
   }) {
     final $result = create();
     if (addr != null) {
@@ -2251,6 +2340,9 @@ class SetDriveNFSRequest extends $pb.GeneratedMessage {
     }
     if (root != null) {
       $result.root = root;
+    }
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
     }
     return $result;
   }
@@ -2261,6 +2353,7 @@ class SetDriveNFSRequest extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetDriveNFSRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'addr')
     ..aOS(2, _omitFieldNames ? '' : 'root')
+    ..aOB(3, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -2302,6 +2395,15 @@ class SetDriveNFSRequest extends $pb.GeneratedMessage {
   $core.bool hasRoot() => $_has(1);
   @$pb.TagNumber(2)
   void clearRoot() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get isMetaDrive => $_getBF(2);
+  @$pb.TagNumber(3)
+  set isMetaDrive($core.bool v) { $_setBool(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasIsMetaDrive() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIsMetaDrive() => clearField(3);
 }
 
 class SetDriveNFSResponse extends $pb.GeneratedMessage {
@@ -2371,10 +2473,14 @@ class SetDriveNFSResponse extends $pb.GeneratedMessage {
 class ListDriveNFSDirRequest extends $pb.GeneratedMessage {
   factory ListDriveNFSDirRequest({
     $core.String? dir,
+    $core.bool? isMetaDrive,
   }) {
     final $result = create();
     if (dir != null) {
       $result.dir = dir;
+    }
+    if (isMetaDrive != null) {
+      $result.isMetaDrive = isMetaDrive;
     }
     return $result;
   }
@@ -2384,6 +2490,7 @@ class ListDriveNFSDirRequest extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ListDriveNFSDirRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'dir')
+    ..aOB(2, _omitFieldNames ? '' : 'isMetaDrive', protoName: 'isMetaDrive')
     ..hasRequiredFields = false
   ;
 
@@ -2416,6 +2523,15 @@ class ListDriveNFSDirRequest extends $pb.GeneratedMessage {
   $core.bool hasDir() => $_has(0);
   @$pb.TagNumber(1)
   void clearDir() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get isMetaDrive => $_getBF(1);
+  @$pb.TagNumber(2)
+  set isMetaDrive($core.bool v) { $_setBool(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasIsMetaDrive() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearIsMetaDrive() => clearField(2);
 }
 
 class ListDriveNFSDirResponse extends $pb.GeneratedMessage {
@@ -2690,6 +2806,226 @@ class SyncManifestResponse extends $pb.GeneratedMessage {
   @$core.pragma('dart2js:noInline')
   static SyncManifestResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SyncManifestResponse>(create);
   static SyncManifestResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get watermark => $_getI64(2);
+  @$pb.TagNumber(3)
+  set watermark($fixnum.Int64 v) { $_setInt64(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasWatermark() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearWatermark() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get recordCount => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set recordCount($core.int v) { $_setSignedInt32(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasRecordCount() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRecordCount() => clearField(4);
+}
+
+class ClearMetaDriveRequest extends $pb.GeneratedMessage {
+  factory ClearMetaDriveRequest() => create();
+  ClearMetaDriveRequest._() : super();
+  factory ClearMetaDriveRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory ClearMetaDriveRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ClearMetaDriveRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  ClearMetaDriveRequest clone() => ClearMetaDriveRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  ClearMetaDriveRequest copyWith(void Function(ClearMetaDriveRequest) updates) => super.copyWith((message) => updates(message as ClearMetaDriveRequest)) as ClearMetaDriveRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ClearMetaDriveRequest create() => ClearMetaDriveRequest._();
+  ClearMetaDriveRequest createEmptyInstance() => create();
+  static $pb.PbList<ClearMetaDriveRequest> createRepeated() => $pb.PbList<ClearMetaDriveRequest>();
+  @$core.pragma('dart2js:noInline')
+  static ClearMetaDriveRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClearMetaDriveRequest>(create);
+  static ClearMetaDriveRequest? _defaultInstance;
+}
+
+class ClearMetaDriveResponse extends $pb.GeneratedMessage {
+  factory ClearMetaDriveResponse({
+    $core.bool? success,
+    $core.String? message,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    return $result;
+  }
+  ClearMetaDriveResponse._() : super();
+  factory ClearMetaDriveResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory ClearMetaDriveResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ClearMetaDriveResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  ClearMetaDriveResponse clone() => ClearMetaDriveResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  ClearMetaDriveResponse copyWith(void Function(ClearMetaDriveResponse) updates) => super.copyWith((message) => updates(message as ClearMetaDriveResponse)) as ClearMetaDriveResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ClearMetaDriveResponse create() => ClearMetaDriveResponse._();
+  ClearMetaDriveResponse createEmptyInstance() => create();
+  static $pb.PbList<ClearMetaDriveResponse> createRepeated() => $pb.PbList<ClearMetaDriveResponse>();
+  @$core.pragma('dart2js:noInline')
+  static ClearMetaDriveResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClearMetaDriveResponse>(create);
+  static ClearMetaDriveResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get success => $_getBF(0);
+  @$pb.TagNumber(1)
+  set success($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasSuccess() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSuccess() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+}
+
+class RebuildManifestRequest extends $pb.GeneratedMessage {
+  factory RebuildManifestRequest() => create();
+  RebuildManifestRequest._() : super();
+  factory RebuildManifestRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory RebuildManifestRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'RebuildManifestRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  RebuildManifestRequest clone() => RebuildManifestRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  RebuildManifestRequest copyWith(void Function(RebuildManifestRequest) updates) => super.copyWith((message) => updates(message as RebuildManifestRequest)) as RebuildManifestRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RebuildManifestRequest create() => RebuildManifestRequest._();
+  RebuildManifestRequest createEmptyInstance() => create();
+  static $pb.PbList<RebuildManifestRequest> createRepeated() => $pb.PbList<RebuildManifestRequest>();
+  @$core.pragma('dart2js:noInline')
+  static RebuildManifestRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RebuildManifestRequest>(create);
+  static RebuildManifestRequest? _defaultInstance;
+}
+
+class RebuildManifestResponse extends $pb.GeneratedMessage {
+  factory RebuildManifestResponse({
+    $core.bool? success,
+    $core.String? message,
+    $fixnum.Int64? watermark,
+    $core.int? recordCount,
+  }) {
+    final $result = create();
+    if (success != null) {
+      $result.success = success;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    if (watermark != null) {
+      $result.watermark = watermark;
+    }
+    if (recordCount != null) {
+      $result.recordCount = recordCount;
+    }
+    return $result;
+  }
+  RebuildManifestResponse._() : super();
+  factory RebuildManifestResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory RebuildManifestResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'RebuildManifestResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'img_syncer'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'success')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..aInt64(3, _omitFieldNames ? '' : 'watermark')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'recordCount', $pb.PbFieldType.O3, protoName: 'recordCount')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  RebuildManifestResponse clone() => RebuildManifestResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  RebuildManifestResponse copyWith(void Function(RebuildManifestResponse) updates) => super.copyWith((message) => updates(message as RebuildManifestResponse)) as RebuildManifestResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RebuildManifestResponse create() => RebuildManifestResponse._();
+  RebuildManifestResponse createEmptyInstance() => create();
+  static $pb.PbList<RebuildManifestResponse> createRepeated() => $pb.PbList<RebuildManifestResponse>();
+  @$core.pragma('dart2js:noInline')
+  static RebuildManifestResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RebuildManifestResponse>(create);
+  static RebuildManifestResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.bool get success => $_getBF(0);

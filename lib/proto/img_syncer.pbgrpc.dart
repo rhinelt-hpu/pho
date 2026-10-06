@@ -97,6 +97,14 @@ class ImgSyncerClient extends $grpc.Client {
       '/img_syncer.ImgSyncer/SyncManifest',
       ($0.SyncManifestRequest value) => value.writeToBuffer(),
       ($core.List<$core.int> value) => $0.SyncManifestResponse.fromBuffer(value));
+  static final _$clearMetaDrive = $grpc.ClientMethod<$0.ClearMetaDriveRequest, $0.ClearMetaDriveResponse>(
+      '/img_syncer.ImgSyncer/ClearMetaDrive',
+      ($0.ClearMetaDriveRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.ClearMetaDriveResponse.fromBuffer(value));
+  static final _$rebuildManifest = $grpc.ClientMethod<$0.RebuildManifestRequest, $0.RebuildManifestResponse>(
+      '/img_syncer.ImgSyncer/RebuildManifest',
+      ($0.RebuildManifestRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.RebuildManifestResponse.fromBuffer(value));
   static final _$ping = $grpc.ClientMethod<$0.PingRequest, $0.PingResponse>(
       '/img_syncer.ImgSyncer/Ping',
       ($0.PingRequest value) => value.writeToBuffer(),
@@ -182,6 +190,14 @@ class ImgSyncerClient extends $grpc.Client {
 
   $grpc.ResponseFuture<$0.SyncManifestResponse> syncManifest($0.SyncManifestRequest request, {$grpc.CallOptions? options}) {
     return $createUnaryCall(_$syncManifest, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ClearMetaDriveResponse> clearMetaDrive($0.ClearMetaDriveRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$clearMetaDrive, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.RebuildManifestResponse> rebuildManifest($0.RebuildManifestRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$rebuildManifest, request, options: options);
   }
 
   $grpc.ResponseFuture<$0.PingResponse> ping($0.PingRequest request, {$grpc.CallOptions? options}) {
@@ -327,6 +343,20 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.SyncManifestRequest.fromBuffer(value),
         ($0.SyncManifestResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.ClearMetaDriveRequest, $0.ClearMetaDriveResponse>(
+        'ClearMetaDrive',
+        clearMetaDrive_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.ClearMetaDriveRequest.fromBuffer(value),
+        ($0.ClearMetaDriveResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RebuildManifestRequest, $0.RebuildManifestResponse>(
+        'RebuildManifest',
+        rebuildManifest_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.RebuildManifestRequest.fromBuffer(value),
+        ($0.RebuildManifestResponse value) => value.writeToBuffer()));
     $addMethod($grpc.ServiceMethod<$0.PingRequest, $0.PingResponse>(
         'Ping',
         ping_Pre,
@@ -408,6 +438,14 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
     return syncManifest(call, await request);
   }
 
+  $async.Future<$0.ClearMetaDriveResponse> clearMetaDrive_Pre($grpc.ServiceCall call, $async.Future<$0.ClearMetaDriveRequest> request) async {
+    return clearMetaDrive(call, await request);
+  }
+
+  $async.Future<$0.RebuildManifestResponse> rebuildManifest_Pre($grpc.ServiceCall call, $async.Future<$0.RebuildManifestRequest> request) async {
+    return rebuildManifest(call, await request);
+  }
+
   $async.Future<$0.PingResponse> ping_Pre($grpc.ServiceCall call, $async.Future<$0.PingRequest> request) async {
     return ping(call, await request);
   }
@@ -431,5 +469,7 @@ abstract class ImgSyncerServiceBase extends $grpc.Service {
   $async.Future<$0.ListDriveNFSDirResponse> listDriveNFSDir($grpc.ServiceCall call, $0.ListDriveNFSDirRequest request);
   $async.Future<$0.SetLocalCacheDirResponse> setLocalCacheDir($grpc.ServiceCall call, $0.SetLocalCacheDirRequest request);
   $async.Future<$0.SyncManifestResponse> syncManifest($grpc.ServiceCall call, $0.SyncManifestRequest request);
+  $async.Future<$0.ClearMetaDriveResponse> clearMetaDrive($grpc.ServiceCall call, $0.ClearMetaDriveRequest request);
+  $async.Future<$0.RebuildManifestResponse> rebuildManifest($grpc.ServiceCall call, $0.RebuildManifestRequest request);
   $async.Future<$0.PingResponse> ping($grpc.ServiceCall call, $0.PingRequest request);
 }

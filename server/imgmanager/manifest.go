@@ -279,6 +279,7 @@ func (mm *ManifestManager) AppendChunk(d StorageDrive, records []ManifestRecord)
 	// 上传增量切片至远端 .manifest/
 	err = d.Upload(chunkPath, io.NopCloser(bytes.NewReader(data)), int64(len(data)), time.Now())
 	if err != nil {
+		mm.maxWatermark--
 		return err
 	}
 
@@ -416,6 +417,85 @@ func (mm *ManifestManager) Compact(d StorageDrive) error {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
 	return mm.compactLocked(d)
+}
+
+// Reset 清空内存中的元数据状态（用于切换存储后端时重新同步）
+func (mm *ManifestManager) Reset() {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	mm.records = make(map[string]ManifestRecord)
+	mm.maxWatermark = 0
+	mm.initialized = false
+	mm.chunksSinceCompaction = 0
+}
+
+// RebuildWithRecords 使用全量扫描得到的记录重置内存与远端快照，并清理旧碎片
+func (mm *ManifestManager) RebuildWithRecords(d StorageDrive, records []ManifestRecord) error {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+
+	var remoteMax int64
+	obsoletePaths := make([]string, 0)
+	_ = d.Range(ManifestDir, func(info fs.FileInfo) bool {
+		name := info.Name()
+		if strings.HasPrefix(name, "snapshot_to_") && strings.HasSuffix(name, ".json") {
+			parts := strings.TrimSuffix(strings.TrimPrefix(name, "snapshot_to_"), ".json")
+			if w, err := strconv.ParseInt(parts, 10, 64); err == nil {
+				if w > remoteMax {
+					remoteMax = w
+				}
+				obsoletePaths = append(obsoletePaths, filepath.Join(ManifestDir, name))
+			}
+		} else if strings.HasPrefix(name, "chunk_") && strings.HasSuffix(name, ".json") {
+			parts := strings.Split(strings.TrimSuffix(strings.TrimPrefix(name, "chunk_"), ".json"), "_")
+			if len(parts) >= 1 {
+				if w, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
+					if w > remoteMax {
+						remoteMax = w
+					}
+					obsoletePaths = append(obsoletePaths, filepath.Join(ManifestDir, name))
+				}
+			}
+		}
+		return true
+	})
+
+	if remoteMax > mm.maxWatermark {
+		mm.maxWatermark = remoteMax
+	}
+	mm.maxWatermark++
+
+	newMap := make(map[string]ManifestRecord, len(records))
+	for _, rec := range records {
+		if !rec.Deleted {
+			newMap[rec.Fingerprint] = rec
+		}
+	}
+	mm.records = newMap
+	mm.chunksSinceCompaction = 0
+
+	snap := ManifestSnapshot{
+		Watermark: mm.maxWatermark,
+		Timestamp: time.Now().Unix(),
+		Records:   mm.records,
+	}
+	data, err := json.Marshal(snap)
+	if err != nil {
+		return err
+	}
+	snapFileName := fmt.Sprintf("snapshot_to_%010d.json", snap.Watermark)
+	snapPath := filepath.Join(ManifestDir, snapFileName)
+
+	if err := d.Upload(snapPath, io.NopCloser(bytes.NewReader(data)), int64(len(data)), time.Now()); err != nil {
+		return fmt.Errorf("upload rebuilt snapshot failed: %w", err)
+	}
+
+	mm.initialized = true
+	_ = mm.saveLocalLocked()
+	if len(obsoletePaths) > 0 {
+		go mm.pruneObsoleteFiles(d, snap.Watermark, obsoletePaths)
+	}
+	return nil
 }
 
 // LookupFingerprint 在内存中快速检索指纹，返回是否存在且未删除

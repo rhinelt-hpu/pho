@@ -128,5 +128,40 @@ void main() {
       final config = await StorageConfig.exportCurrent(prefs);
       expect(config, isNull);
     });
+
+    test('双存储（主存储 + 独立元数据与缩略图存储）URI 编解码与 exportCurrent 一致性', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("drive", "WebDAV");
+      await prefs.setString("webdav_url", "https://large-slow.example.com/dav");
+      await prefs.setString("webdav_username", "main_user");
+      await prefs.setString("webdav_password", "main_pass");
+      await prefs.setString("webdav_root_path", "/origin_photos");
+      await prefs.setBool("webdav_insecure", false);
+
+      await prefs.setBool("meta_drive_enabled", true);
+      await prefs.setString("meta_drive", "WebDAV");
+      await prefs.setString("meta_webdav_url", "https://fast-small.example.com/dav");
+      await prefs.setString("meta_webdav_username", "fast_user");
+      await prefs.setString("meta_webdav_password", "fast_pass");
+      await prefs.setString("meta_webdav_root_path", "/pho_meta");
+      await prefs.setBool("meta_webdav_insecure", true);
+
+      final exported = await StorageConfig.exportCurrent(prefs);
+      expect(exported, isNotNull);
+      expect(exported!.metaEnabled, isTrue);
+      expect(exported.metaDrive, Drive.webDav);
+      expect(exported.metaSummary, "https://fast-small.example.com/dav");
+      expect(exported.metaRootPath, "/pho_meta");
+
+      final uri = exported.encodeToUri();
+      final decoded = StorageConfig.decode(uri);
+      expect(decoded, isNotNull);
+      expect(decoded!.drive, Drive.webDav);
+      expect(decoded.data['url'], "https://large-slow.example.com/dav");
+      expect(decoded.metaEnabled, isTrue);
+      expect(decoded.metaDrive, Drive.webDav);
+      expect(decoded.metaData?['url'], "https://fast-small.example.com/dav");
+      expect(decoded.metaData?['rootPath'], "/pho_meta");
+    });
   });
 }

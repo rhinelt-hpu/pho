@@ -204,5 +204,12 @@
   "resetStats": "Reset Counter",
   "recentLogs": "Recent Request Logs",
   "refreshStats": "Refresh Stats",
-  "transferring": "Transferring"
+  "transferring": "Transferring",
+  "enableMetaStorage": "Separate Metadata & Thumbnail Storage",
+  "enableMetaStorageDesc": "Store metadata (.manifest) and thumbnails on a faster storage backend",
+  "metaStorageType": "Metadata & Thumbnail Storage Type",
+  "rebuildMetaAndThumbnails": "Rebuild Metadata & Thumbnails",
+  "rebuildMetaAndThumbnailsDesc": "Scan primary storage to rebuild metadata index and backfill thumbnails from local album",
+  "rebuildingMetaAndThumbnails": "Rebuilding metadata & thumbnails...",
+  "rebuildSuccess": "Rebuild complete: indexed {count} photos, backfilled {thumbCount} thumbnails"
 }

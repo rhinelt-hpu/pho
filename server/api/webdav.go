@@ -28,13 +28,20 @@ func (a *api) SetDriveWebdav(ctx context.Context, req *pb.SetDriveWebdavRequest)
 			return
 		}
 	}
-	a.im.SetDrive(d)
+	if req.IsMetaDrive {
+		a.im.SetMetaDrive(d)
+	} else {
+		a.im.SetDrive(d)
+	}
 	return
 }
 
 func (a *api) ListDriveWebdavDir(ctx context.Context, req *pb.ListDriveWebdavDirRequest) (rsp *pb.ListDriveWebdavDirResponse, e error) {
 	rsp = &pb.ListDriveWebdavDirResponse{Success: true}
 	dri := a.im.Drive()
+	if req.IsMetaDrive {
+		dri = a.im.MetaDriveRaw()
+	}
 	if dri == nil {
 		rsp.Success, rsp.Message = false, "drive is not set"
 		return

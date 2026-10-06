@@ -13,6 +13,7 @@
 | **[3. 同步流水线与存储协议 (SYNC_AND_STORAGE.md)](./SYNC_AND_STORAGE.md)** | 未同步扫描与两阶段提交、并发上传调度、SMB/WebDAV/NFS 驱动实现细节、AES-128-CFB 与 AES-256-GCM (PHO1) 加密体系 | 后端驱动 / 数据同步开发 |
 | **[4. 构建、开发与调试指南 (DEVELOPMENT_GUIDE.md)](./DEVELOPMENT_GUIDE.md)** | 环境依赖要求、Protobuf 与 Gomobile 编译命令、双端真机/模拟器调试、日志排查与常见踩坑 (FAQ) | 全体开发人员 |
 | **[5. 移动端技术债与演进路线 (ROADMAP_AND_TECH_DEBT.md)](./ROADMAP_AND_TECH_DEBT.md)** | 已知关键缺陷（Android 真后台缺失、并发锁、目录遍历瓶颈等）、后续重构建议与关键功能演进计划 | 技术负责人 / 迭代规划 |
+| **[6. 独立元数据与缩略图存储 ADR (ADR_META_THUMBNAIL_STORAGE.md)](./ADR_META_THUMBNAIL_STORAGE.md)** | 冷热存储分离架构决策、领域词汇表、双驱动路由规则、元数据/缩略图重建机制与配置协议 | 架构师 / 全栈开发 |
 
 ---
 

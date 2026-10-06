@@ -628,4 +628,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get transferring => '正在传输';
+
+  @override
+  String get enableMetaStorage => '启用独立元数据与缩略图存储';
+
+  @override
+  String get enableMetaStorageDesc => '可将元数据 (.manifest) 与缩略图存放到访问速度更快的存储后端';
+
+  @override
+  String get metaStorageType => '元数据与缩略图存储类型';
+
+  @override
+  String get rebuildMetaAndThumbnails => '重建元数据与缩略图';
+
+  @override
+  String get rebuildMetaAndThumbnailsDesc => '扫描主存储重建远端元数据索引，并从本地相册补齐缩略图';
+
+  @override
+  String get rebuildingMetaAndThumbnails => '正在重建元数据与缩略图...';
+
+  @override
+  String rebuildSuccess(Object count, Object thumbCount) {
+    return '重建完成：已索引 $count 张照片，补齐 $thumbCount 张缩略图';
+  }
 }

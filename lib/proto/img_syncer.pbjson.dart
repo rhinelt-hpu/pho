@@ -340,6 +340,7 @@ const SetDriveSMBRequest$json = {
     {'1': 'password', '3': 3, '4': 1, '5': 9, '10': 'password'},
     {'1': 'share', '3': 4, '4': 1, '5': 9, '10': 'share'},
     {'1': 'root', '3': 5, '4': 1, '5': 9, '10': 'root'},
+    {'1': 'isMetaDrive', '3': 6, '4': 1, '5': 8, '10': 'isMetaDrive'},
   ],
 };
 
@@ -347,7 +348,8 @@ const SetDriveSMBRequest$json = {
 final $typed_data.Uint8List setDriveSMBRequestDescriptor = $convert.base64Decode(
     'ChJTZXREcml2ZVNNQlJlcXVlc3QSEgoEYWRkchgBIAEoCVIEYWRkchIaCgh1c2VybmFtZRgCIA'
     'EoCVIIdXNlcm5hbWUSGgoIcGFzc3dvcmQYAyABKAlSCHBhc3N3b3JkEhQKBXNoYXJlGAQgASgJ'
-    'UgVzaGFyZRISCgRyb290GAUgASgJUgRyb290');
+    'UgVzaGFyZRISCgRyb290GAUgASgJUgRyb290EiAKC2lzTWV0YURyaXZlGAYgASgIUgtpc01ldG'
+    'FEcml2ZQ==');
 
 @$core.Deprecated('Use setDriveSMBResponseDescriptor instead')
 const SetDriveSMBResponse$json = {
@@ -366,11 +368,15 @@ final $typed_data.Uint8List setDriveSMBResponseDescriptor = $convert.base64Decod
 @$core.Deprecated('Use listDriveSMBSharesRequestDescriptor instead')
 const ListDriveSMBSharesRequest$json = {
   '1': 'ListDriveSMBSharesRequest',
+  '2': [
+    {'1': 'isMetaDrive', '3': 1, '4': 1, '5': 8, '10': 'isMetaDrive'},
+  ],
 };
 
 /// Descriptor for `ListDriveSMBSharesRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List listDriveSMBSharesRequestDescriptor = $convert.base64Decode(
-    'ChlMaXN0RHJpdmVTTUJTaGFyZXNSZXF1ZXN0');
+    'ChlMaXN0RHJpdmVTTUJTaGFyZXNSZXF1ZXN0EiAKC2lzTWV0YURyaXZlGAEgASgIUgtpc01ldG'
+    'FEcml2ZQ==');
 
 @$core.Deprecated('Use listDriveSMBSharesResponseDescriptor instead')
 const ListDriveSMBSharesResponse$json = {
@@ -393,13 +399,14 @@ const ListDriveSMBDirRequest$json = {
   '2': [
     {'1': 'share', '3': 1, '4': 1, '5': 9, '10': 'share'},
     {'1': 'dir', '3': 2, '4': 1, '5': 9, '10': 'dir'},
+    {'1': 'isMetaDrive', '3': 3, '4': 1, '5': 8, '10': 'isMetaDrive'},
   ],
 };
 
 /// Descriptor for `ListDriveSMBDirRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List listDriveSMBDirRequestDescriptor = $convert.base64Decode(
     'ChZMaXN0RHJpdmVTTUJEaXJSZXF1ZXN0EhQKBXNoYXJlGAEgASgJUgVzaGFyZRIQCgNkaXIYAi'
-    'ABKAlSA2Rpcg==');
+    'ABKAlSA2RpchIgCgtpc01ldGFEcml2ZRgDIAEoCFILaXNNZXRhRHJpdmU=');
 
 @$core.Deprecated('Use listDriveSMBDirResponseDescriptor instead')
 const ListDriveSMBDirResponse$json = {
@@ -422,13 +429,14 @@ const SetDriveSMBShareRequest$json = {
   '2': [
     {'1': 'share', '3': 1, '4': 1, '5': 9, '10': 'share'},
     {'1': 'root', '3': 2, '4': 1, '5': 9, '10': 'root'},
+    {'1': 'isMetaDrive', '3': 3, '4': 1, '5': 8, '10': 'isMetaDrive'},
   ],
 };
 
 /// Descriptor for `SetDriveSMBShareRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List setDriveSMBShareRequestDescriptor = $convert.base64Decode(
     'ChdTZXREcml2ZVNNQlNoYXJlUmVxdWVzdBIUCgVzaGFyZRgBIAEoCVIFc2hhcmUSEgoEcm9vdB'
-    'gCIAEoCVIEcm9vdA==');
+    'gCIAEoCVIEcm9vdBIgCgtpc01ldGFEcml2ZRgDIAEoCFILaXNNZXRhRHJpdmU=');
 
 @$core.Deprecated('Use setDriveSMBShareResponseDescriptor instead')
 const SetDriveSMBShareResponse$json = {
@@ -453,6 +461,7 @@ const SetDriveWebdavRequest$json = {
     {'1': 'password', '3': 3, '4': 1, '5': 9, '10': 'password'},
     {'1': 'root', '3': 4, '4': 1, '5': 9, '10': 'root'},
     {'1': 'insecure', '3': 5, '4': 1, '5': 8, '10': 'insecure'},
+    {'1': 'isMetaDrive', '3': 6, '4': 1, '5': 8, '10': 'isMetaDrive'},
   ],
 };
 
@@ -460,7 +469,8 @@ const SetDriveWebdavRequest$json = {
 final $typed_data.Uint8List setDriveWebdavRequestDescriptor = $convert.base64Decode(
     'ChVTZXREcml2ZVdlYmRhdlJlcXVlc3QSEgoEYWRkchgBIAEoCVIEYWRkchIaCgh1c2VybmFtZR'
     'gCIAEoCVIIdXNlcm5hbWUSGgoIcGFzc3dvcmQYAyABKAlSCHBhc3N3b3JkEhIKBHJvb3QYBCAB'
-    'KAlSBHJvb3QSGgoIaW5zZWN1cmUYBSABKAhSCGluc2VjdXJl');
+    'KAlSBHJvb3QSGgoIaW5zZWN1cmUYBSABKAhSCGluc2VjdXJlEiAKC2lzTWV0YURyaXZlGAYgAS'
+    'gIUgtpc01ldGFEcml2ZQ==');
 
 @$core.Deprecated('Use setDriveWebdavResponseDescriptor instead')
 const SetDriveWebdavResponse$json = {
@@ -481,12 +491,14 @@ const ListDriveWebdavDirRequest$json = {
   '1': 'ListDriveWebdavDirRequest',
   '2': [
     {'1': 'dir', '3': 1, '4': 1, '5': 9, '10': 'dir'},
+    {'1': 'isMetaDrive', '3': 2, '4': 1, '5': 8, '10': 'isMetaDrive'},
   ],
 };
 
 /// Descriptor for `ListDriveWebdavDirRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List listDriveWebdavDirRequestDescriptor = $convert.base64Decode(
-    'ChlMaXN0RHJpdmVXZWJkYXZEaXJSZXF1ZXN0EhAKA2RpchgBIAEoCVIDZGly');
+    'ChlMaXN0RHJpdmVXZWJkYXZEaXJSZXF1ZXN0EhAKA2RpchgBIAEoCVIDZGlyEiAKC2lzTWV0YU'
+    'RyaXZlGAIgASgIUgtpc01ldGFEcml2ZQ==');
 
 @$core.Deprecated('Use listDriveWebdavDirResponseDescriptor instead')
 const ListDriveWebdavDirResponse$json = {
@@ -509,13 +521,14 @@ const SetDriveNFSRequest$json = {
   '2': [
     {'1': 'addr', '3': 1, '4': 1, '5': 9, '10': 'addr'},
     {'1': 'root', '3': 2, '4': 1, '5': 9, '10': 'root'},
+    {'1': 'isMetaDrive', '3': 3, '4': 1, '5': 8, '10': 'isMetaDrive'},
   ],
 };
 
 /// Descriptor for `SetDriveNFSRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List setDriveNFSRequestDescriptor = $convert.base64Decode(
     'ChJTZXREcml2ZU5GU1JlcXVlc3QSEgoEYWRkchgBIAEoCVIEYWRkchISCgRyb290GAIgASgJUg'
-    'Ryb290');
+    'Ryb290EiAKC2lzTWV0YURyaXZlGAMgASgIUgtpc01ldGFEcml2ZQ==');
 
 @$core.Deprecated('Use setDriveNFSResponseDescriptor instead')
 const SetDriveNFSResponse$json = {
@@ -536,12 +549,14 @@ const ListDriveNFSDirRequest$json = {
   '1': 'ListDriveNFSDirRequest',
   '2': [
     {'1': 'dir', '3': 1, '4': 1, '5': 9, '10': 'dir'},
+    {'1': 'isMetaDrive', '3': 2, '4': 1, '5': 8, '10': 'isMetaDrive'},
   ],
 };
 
 /// Descriptor for `ListDriveNFSDirRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List listDriveNFSDirRequestDescriptor = $convert.base64Decode(
-    'ChZMaXN0RHJpdmVORlNEaXJSZXF1ZXN0EhAKA2RpchgBIAEoCVIDZGly');
+    'ChZMaXN0RHJpdmVORlNEaXJSZXF1ZXN0EhAKA2RpchgBIAEoCVIDZGlyEiAKC2lzTWV0YURyaX'
+    'ZlGAIgASgIUgtpc01ldGFEcml2ZQ==');
 
 @$core.Deprecated('Use listDriveNFSDirResponseDescriptor instead')
 const ListDriveNFSDirResponse$json = {
@@ -609,6 +624,55 @@ final $typed_data.Uint8List syncManifestResponseDescriptor = $convert.base64Deco
     'ChRTeW5jTWFuaWZlc3RSZXNwb25zZRIYCgdzdWNjZXNzGAEgASgIUgdzdWNjZXNzEhgKB21lc3'
     'NhZ2UYAiABKAlSB21lc3NhZ2USHAoJd2F0ZXJtYXJrGAMgASgDUgl3YXRlcm1hcmsSIAoLcmVj'
     'b3JkQ291bnQYBCABKAVSC3JlY29yZENvdW50');
+
+@$core.Deprecated('Use clearMetaDriveRequestDescriptor instead')
+const ClearMetaDriveRequest$json = {
+  '1': 'ClearMetaDriveRequest',
+};
+
+/// Descriptor for `ClearMetaDriveRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List clearMetaDriveRequestDescriptor = $convert.base64Decode(
+    'ChVDbGVhck1ldGFEcml2ZVJlcXVlc3Q=');
+
+@$core.Deprecated('Use clearMetaDriveResponseDescriptor instead')
+const ClearMetaDriveResponse$json = {
+  '1': 'ClearMetaDriveResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `ClearMetaDriveResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List clearMetaDriveResponseDescriptor = $convert.base64Decode(
+    'ChZDbGVhck1ldGFEcml2ZVJlc3BvbnNlEhgKB3N1Y2Nlc3MYASABKAhSB3N1Y2Nlc3MSGAoHbW'
+    'Vzc2FnZRgCIAEoCVIHbWVzc2FnZQ==');
+
+@$core.Deprecated('Use rebuildManifestRequestDescriptor instead')
+const RebuildManifestRequest$json = {
+  '1': 'RebuildManifestRequest',
+};
+
+/// Descriptor for `RebuildManifestRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List rebuildManifestRequestDescriptor = $convert.base64Decode(
+    'ChZSZWJ1aWxkTWFuaWZlc3RSZXF1ZXN0');
+
+@$core.Deprecated('Use rebuildManifestResponseDescriptor instead')
+const RebuildManifestResponse$json = {
+  '1': 'RebuildManifestResponse',
+  '2': [
+    {'1': 'success', '3': 1, '4': 1, '5': 8, '10': 'success'},
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+    {'1': 'watermark', '3': 3, '4': 1, '5': 3, '10': 'watermark'},
+    {'1': 'recordCount', '3': 4, '4': 1, '5': 5, '10': 'recordCount'},
+  ],
+};
+
+/// Descriptor for `RebuildManifestResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List rebuildManifestResponseDescriptor = $convert.base64Decode(
+    'ChdSZWJ1aWxkTWFuaWZlc3RSZXNwb25zZRIYCgdzdWNjZXNzGAEgASgIUgdzdWNjZXNzEhgKB2'
+    '1lc3NhZ2UYAiABKAlSB21lc3NhZ2USHAoJd2F0ZXJtYXJrGAMgASgDUgl3YXRlcm1hcmsSIAoL'
+    'cmVjb3JkQ291bnQYBCABKAVSC3JlY29yZENvdW50');
 
 @$core.Deprecated('Use pingRequestDescriptor instead')
 const PingRequest$json = {

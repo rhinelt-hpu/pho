@@ -150,5 +150,29 @@ void main() {
       expect(find.byIcon(Icons.qr_code_2), findsOneWidget);
       expect(find.byIcon(Icons.qr_code_scanner), findsOneWidget);
     });
+
+    testWidgets('单页上下排列：开启副存储开关展开第二套表单，且底部仅有一组全局测试与保存按钮', (tester) async {
+      settingModel.setRemoteStorageSetted(true);
+      await tester.pumpWidget(_buildTestApp(const SettingStorageRoute()));
+      await tester.pumpAndSettle();
+
+      // 默认未展开副存储类型选择器，且底部仅有唯一一组 [测试连接] 与 [保存]
+      expect(find.text(l10n.enableMetaStorage), findsOneWidget);
+      expect(find.text(l10n.metaStorageType), findsNothing);
+      expect(find.text(l10n.testStorage), findsOneWidget);
+      expect(find.text(l10n.save), findsOneWidget);
+      expect(find.text(l10n.rebuildMetaAndThumbnails), findsOneWidget);
+
+      // 打开「启用独立元数据与缩略图存储」开关（先滚动到可见区域）
+      await tester.ensureVisible(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      // 展开副存储配置，但底部仍然只有唯一一组全局 [测试连接] 与 [保存]
+      expect(find.text(l10n.metaStorageType), findsOneWidget);
+      expect(find.text(l10n.testStorage), findsOneWidget);
+      expect(find.text(l10n.save), findsOneWidget);
+    });
   });
 }

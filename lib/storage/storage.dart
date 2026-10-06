@@ -364,6 +364,58 @@ class RemoteStorage implements RemoteStorageClient {
     return await cli.syncManifest(SyncManifestRequest()).timeout(const Duration(seconds: 30));
   }
 
+  Future<RebuildManifestResponse> rebuildManifest() async {
+    return await cli
+        .rebuildManifest(RebuildManifestRequest())
+        .timeout(const Duration(seconds: 120));
+  }
+
+  /// 仅生成并上传单张本地资产的缩略图（用于「重建元数据与缩略图」时快速从本地相册补齐缩略图，不重传原图）
+  Future<void> uploadThumbnailOnly(AssetEntity asset, {String album = ""}) async {
+    await checkServer();
+    final targetAlbum = album.isNotEmpty ? album : settingModel.defaultAlbumName;
+    final encodedAlbum = Uri.encodeComponent(targetAlbum);
+    String? name = asset.title;
+    name ??= await asset.titleAsync;
+    if (name.isEmpty) return;
+
+    var date = asset.createDateTime;
+    if (date.isBefore(DateTime(1990, 1, 1))) {
+      date = asset.modifiedDateTime;
+    }
+    final dateStr =
+        formatDate(date, [yyyy, ':', mm, ':', dd, ' ', HH, ':', nn, ':', ss]);
+    var thumbnailSize = const ThumbnailSize.square(200);
+    if (asset.type == AssetType.video) {
+      thumbnailSize = const ThumbnailSize.square(800);
+    }
+    final thumbnailData =
+        await asset.thumbnailDataWithSize(thumbnailSize, quality: 90);
+    if (thumbnailData == null) return;
+
+    final thumbHeaders = {
+      'Image-Date': dateStr,
+      'Image-Is-Live-Photo': asset.isLivePhoto ? "true" : "false",
+      'Image-Encrypt-Type': settingModel.enableEncrypt
+          ? encryptionTypeName(settingModel.encryptionType)
+          : "None",
+      'Image-Encrypt-Password':
+          settingModel.enableEncrypt ? settingModel.encryptionPassword : "",
+    };
+    if (encodedAlbum.isNotEmpty) {
+      thumbHeaders['Image-Album'] = encodedAlbum;
+    }
+    final thumbRsp = await http.post(
+      Uri.parse("$httpBaseUrl/thumbnail/$name"),
+      body: thumbnailData,
+      headers: thumbHeaders,
+    );
+    if (thumbRsp.statusCode != 200) {
+      throw Exception(
+          "upload thumbnail failed: [${thumbRsp.statusCode}] ${thumbRsp.body}");
+    }
+  }
+
   @override
   Future<void> setLocalCacheDir(String path) async {
     final rsp = await cli.setLocalCacheDir(SetLocalCacheDirRequest(path: path)).timeout(const Duration(seconds: 5));

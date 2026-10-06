@@ -204,5 +204,12 @@
   "resetStats": "重置统计计数",
   "recentLogs": "最近请求流水",
   "refreshStats": "刷新统计",
-  "transferring": "正在传输"
+  "transferring": "正在传输",
+  "enableMetaStorage": "启用独立元数据与缩略图存储",
+  "enableMetaStorageDesc": "可将元数据 (.manifest) 与缩略图存放到访问速度更快的存储后端",
+  "metaStorageType": "元数据与缩略图存储类型",
+  "rebuildMetaAndThumbnails": "重建元数据与缩略图",
+  "rebuildMetaAndThumbnailsDesc": "扫描主存储重建远端元数据索引，并从本地相册补齐缩略图",
+  "rebuildingMetaAndThumbnails": "正在重建元数据与缩略图...",
+  "rebuildSuccess": "重建完成：已索引 {count} 张照片，补齐 {thumbCount} 张缩略图"
 }

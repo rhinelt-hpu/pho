@@ -39,13 +39,20 @@ func (a *api) SetDriveSMB(ctx context.Context, req *pb.SetDriveSMBRequest) (rsp 
 			}
 		}
 	}
-	a.im.SetDrive(s)
+	if req.IsMetaDrive {
+		a.im.SetMetaDrive(s)
+	} else {
+		a.im.SetDrive(s)
+	}
 	return
 }
 
 func (a *api) ListDriveSMBShares(ctx context.Context, req *pb.ListDriveSMBSharesRequest) (rsp *pb.ListDriveSMBSharesResponse, err error) {
 	rsp = &pb.ListDriveSMBSharesResponse{Success: true}
 	dri := a.im.Drive()
+	if req.IsMetaDrive {
+		dri = a.im.MetaDriveRaw()
+	}
 	if dri == nil {
 		rsp.Success, rsp.Message = false, "drive is not set"
 		return
@@ -68,6 +75,9 @@ func (a *api) ListDriveSMBShares(ctx context.Context, req *pb.ListDriveSMBShares
 func (a *api) ListDriveSMBDir(ctx context.Context, req *pb.ListDriveSMBDirRequest) (rsp *pb.ListDriveSMBDirResponse, err error) {
 	rsp = &pb.ListDriveSMBDirResponse{Success: true}
 	dri := a.im.Drive()
+	if req.IsMetaDrive {
+		dri = a.im.MetaDriveRaw()
+	}
 	if dri == nil {
 		rsp.Success, rsp.Message = false, "drive is not set"
 		return
@@ -110,6 +120,9 @@ func (a *api) ListDriveSMBDir(ctx context.Context, req *pb.ListDriveSMBDirReques
 func (a *api) SetDriveSMBShare(ctx context.Context, req *pb.SetDriveSMBShareRequest) (rsp *pb.SetDriveSMBShareResponse, err error) {
 	rsp = &pb.SetDriveSMBShareResponse{Success: true}
 	dri := a.im.Drive()
+	if req.IsMetaDrive {
+		dri = a.im.MetaDriveRaw()
+	}
 	if dri == nil {
 		rsp.Success, rsp.Message = false, "drive is not set"
 		return

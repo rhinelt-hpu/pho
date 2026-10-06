@@ -115,6 +115,24 @@ class StorageExportDialog extends StatelessWidget {
                       _buildInfoRow('用户名', config.username!, textTheme, colorScheme),
                     if (config.rootPath != null && config.rootPath!.isNotEmpty)
                       _buildInfoRow('根路径', config.rootPath!, textTheme, colorScheme),
+                    if (config.metaEnabled && config.metaDrive != null) ...[
+                      const Divider(height: 16),
+                      Row(
+                        children: [
+                          Icon(Icons.bolt_outlined, size: 18, color: colorScheme.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            '元数据/缩略图: ${driveName[config.metaDrive] ?? ''}',
+                            style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      if (config.metaSummary != null)
+                        _buildInfoRow('服务器', config.metaSummary!, textTheme, colorScheme),
+                      if (config.metaRootPath != null && config.metaRootPath!.isNotEmpty)
+                        _buildInfoRow('根路径', config.metaRootPath!, textTheme, colorScheme),
+                    ],
                   ],
                 ),
               ),

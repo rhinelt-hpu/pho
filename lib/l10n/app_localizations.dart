@@ -1315,6 +1315,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Transferring'**
   String get transferring;
+
+  /// No description provided for @enableMetaStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Separate Metadata & Thumbnail Storage'**
+  String get enableMetaStorage;
+
+  /// No description provided for @enableMetaStorageDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Store metadata (.manifest) and thumbnails on a faster storage backend'**
+  String get enableMetaStorageDesc;
+
+  /// No description provided for @metaStorageType.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata & Thumbnail Storage Type'**
+  String get metaStorageType;
+
+  /// No description provided for @rebuildMetaAndThumbnails.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild Metadata & Thumbnails'**
+  String get rebuildMetaAndThumbnails;
+
+  /// No description provided for @rebuildMetaAndThumbnailsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan primary storage to rebuild metadata index and backfill thumbnails from local album'**
+  String get rebuildMetaAndThumbnailsDesc;
+
+  /// No description provided for @rebuildingMetaAndThumbnails.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuilding metadata & thumbnails...'**
+  String get rebuildingMetaAndThumbnails;
+
+  /// No description provided for @rebuildSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild complete: indexed {count} photos, backfilled {thumbCount} thumbnails'**
+  String rebuildSuccess(Object count, Object thumbCount);
 }
 
 class _AppLocalizationsDelegate

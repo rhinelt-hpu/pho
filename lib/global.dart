@@ -199,6 +199,7 @@ Future<void> initDrive() async {
   final prefs = await SharedPreferences.getInstance();
   var drive = prefs.getString("drive");
   drive ??= "SMB";
+  bool primaryOk = false;
   switch (getDrive(drive)) {
     case Drive.smb:
       final addr = prefs.getString("addr");
@@ -223,14 +224,10 @@ Future<void> initDrive() async {
         ));
         if (rsp.success) {
           logger.addLog("set drive smb success");
-          settingModel.setRemoteStorageSetted(true);
-          eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
+          primaryOk = true;
         } else {
-          settingModel.setRemoteStorageSetted(false);
           assetModel.remoteLastError = rsp.message;
         }
-      } else {
-        settingModel.setRemoteStorageSetted(false);
       }
       break;
     case Drive.webDav:
@@ -252,14 +249,10 @@ Future<void> initDrive() async {
         ));
         if (rsp.success) {
           logger.addLog("set drive webdav success");
-          settingModel.setRemoteStorageSetted(true);
-          eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
+          primaryOk = true;
         } else {
-          settingModel.setRemoteStorageSetted(false);
           assetModel.remoteLastError = rsp.message;
         }
-      } else {
-        settingModel.setRemoteStorageSetted(false);
       }
       break;
     case Drive.nfs:
@@ -275,16 +268,113 @@ Future<void> initDrive() async {
         ));
         if (rsp.success) {
           logger.addLog("set drive nfs success");
-          settingModel.setRemoteStorageSetted(true);
-          eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
+          primaryOk = true;
         } else {
-          settingModel.setRemoteStorageSetted(false);
           assetModel.remoteLastError = rsp.message;
         }
-      } else {
-        settingModel.setRemoteStorageSetted(false);
       }
       break;
+  }
+
+  if (!primaryOk) {
+    settingModel.setRemoteStorageSetted(false);
+    return;
+  }
+
+  final metaEnabled = prefs.getBool('meta_drive_enabled') ?? false;
+  if (!metaEnabled) {
+    try {
+      await storage.cli.clearMetaDrive(ClearMetaDriveRequest());
+    } catch (_) {}
+    settingModel.setRemoteStorageSetted(true);
+    eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
+    return;
+  }
+
+  final metaDriveStr = prefs.getString('meta_drive') ?? 'WebDAV';
+  bool metaOk = false;
+  switch (getDrive(metaDriveStr)) {
+    case Drive.smb:
+      final addr = prefs.getString("meta_addr");
+      final username = prefs.getString("meta_username") ?? "";
+      final password = prefs.getString("meta_password") ?? "";
+      final share = prefs.getString("meta_share");
+      final root = prefs.getString("meta_rootPath");
+      if (addr != null &&
+          addr.trim().isNotEmpty &&
+          share != null &&
+          share.trim().isNotEmpty &&
+          root != null &&
+          root.trim().isNotEmpty) {
+        final rsp = await storage.cli.setDriveSMB(SetDriveSMBRequest(
+          addr: addr,
+          username: username,
+          password: password,
+          share: share,
+          root: root,
+          isMetaDrive: true,
+        ));
+        if (rsp.success) {
+          logger.addLog("set meta drive smb success");
+          metaOk = true;
+        } else {
+          assetModel.remoteLastError = rsp.message;
+        }
+      }
+      break;
+    case Drive.webDav:
+      final url = prefs.getString('meta_webdav_url');
+      final username = prefs.getString('meta_webdav_username') ?? "";
+      final password = prefs.getString('meta_webdav_password') ?? "";
+      final root = prefs.getString('meta_webdav_root_path');
+      final insecure = prefs.getBool('meta_webdav_insecure') ?? true;
+      if (url != null &&
+          url.trim().isNotEmpty &&
+          root != null &&
+          root.trim().isNotEmpty) {
+        final rsp = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
+          addr: url,
+          username: username,
+          password: password,
+          root: root,
+          insecure: insecure,
+          isMetaDrive: true,
+        ));
+        if (rsp.success) {
+          logger.addLog("set meta drive webdav success");
+          metaOk = true;
+        } else {
+          assetModel.remoteLastError = rsp.message;
+        }
+      }
+      break;
+    case Drive.nfs:
+      final addr = prefs.getString('meta_nfs_url');
+      final root = prefs.getString('meta_nfs_root_path');
+      if (addr != null &&
+          addr.trim().isNotEmpty &&
+          root != null &&
+          root.trim().isNotEmpty) {
+        final rsp = await storage.cli.setDriveNFS(SetDriveNFSRequest(
+          addr: addr,
+          root: root,
+          isMetaDrive: true,
+        ));
+        if (rsp.success) {
+          logger.addLog("set meta drive nfs success");
+          metaOk = true;
+        } else {
+          assetModel.remoteLastError = rsp.message;
+        }
+      }
+      break;
+  }
+
+  if (metaOk) {
+    settingModel.setRemoteStorageSetted(true);
+    eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
+  } else {
+    settingModel.setRemoteStorageSetted(false);
   }
 }
 

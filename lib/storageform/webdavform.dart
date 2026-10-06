@@ -8,7 +8,16 @@ import 'package:img_syncer/global.dart';
 import 'package:img_syncer/design_tokens.dart';
 
 class WebDavForm extends StatefulWidget {
-  const WebDavForm({Key? key}) : super(key: key);
+  final bool isMetaDrive;
+  final bool showActions;
+  final VoidCallback? onChanged;
+
+  const WebDavForm({
+    Key? key,
+    this.isMetaDrive = false,
+    this.showActions = true,
+    this.onChanged,
+  }) : super(key: key);
 
   @override
   WebDavFormState createState() => WebDavFormState();
@@ -26,22 +35,32 @@ class WebDavFormState extends State<WebDavForm> {
   String currentPath = "";
   bool insecure = false;
 
+  String get _prefix => widget.isMetaDrive ? 'meta_' : '';
+
   @override
   void initState() {
     super.initState();
-    urlController = TextEditingController();
-    usernameController = TextEditingController();
-    passwordController = TextEditingController();
-    rootPathController = TextEditingController();
+    urlController = TextEditingController()..addListener(_notifyChanged);
+    usernameController = TextEditingController()..addListener(_notifyChanged);
+    passwordController = TextEditingController()..addListener(_notifyChanged);
+    rootPathController = TextEditingController()..addListener(_notifyChanged);
     SharedPreferences.getInstance().then((prefs) {
-      urlController!.text = prefs.getString('webdav_url') ?? "";
-      usernameController!.text = prefs.getString('webdav_username') ?? "";
-      passwordController!.text = prefs.getString('webdav_password') ?? "";
-      rootPathController!.text = prefs.getString('webdav_root_path') ?? "";
+      if (!mounted) return;
+      urlController!.text = prefs.getString('${_prefix}webdav_url') ?? "";
+      usernameController!.text =
+          prefs.getString('${_prefix}webdav_username') ?? "";
+      passwordController!.text =
+          prefs.getString('${_prefix}webdav_password') ?? "";
+      rootPathController!.text =
+          prefs.getString('${_prefix}webdav_root_path') ?? "";
       setState(() {
-        insecure = prefs.getBool('webdav_insecure') ?? true;
+        insecure = prefs.getBool('${_prefix}webdav_insecure') ?? true;
       });
     });
+  }
+
+  void _notifyChanged() {
+    widget.onChanged?.call();
   }
 
   Future<bool> checkWebdav() async {
@@ -53,8 +72,11 @@ class WebDavFormState extends State<WebDavForm> {
     }
     try {
       final rsp2 = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
-          addr: url, username: username, password: password,
-          insecure: insecure));
+          addr: url,
+          username: username,
+          password: password,
+          insecure: insecure,
+          isMetaDrive: widget.isMetaDrive));
       if (!rsp2.success) {
         setState(() {
           errormsg = rsp2.message;
@@ -62,8 +84,8 @@ class WebDavFormState extends State<WebDavForm> {
         print("setDriveWebdav failed: ${rsp2.message}");
         return false;
       }
-      final rsp3 =
-          await storage.cli.listDriveWebdavDir(ListDriveWebdavDirRequest());
+      final rsp3 = await storage.cli.listDriveWebdavDir(
+          ListDriveWebdavDirRequest(isMetaDrive: widget.isMetaDrive));
       if (!rsp3.success) {
         setState(() {
           errormsg = rsp3.message;
@@ -81,8 +103,8 @@ class WebDavFormState extends State<WebDavForm> {
   }
 
   Future<List<String>> getRootPath(String dir) async {
-    final rsp = await storage.cli
-        .listDriveWebdavDir(ListDriveWebdavDirRequest(dir: dir));
+    final rsp = await storage.cli.listDriveWebdavDir(
+        ListDriveWebdavDirRequest(dir: dir, isMetaDrive: widget.isMetaDrive));
     if (!rsp.success) {
       setState(() {
         errormsg = rsp.message;
@@ -109,7 +131,7 @@ class WebDavFormState extends State<WebDavForm> {
     );
   }
 
-  Future<void> testStorage() async {
+  Future<String?> validateAndTest() async {
     final url = urlController!.text.trim();
     final username = usernameController!.text;
     final password = passwordController!.text;
@@ -119,30 +141,57 @@ class WebDavFormState extends State<WebDavForm> {
         testSuccess = false;
         errormsg = "URL or root path is empty";
       });
-      return;
+      return errormsg;
     }
     try {
       final rsp = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
-          addr: url, username: username, password: password, root: rootPath,
-          insecure: insecure));
+          addr: url,
+          username: username,
+          password: password,
+          root: rootPath,
+          insecure: insecure,
+          isMetaDrive: widget.isMetaDrive));
       if (!rsp.success) {
         setState(() {
           testSuccess = false;
           errormsg = rsp.message;
         });
-        return;
+        return errormsg;
       } else {
         setState(() {
           testSuccess = true;
         });
+        return null;
       }
     } catch (e) {
       setState(() {
         testSuccess = false;
         errormsg = e.toString();
       });
-      return;
+      return errormsg;
     }
+  }
+
+  Future<void> testStorage() async {
+    await validateAndTest();
+  }
+
+  Future<String?> saveToPrefs([SharedPreferences? sharedPrefs]) async {
+    final url = urlController!.text.trim();
+    final username = usernameController!.text;
+    final password = passwordController!.text;
+    final rootPath = rootPathController!.text.trim();
+    if (url.isEmpty || rootPath.isEmpty) {
+      return "URL or root path is empty";
+    }
+    final prefs = sharedPrefs ?? await SharedPreferences.getInstance();
+    await prefs.setString('${_prefix}webdav_url', url);
+    await prefs.setString('${_prefix}webdav_username', username);
+    await prefs.setString('${_prefix}webdav_password', password);
+    await prefs.setString('${_prefix}webdav_root_path', rootPath);
+    await prefs.setBool('${_prefix}webdav_insecure', insecure);
+    await prefs.setString('${_prefix}drive', driveName[Drive.webDav]!);
+    return null;
   }
 
   Widget testStorageButtun() {
@@ -233,8 +282,9 @@ class WebDavFormState extends State<WebDavForm> {
       value: insecure,
       onChanged: (v) async {
         setState(() => insecure = v!);
+        _notifyChanged();
         final prefs = await SharedPreferences.getInstance();
-        prefs.setBool('webdav_insecure', v!);
+        prefs.setBool('${_prefix}webdav_insecure', v!);
       },
     ));
     children.add(Container(
@@ -266,13 +316,15 @@ class WebDavFormState extends State<WebDavForm> {
         ),
       ),
     ));
-    children.add(Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        testStorageButtun(),
-        saveButtun(),
-      ],
-    ));
+    if (widget.showActions) {
+      children.add(Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          testStorageButtun(),
+          saveButtun(),
+        ],
+      ));
+    }
     return Form(
       key: _formKey,
       child: Column(

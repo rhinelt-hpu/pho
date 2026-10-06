@@ -28,20 +28,21 @@ const (
 )
 
 type ImgManager struct {
-	dri            StorageDrive
-	driveMu        sync.RWMutex
-	dirType        pb.DirectoryType
-	dirTypeMu      sync.RWMutex
-	defaultAlbum   string
-	defaultAlbumMu sync.RWMutex
-	manifest       *ManifestManager
-	localCacheDir  string
+	dri             StorageDrive
+	metaDri         StorageDrive
+	driveMu         sync.RWMutex
+	dirType         pb.DirectoryType
+	dirTypeMu       sync.RWMutex
+	defaultAlbum    string
+	defaultAlbumMu  sync.RWMutex
+	manifest        *ManifestManager
+	localCacheDir   string
 	localCacheDirMu sync.RWMutex
-	actCh          chan action
-	stopCh         chan struct{}
-	wg             sync.WaitGroup
-	logger         *log.Logger
-	opt            Option
+	actCh           chan action
+	stopCh          chan struct{}
+	wg              sync.WaitGroup
+	logger          *log.Logger
+	opt             Option
 }
 
 type Option struct {
@@ -112,28 +113,72 @@ func (im *ImgManager) SetDefaultAlbum(name string) {
 	im.defaultAlbum = name
 }
 
+func isDriveReady(d StorageDrive) bool {
+	if d == nil {
+		return false
+	}
+	if _, ok := d.(*UnimplementedDrive); ok {
+		return false
+	}
+	if r, ok := d.(interface{ IsRootPathSet() bool }); ok && !r.IsRootPathSet() {
+		return false
+	}
+	return true
+}
+
+func (im *ImgManager) syncOrBootstrapManifest(mainD, metaD StorageDrive) {
+	if !isDriveReady(metaD) {
+		return
+	}
+	err := im.manifest.Sync(metaD)
+	log.Printf("[INFO] Manifest sync complete, watermark: %d, records: %d, err: %v", im.manifest.GetMaxWatermark(), im.manifest.RecordCount(), err)
+	// 如果远端没有任何 manifest 记录，且当前 manifest 也为空，执行首次自举（Bootstrap）
+	if err == nil && im.manifest.RecordCount() == 0 && im.manifest.GetMaxWatermark() == 0 && isDriveReady(mainD) {
+		im.bootstrapManifest(mainD, metaD)
+	}
+}
+
 func (im *ImgManager) SetDrive(dri StorageDrive) {
 	im.driveMu.Lock()
-	if im.dri != nil {
+	if im.dri != nil && im.dri != dri {
 		im.dri.Close()
 	}
 	im.dri = dri
+	metaD := im.metaDri
 	im.driveMu.Unlock()
-	if dri == nil {
-		return
-	}
-	if r, ok := dri.(interface{ IsRootPathSet() bool }); ok && !r.IsRootPathSet() {
+	if !isDriveReady(dri) {
 		return
 	}
 	go im.MigrateLegacyRootFolders()
-	go func() {
-		err := im.manifest.Sync(dri)
-		log.Printf("[INFO] Manifest sync complete, watermark: %d, records: %d, err: %v", im.manifest.GetMaxWatermark(), im.manifest.RecordCount(), err)
-		// 如果远端没有任何 manifest 记录，且当前 manifest 也为空，执行首次自举（Bootstrap）
-		if err == nil && im.manifest.RecordCount() == 0 && im.manifest.GetMaxWatermark() == 0 {
-			im.bootstrapManifest(dri)
+	targetMeta := dri
+	if isDriveReady(metaD) {
+		targetMeta = metaD
+	}
+	go im.syncOrBootstrapManifest(dri, targetMeta)
+}
+
+func (im *ImgManager) SetMetaDrive(dri StorageDrive) {
+	im.driveMu.Lock()
+	if im.metaDri != nil && im.metaDri != dri && im.metaDri != im.dri {
+		im.metaDri.Close()
+	}
+	im.metaDri = dri
+	mainD := im.dri
+	im.driveMu.Unlock()
+
+	if dri == nil {
+		// 停用独立副存储，切回主存储重新同步 Manifest
+		im.manifest.Reset()
+		if isDriveReady(mainD) {
+			go im.syncOrBootstrapManifest(mainD, mainD)
 		}
-	}()
+		return
+	}
+	if !isDriveReady(dri) {
+		return
+	}
+	im.manifest.Reset()
+	go im.syncOrBootstrapManifest(mainD, dri)
 }
 
 func (im *ImgManager) Manifest() *ManifestManager {
@@ -146,6 +191,30 @@ func (im *ImgManager) Drive() StorageDrive {
 	return im.dri
 }
 
+// MetaDrive 返回当前生效的元数据与缩略图驱动（未启用独立副存储时回退为主存储）
+func (im *ImgManager) MetaDrive() StorageDrive {
+	im.driveMu.RLock()
+	defer im.driveMu.RUnlock()
+	if im.metaDri != nil {
+		return im.metaDri
+	}
+	return im.dri
+}
+
+// MetaDriveRaw 返回独立设置的副存储驱动实例（未设置时为 nil，供目录浏览 API 使用）
+func (im *ImgManager) MetaDriveRaw() StorageDrive {
+	im.driveMu.RLock()
+	defer im.driveMu.RUnlock()
+	return im.metaDri
+}
+
+// HasDedicatedMetaDrive 返回是否已启用独立的元数据与缩略图存储后端
+func (im *ImgManager) HasDedicatedMetaDrive() bool {
+	im.driveMu.RLock()
+	defer im.driveMu.RUnlock()
+	return isDriveReady(im.metaDri)
+}
+
 // Close 优雅关闭：关闭 stopCh 通知所有 worker 退出，等待 worker 完成后返回
 func (im *ImgManager) Close() error {
 	close(im.stopCh)
@@ -155,6 +224,14 @@ func (im *ImgManager) Close() error {
 
 func (im *ImgManager) drive() (StorageDrive, func()) {
 	im.driveMu.RLock()
+	return im.dri, func() { im.driveMu.RUnlock() }
+}
+
+func (im *ImgManager) metaDrive() (StorageDrive, func()) {
+	im.driveMu.RLock()
+	if im.metaDri != nil {
+		return im.metaDri, func() { im.driveMu.RUnlock() }
+	}
 	return im.dri, func() { im.driveMu.RUnlock() }
 }
 
@@ -280,8 +357,8 @@ func (im *ImgManager) Upload(content io.Reader, contentSize int64, name string, 
 		contentSize = EncryptedContentSize(contentSize, options.EncyptOption.Type)
 	}
 	d, unlock := im.drive()
-	defer unlock()
 	e := d.Upload(path, io.NopCloser(reader), contentSize, date)
+	unlock()
 	if e != nil {
 		im.logger.Println("Error uploading:", e)
 		return fmt.Errorf("error uploading: %w", e)
@@ -290,7 +367,9 @@ func (im *ImgManager) Upload(content io.Reader, contentSize int64, name string, 
 	if targetAlbum == "" {
 		targetAlbum = im.GetDefaultAlbum()
 	}
-	_ = im.manifest.AppendChunk(d, []ManifestRecord{
+	md, unlockMeta := im.metaDrive()
+	defer unlockMeta()
+	if err := im.manifest.AppendChunk(md, []ManifestRecord{
 		{
 			Fingerprint: filepath.Base(path),
 			Album:       targetAlbum,
@@ -299,7 +378,10 @@ func (im *ImgManager) Upload(content io.Reader, contentSize int64, name string, 
 			Deleted:     false,
 			UpdatedAt:   time.Now().Unix(),
 		},
-	})
+	}); err != nil {
+		im.logger.Println("Error updating manifest:", err)
+		return fmt.Errorf("error updating manifest: %w", err)
+	}
 	return nil
 }
 
@@ -320,9 +402,9 @@ func (im *ImgManager) UploadThumbnail(thumbnailContent io.Reader, thumbnailSize 
 	if options.EncyptOption.Type != None && options.EncyptOption.Password != "" {
 		thumbnailSize = EncryptedContentSize(thumbnailSize, options.EncyptOption.Type)
 	}
-	d, unlock := im.drive()
+	md, unlock := im.metaDrive()
 	defer unlock()
-	e := d.Upload(filepath.Join(defaultThumbnailDir, path),
+	e := md.Upload(filepath.Join(defaultThumbnailDir, path),
 		io.NopCloser(reader), thumbnailSize, date)
 	if e != nil {
 		im.logger.Printf("Error uploading %s: %s", path, e)
@@ -503,12 +585,14 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 	var err error
 	var rc io.ReadCloser
 	thumbnailPath := filepath.Join(defaultThumbnailDir, path)
-	d, unlock := im.drive()
-	defer unlock()
-	rc, img.Size, err = d.Download(thumbnailPath)
+	md, unlockMeta := im.metaDrive()
+	rc, img.Size, err = md.Download(thumbnailPath)
+	unlockMeta()
 	if err != nil {
-		// 回退读取原图，防止缩略图缺失导致前端直接报错与渲染白块
+		// 只查「副存储 .thumbnail -> 主存储原图」：回退读取主存储原图，防止缩略图缺失导致前端渲染白块
+		d, unlockMain := im.drive()
 		rc, img.Size, err = d.Download(path)
+		unlockMain()
 		if err != nil {
 			return img, fmt.Errorf("error downloading thumbnail: %w", err)
 		}
@@ -658,12 +742,14 @@ func (im *ImgManager) GetLiveVideoOffset(path string, offset int64, opts ...Opti
 
 func (im *ImgManager) DeleteSingleImg(path string) error {
 	if path != "" {
-		d, unlock := im.drive()
-		defer unlock()
-		err := d.Delete(filepath.Join(defaultThumbnailDir, path))
+		md, unlockMeta := im.metaDrive()
+		err := md.Delete(filepath.Join(defaultThumbnailDir, path))
+		unlockMeta()
 		if err != nil {
 			im.logger.Println("Error deleting thumbnail:", err)
 		}
+
+		d, unlock := im.drive()
 		parentDir := filepath.Base(filepath.Dir(filepath.ToSlash(path)))
 		if strings.HasPrefix(parentDir, "live_") {
 			d.Range(filepath.Dir(path), func(info fs.FileInfo) bool {
@@ -679,8 +765,10 @@ func (im *ImgManager) DeleteSingleImg(path string) error {
 			}
 		}
 		delErr := d.Delete(path)
+		unlock()
 		if delErr == nil && im.manifest != nil {
-			_ = im.manifest.AppendChunk(d, []ManifestRecord{
+			md2, unlockMeta2 := im.metaDrive()
+			_ = im.manifest.AppendChunk(md2, []ManifestRecord{
 				{
 					Fingerprint: filepath.Base(path),
 					Path:        path,
@@ -688,6 +776,7 @@ func (im *ImgManager) DeleteSingleImg(path string) error {
 					UpdatedAt:   time.Now().Unix(),
 				},
 			})
+			unlockMeta2()
 		}
 		return delErr
 	}
@@ -1037,19 +1126,38 @@ func (im *ImgManager) rangeRecords(records []ManifestRecord, album string, minDa
 	return nil
 }
 
-func (im *ImgManager) bootstrapManifest(d StorageDrive) {
+func (im *ImgManager) scanAllRecordsAndAlbums(mainD StorageDrive) ([]ManifestRecord, []string) {
 	records := make([]ManifestRecord, 0)
 	defaultName := im.GetDefaultAlbum()
+	albumSet := map[string]bool{defaultName: true}
 
-	// 1. 扫描根目录历史照片
-	rootInfos := im.collectDirInfos(d, ".", time.Time{})
-	for _, di := range rootInfos {
-		d.Range(di.dir, func(info fs.FileInfo) bool {
-			if !info.IsDir() && !isIgnoredFile(info.Name()) {
-				p := filepath.Join(di.dir, info.Name())
+	collectFromDir := func(dir, albumName string) {
+		mainD.Range(dir, func(info fs.FileInfo) bool {
+			if info.IsDir() {
+				if strings.HasPrefix(info.Name(), "live_") {
+					liveDir := filepath.Join(dir, info.Name())
+					mainD.Range(liveDir, func(info2 fs.FileInfo) bool {
+						if !info2.IsDir() && !isIgnoredFile(info2.Name()) && !util.IsVideo(info2.Name()) {
+							p := filepath.Join(liveDir, info2.Name())
+							records = append(records, ManifestRecord{
+								Fingerprint: info2.Name(),
+								Album:       albumName,
+								Path:        p,
+								Size:        info2.Size(),
+								Deleted:     false,
+								UpdatedAt:   info2.ModTime().Unix(),
+							})
+						}
+						return true
+					})
+				}
+				return true
+			}
+			if !isIgnoredFile(info.Name()) {
+				p := filepath.Join(dir, info.Name())
 				records = append(records, ManifestRecord{
 					Fingerprint: info.Name(),
-					Album:       defaultName,
+					Album:       albumName,
 					Path:        p,
 					Size:        info.Size(),
 					Deleted:     false,
@@ -1060,62 +1168,121 @@ func (im *ImgManager) bootstrapManifest(d StorageDrive) {
 		})
 	}
 
+	// 1. 扫描根目录历史照片
+	rootInfos := im.collectDirInfos(mainD, ".", time.Time{})
+	for _, di := range rootInfos {
+		collectFromDir(di.dir, defaultName)
+	}
+
 	// 2. 扫描所有相册目录照片
-	entries, err := im.listDir(d, ".")
+	entries, err := im.listDir(mainD, ".")
 	if err == nil {
 		for _, entry := range entries {
 			if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
 				continue
 			}
 			albumName := entry.Name()
-			albumDirInfos := im.collectDirInfos(d, albumName, time.Time{})
+			albumSet[albumName] = true
+			albumDirInfos := im.collectDirInfos(mainD, albumName, time.Time{})
 			for _, di := range albumDirInfos {
-				d.Range(di.dir, func(info fs.FileInfo) bool {
-					if !info.IsDir() && !isIgnoredFile(info.Name()) {
-						p := filepath.Join(di.dir, info.Name())
-						records = append(records, ManifestRecord{
-							Fingerprint: info.Name(),
-							Album:       albumName,
-							Path:        p,
-							Size:        info.Size(),
-							Deleted:     false,
-							UpdatedAt:   info.ModTime().Unix(),
-						})
-					}
-					return true
-				})
+				collectFromDir(di.dir, albumName)
 			}
 		}
 	}
 
+	albums := make([]string, 0, len(albumSet))
+	for a := range albumSet {
+		if a != "" {
+			albums = append(albums, a)
+		}
+	}
+	sort.Strings(albums)
+	return records, albums
+}
+
+func (im *ImgManager) bootstrapManifest(mainD, metaD StorageDrive) {
+	records, albums := im.scanAllRecordsAndAlbums(mainD)
+	for _, alb := range albums {
+		_ = metaD.Mkdir(filepath.Join(defaultThumbnailDir, alb))
+	}
 	if len(records) > 0 {
-		_ = im.manifest.AppendChunk(d, records)
-		_ = im.manifest.Compact(d)
+		_ = im.manifest.AppendChunk(metaD, records)
+		_ = im.manifest.Compact(metaD)
 		_ = im.manifest.SaveLocal()
 	}
 }
 
+// RebuildManifest 全量扫描主存储目录树，重建远端（副存储或主存储）的 .manifest 快照并同步相册骨架
+func (im *ImgManager) RebuildManifest() (int64, int, error) {
+	d, unlock := im.drive()
+	if !isDriveReady(d) {
+		unlock()
+		return 0, 0, fmt.Errorf("primary drive not initialized")
+	}
+	records, albums := im.scanAllRecordsAndAlbums(d)
+	unlock()
+
+	md, unlockMeta := im.metaDrive()
+	defer unlockMeta()
+	for _, alb := range albums {
+		_ = md.Mkdir(filepath.Join(defaultThumbnailDir, alb))
+	}
+	if err := im.manifest.RebuildWithRecords(md, records); err != nil {
+		return 0, 0, err
+	}
+	return im.manifest.GetMaxWatermark(), im.manifest.RecordCount(), nil
+}
+
 // ListAlbums 列出所有云端相册（默认相册排首位，附带数量与最新封面）
 func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
-	d, unlock := im.drive()
-	defer unlock()
+	defaultName := im.GetDefaultAlbum()
+	hasDedicatedMeta := im.HasDedicatedMetaDrive()
 
-	entries, err := im.listDir(d, ".")
-	if err != nil {
-		return nil, err
+	albumSet := make(map[string]bool)
+	var records []ManifestRecord
+	manifestReady := im.manifest != nil && im.manifest.IsInitialized()
+	if manifestReady {
+		records = im.manifest.GetActiveRecords()
+		for _, rec := range records {
+			if rec.Album != "" && rec.Album != defaultName {
+				albumSet[rec.Album] = true
+			}
+		}
 	}
 
-	defaultName := im.GetDefaultAlbum()
-	albumNames := make([]string, 0)
+	if hasDedicatedMeta && manifestReady {
+		// 启用独立高速副存储时：仅扫描副存储 .thumbnail/ 下的相册目录骨架 + 内存 Manifest，0 主存储网络开销
+		md, unlockMeta := im.metaDrive()
+		thumbEntries, _ := im.listDir(md, defaultThumbnailDir)
+		unlockMeta()
+		for _, entry := range thumbEntries {
+			if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
+				continue
+			}
+			if entry.Name() != defaultName {
+				albumSet[entry.Name()] = true
+			}
+		}
+	} else {
+		d, unlock := im.drive()
+		entries, err := im.listDir(d, ".")
+		unlock()
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
+				continue
+			}
+			if entry.Name() != defaultName {
+				albumSet[entry.Name()] = true
+			}
+		}
+	}
 
-	for _, entry := range entries {
-		if !entry.IsDir() || isIgnoredDir(entry.Name()) || isYearOrDateDir(entry.Name()) {
-			continue
-		}
-		name := entry.Name()
-		if name != defaultName {
-			albumNames = append(albumNames, name)
-		}
+	albumNames := make([]string, 0, len(albumSet))
+	for name := range albumSet {
+		albumNames = append(albumNames, name)
 	}
 	sort.Strings(albumNames)
 
@@ -1123,9 +1290,8 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 	orderedNames = append(orderedNames, defaultName)
 	orderedNames = append(orderedNames, albumNames...)
 
-	// 1. 如果 Manifest 处于可用状态，优先基于内存记录计算相册内照片总数与封面，0 额外网络开销！
-	if im.manifest != nil && im.manifest.IsInitialized() && im.manifest.RecordCount() > 0 {
-		records := im.manifest.GetActiveRecords()
+	// 1. 如果 Manifest 处于可用状态（或已启用独立副存储），优先基于内存记录计算相册内照片总数与封面，0 额外主存储开销！
+	if manifestReady && (len(records) > 0 || hasDedicatedMeta) {
 		result := make([]AlbumInfo, 0, len(orderedNames))
 		for _, name := range orderedNames {
 			var count int64
@@ -1149,8 +1315,9 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 				}
 			}
 
-			// 如果默认相册在 manifest 中为 0，保底检查是否有根目录存量旧照片
-			if count == 0 && name == defaultName {
+			// 如果未启用独立副存储且默认相册在 manifest 中为 0，保底检查主存储根目录存量旧照片
+			if count == 0 && name == defaultName && !hasDedicatedMeta {
+				d, unlock := im.drive()
 				rootInfos := im.collectDirInfos(d, ".", time.Time{})
 				for _, di := range rootInfos {
 					d.Range(di.dir, func(info fs.FileInfo) bool {
@@ -1163,6 +1330,7 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 						return true
 					})
 				}
+				unlock()
 			}
 
 			result = append(result, AlbumInfo{
@@ -1176,6 +1344,8 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 		return result, nil
 	}
 
+	d, unlock := im.drive()
+	defer unlock()
 	result := make([]AlbumInfo, 0, len(orderedNames))
 	for _, name := range orderedNames {
 		var count int64
@@ -1244,15 +1414,20 @@ func (im *ImgManager) CreateAlbum(name string) error {
 		return fmt.Errorf("album name %s is reserved", name)
 	}
 	d, unlock := im.drive()
-	defer unlock()
 	exists, _ := d.IsExist(cleaned)
 	if exists {
+		unlock()
 		return fmt.Errorf("album %s already exists", name)
 	}
 	if err := d.Mkdir(cleaned); err != nil {
+		unlock()
 		return err
 	}
-	_ = d.Mkdir(filepath.Join(defaultThumbnailDir, cleaned))
+	unlock()
+
+	md, unlockMeta := im.metaDrive()
+	_ = md.Mkdir(filepath.Join(defaultThumbnailDir, cleaned))
+	unlockMeta()
 	return nil
 }
 
@@ -1266,10 +1441,27 @@ func (im *ImgManager) DeleteAlbum(name string) error {
 		return fmt.Errorf("cannot delete default album: %s", name)
 	}
 	d, unlock := im.drive()
-	defer unlock()
-
 	im.deleteDirRecursive(d, cleaned)
-	im.deleteDirRecursive(d, filepath.Join(defaultThumbnailDir, cleaned))
+	unlock()
+
+	md, unlockMeta := im.metaDrive()
+	im.deleteDirRecursive(md, filepath.Join(defaultThumbnailDir, cleaned))
+	if im.manifest != nil {
+		active := im.manifest.GetActiveRecords()
+		toDel := make([]ManifestRecord, 0)
+		now := time.Now().Unix()
+		for _, rec := range active {
+			if rec.Album == cleaned {
+				rec.Deleted = true
+				rec.UpdatedAt = now
+				toDel = append(toDel, rec)
+			}
+		}
+		if len(toDel) > 0 {
+			_ = im.manifest.AppendChunk(md, toDel)
+		}
+	}
+	unlockMeta()
 	return nil
 }
 
@@ -1300,17 +1492,40 @@ func (im *ImgManager) RenameAlbum(oldName, newName string) error {
 		return fmt.Errorf("album name %s is reserved", newName)
 	}
 	d, unlock := im.drive()
-	defer unlock()
-
 	exists, _ := d.IsExist(cleanNew)
 	if exists {
+		unlock()
 		return fmt.Errorf("target album %s already exists", newName)
 	}
 
 	if err := d.Move(cleanOld, cleanNew); err != nil {
+		unlock()
 		return fmt.Errorf("rename album failed: %w", err)
 	}
-	_ = d.Move(filepath.Join(defaultThumbnailDir, cleanOld), filepath.Join(defaultThumbnailDir, cleanNew))
+	unlock()
+
+	md, unlockMeta := im.metaDrive()
+	_ = md.Move(filepath.Join(defaultThumbnailDir, cleanOld), filepath.Join(defaultThumbnailDir, cleanNew))
+	if im.manifest != nil {
+		active := im.manifest.GetActiveRecords()
+		updated := make([]ManifestRecord, 0)
+		now := time.Now().Unix()
+		prefix := cleanOld + "/"
+		for _, rec := range active {
+			if rec.Album == cleanOld || strings.HasPrefix(filepath.ToSlash(rec.Path), prefix) {
+				rec.Album = cleanNew
+				if strings.HasPrefix(filepath.ToSlash(rec.Path), prefix) {
+					rec.Path = filepath.Join(cleanNew, strings.TrimPrefix(filepath.ToSlash(rec.Path), prefix))
+				}
+				rec.UpdatedAt = now
+				updated = append(updated, rec)
+			}
+		}
+		if len(updated) > 0 {
+			_ = im.manifest.AppendChunk(md, updated)
+		}
+	}
+	unlockMeta()
 
 	if cleanOld == im.GetDefaultAlbum() {
 		im.SetDefaultAlbum(cleanNew)
@@ -1425,9 +1640,12 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 	}
 	d, unlock := im.drive()
 	defer unlock()
+	md, unlockMeta := im.metaDrive()
+	defer unlockMeta()
 
 	newPaths := make([]string, 0, len(paths))
-	srcDirsToClean := make(map[string]bool)
+	srcMainDirsToClean := make(map[string]bool)
+	srcThumbDirsToClean := make(map[string]bool)
 
 	for _, p := range paths {
 		cleanedPath, err := util.SanitizePath(p)
@@ -1460,29 +1678,32 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 		}
 		newPaths = append(newPaths, newMainPath)
 
-		// 联动迁移缩略图
+		// 联动迁移副存储（或主存储）上的缩略图
 		oldThumb := filepath.Join(defaultThumbnailDir, cleanedPath)
 		newThumb := filepath.Join(defaultThumbnailDir, newMainPath)
-		_ = d.Move(oldThumb, newThumb)
+		_ = md.Move(oldThumb, newThumb)
 
-		// 收集待检测的源目录（含普通图片与缩略图目录）
+		// 收集待检测的源目录（主存储原图目录与副存储缩略图目录分别记录）
 		srcDir := filepath.Dir(cleanedPath)
 		if strings.HasPrefix(filepath.Base(srcDir), "live_") {
 			newLiveDir := filepath.Dir(newMainPath)
 			_ = d.Move(srcDir, newLiveDir)
-			_ = d.Move(filepath.Join(defaultThumbnailDir, srcDir), filepath.Join(defaultThumbnailDir, newLiveDir))
-			srcDirsToClean[srcDir] = true
-			srcDirsToClean[filepath.Join(defaultThumbnailDir, srcDir)] = true
+			_ = md.Move(filepath.Join(defaultThumbnailDir, srcDir), filepath.Join(defaultThumbnailDir, newLiveDir))
+			srcMainDirsToClean[srcDir] = true
+			srcThumbDirsToClean[filepath.Join(defaultThumbnailDir, srcDir)] = true
 			srcDir = filepath.Dir(srcDir)
 		}
-		srcDirsToClean[srcDir] = true
-		srcDirsToClean[filepath.Join(defaultThumbnailDir, srcDir)] = true
+		srcMainDirsToClean[srcDir] = true
+		srcThumbDirsToClean[filepath.Join(defaultThumbnailDir, srcDir)] = true
 	}
 
-	// 移动完成后，检查源目录结构：若文件夹或相册变为空，自底向上逐层删除，减少冗余空文件夹
-	if len(srcDirsToClean) > 0 {
-		sortedDirs := make([]string, 0, len(srcDirsToClean))
-		for dir := range srcDirsToClean {
+	// 移动完成后，分别在主存储和副存储上自底向上清理变为空的目录
+	cleanOnDrive := func(targetDrive StorageDrive, dirSet map[string]bool) {
+		if len(dirSet) == 0 {
+			return
+		}
+		sortedDirs := make([]string, 0, len(dirSet))
+		for dir := range dirSet {
 			sortedDirs = append(sortedDirs, dir)
 		}
 		sort.Slice(sortedDirs, func(i, j int) bool {
@@ -1490,9 +1711,11 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 		})
 		deletedDirs := make(map[string]bool)
 		for _, dir := range sortedDirs {
-			im.cleanEmptyDirsUpwards(d, dir, deletedDirs)
+			im.cleanEmptyDirsUpwards(targetDrive, dir, deletedDirs)
 		}
 	}
+	cleanOnDrive(d, srcMainDirsToClean)
+	cleanOnDrive(md, srcThumbDirsToClean)
 
 	if len(newPaths) > 0 && im.manifest != nil {
 		records := make([]ManifestRecord, 0, len(newPaths))
@@ -1510,7 +1733,7 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 				UpdatedAt:   time.Now().Unix(),
 			})
 		}
-		_ = im.manifest.AppendChunk(d, records)
+		_ = im.manifest.AppendChunk(md, records)
 	}
 	return newPaths, nil
 }
@@ -1519,6 +1742,8 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 func (im *ImgManager) MigrateLegacyRootFolders() {
 	d, unlock := im.drive()
 	defer unlock()
+	md, unlockMeta := im.metaDrive()
+	defer unlockMeta()
 
 	entries, err := im.listDir(d, ".")
 	if err != nil {
@@ -1535,11 +1760,11 @@ func (im *ImgManager) MigrateLegacyRootFolders() {
 			_ = d.Move(oldPath, newPath)
 			oldThumb := filepath.Join(defaultThumbnailDir, oldPath)
 			newThumb := filepath.Join(defaultThumbnailDir, defaultName, oldPath)
-			_ = d.Move(oldThumb, newThumb)
+			_ = md.Move(oldThumb, newThumb)
 
 			// 迁移完成后若旧目录残留变空，执行清理
 			im.cleanEmptyDirsUpwards(d, oldPath, nil)
-			im.cleanEmptyDirsUpwards(d, oldThumb, nil)
+			im.cleanEmptyDirsUpwards(md, oldThumb, nil)
 		}
 	}
 }
