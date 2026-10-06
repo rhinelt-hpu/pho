@@ -16,12 +16,17 @@ import 'package:img_syncer/storage/storage.dart';
 
 class MockRemoteStorageClient extends Mock implements RemoteStorageClient {
   @override
-  Future<void> uploadAssetEntity(AssetEntity? asset, {String album = ""}) async =>
+  Future<void> uploadAssetEntity(AssetEntity? asset, {String? album = ""}) async =>
       super.noSuchMethod(
         Invocation.method(#uploadAssetEntity, [asset], {#album: album}),
         returnValue: Future<void>.value(),
         returnValueForMissingStub: Future<void>.value(),
       );
+
+  @override
+  Future<List<RemoteImage>> listImages(String date, int offset, maxReturn,
+          {String album = ""}) async =>
+      [];
 }
 
 class _MockAsset extends Asset {
@@ -78,6 +83,7 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
+    global.useRemoteServer = true;
     settingModel = SettingModel();
     assetModel = AssetModel();
     stateModel = StateModel();
@@ -251,6 +257,115 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     // 恢复全局 storage 默认实例
+    setStorageForTest(storage);
+  });
+
+  testWidgets('多选照片点击上传：自动跳过已在 syncedIDs 中的已上传照片，仅上传未上传项', (tester) async {
+    final mockStorage = MockRemoteStorageClient();
+    setStorageForTest(mockStorage);
+
+    final asset1 = _MockAsset(id: 'photo_1');
+    final asset2 = _MockAsset(id: 'photo_2');
+    final asset3 = _MockAsset(id: 'photo_3');
+    assetModel.localAssets = [asset1, asset2, asset3];
+    settingModel.isRemoteStorageSetted = true;
+    // photo_1 与 photo_3 已经上传过
+    stateModel.setSyncedPhotos(['photo_1', 'photo_3']);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingModel>.value(value: settingModel),
+          ChangeNotifierProvider<AssetModel>.value(value: assetModel),
+          ChangeNotifierProvider<StateModel>.value(value: stateModel),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: GalleryBody(useLocal: true, showAppBar: false),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final state = tester.state<GalleryBodyState>(find.byType(GalleryBody));
+    state.toggleSelection(0);
+    state.toggleSelection(1);
+    state.toggleSelection(2);
+    await tester.pump();
+
+    state.uploadSelected();
+    await tester.pump();
+
+    // 仅未上传的 photo_2 被加入上传队列，已上传的 photo_1 / photo_3 被跳过
+    expect(stateModel.uploadProgress.containsKey('photo_1'), isFalse);
+    expect(stateModel.uploadProgress.containsKey('photo_2'), isTrue);
+    expect(stateModel.uploadProgress.containsKey('photo_3'), isFalse);
+    expect(stateModel.uploadProgress.length, 1);
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    verifyNever(mockStorage.uploadAssetEntity(asset1.local, album: anyNamed('album')));
+    verify(mockStorage.uploadAssetEntity(asset2.local, album: anyNamed('album'))).called(1);
+    verifyNever(mockStorage.uploadAssetEntity(asset3.local, album: anyNamed('album')));
+
+    setStorageForTest(storage);
+  });
+
+  testWidgets('多选照片点击上传：若选中的照片全部已上传，则全部跳过不发起任何上传', (tester) async {
+    final mockStorage = MockRemoteStorageClient();
+    setStorageForTest(mockStorage);
+
+    assetModel.localAssets = [
+      _MockAsset(id: 'photo_1'),
+      _MockAsset(id: 'photo_2'),
+    ];
+    settingModel.isRemoteStorageSetted = true;
+    stateModel.setSyncedPhotos(['photo_1', 'photo_2']);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingModel>.value(value: settingModel),
+          ChangeNotifierProvider<AssetModel>.value(value: assetModel),
+          ChangeNotifierProvider<StateModel>.value(value: stateModel),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: GalleryBody(useLocal: true, showAppBar: false),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final state = tester.state<GalleryBodyState>(find.byType(GalleryBody));
+    state.toggleSelection(0);
+    state.toggleSelection(1);
+    await tester.pump();
+
+    state.uploadSelected();
+    await tester.pump();
+
+    expect(stateModel.isSelectionMode, isFalse);
+    expect(stateModel.uploadProgress, isEmpty);
+    verifyNever(mockStorage.uploadAssetEntity(any, album: anyNamed('album')));
+
     setStorageForTest(storage);
   });
 }

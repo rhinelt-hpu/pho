@@ -552,14 +552,30 @@ class GalleryBodyState extends State<GalleryBody>
     // 1. 立即退出多选模式并关闭 BottomSheet (修复 Bug 1)
     clearSelection();
 
-    // 2. 将所有选中项预先登记入传输队列 (修复 Bug 2: 队列显示)
-    final assetIds = assets
-        .where((a) => a.local != null)
-        .map((a) => a.local!.id)
-        .toList();
+    // 2. 跳过已确定上传过的照片 (stateModel.syncedIDs) 及正在上传中的照片
+    final syncedSet = stateModel.syncedIDs.toSet();
+    final seenIds = <String>{};
+    final toUpload = <Asset>[];
+    for (final asset in assets) {
+      final id = asset.local?.id;
+      if (id == null) continue;
+      if (syncedSet.contains(id) ||
+          stateModel.uploadProgress.containsKey(id) ||
+          !seenIds.add(id)) {
+        continue;
+      }
+      toUpload.add(asset);
+    }
+    if (toUpload.isEmpty) {
+      SnackBarManager.showSnackBar(l10n.uploaded);
+      return;
+    }
+
+    // 3. 将所有待上传项预先登记入传输队列 (修复 Bug 2: 队列显示)
+    final assetIds = toUpload.map((a) => a.local!.id).toList();
     stateModel.enqueueUploads(assetIds);
 
-    // 3. 按设置的并发数受控上传 (修复 Bug 2: 并发控制)
+    // 4. 按设置的并发数受控上传 (修复 Bug 2: 并发控制)
     await keepScreenOn(true);
     int succeeded = 0;
     int failed = 0;
@@ -568,9 +584,8 @@ class GalleryBodyState extends State<GalleryBody>
     final targetAlbum = assetModel.currentCloudAlbum;
 
     final futures = <Future<void>>[];
-    for (var asset in assets) {
-      final entity = asset.local;
-      if (entity == null) continue;
+    for (var asset in toUpload) {
+      final entity = asset.local!;
       final localId = entity.id;
 
       futures.add(() async {

@@ -392,9 +392,13 @@ class GalleryViewerRouteState extends State<GalleryViewerRoute>
       SnackBarManager.showSnackBar("Asset local is null, unable to upload");
       return;
     }
+    if (stateModel.syncedIDs.contains(entity.id) ||
+        stateModel.uploadProgress.containsKey(entity.id)) {
+      return;
+    }
     await keepScreenOn(true);
     try {
-      await storage.uploadAssetEntity(entity,
+      await storageClient.uploadAssetEntity(entity,
           album: assetModel.currentCloudAlbum);
       if (mounted) {
         SnackBarManager.showSnackBar(
