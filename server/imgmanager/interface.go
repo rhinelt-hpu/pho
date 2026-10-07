@@ -24,6 +24,7 @@ type Image struct {
 	Path        string
 	Size        int64
 	ContentType string
+	IsFallback  bool
 }
 
 const (

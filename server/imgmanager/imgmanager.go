@@ -1,8 +1,13 @@
 package imgmanager
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"image"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"io/fs"
 	"log"
@@ -17,6 +22,8 @@ import (
 
 	pb "github.com/fregie/img_syncer/proto"
 	"github.com/fregie/img_syncer/server/util"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 )
 
 const (
@@ -413,6 +420,65 @@ func (im *ImgManager) UploadThumbnail(thumbnailContent io.Reader, thumbnailSize 
 	return nil
 }
 
+func generateThumbnail(r io.Reader, maxDim int) ([]byte, error) {
+	src, _, err := image.Decode(r)
+	if err != nil {
+		return nil, err
+	}
+	bounds := src.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	if w <= 0 || h <= 0 {
+		return nil, fmt.Errorf("invalid image bounds: %v", bounds)
+	}
+	var newW, newH int
+	if w > h {
+		newW = maxDim
+		newH = h * maxDim / w
+	} else {
+		newH = maxDim
+		newW = w * maxDim / h
+	}
+	if newW < 1 {
+		newW = 1
+	}
+	if newH < 1 {
+		newH = 1
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), src, bounds, draw.Over, nil)
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 85}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (im *ImgManager) saveThumbnailToMeta(thumbData []byte, targetThumbPath string, encOpt EncryptOption) error {
+	reader, err := EncryptedReaderWraper(io.NopCloser(bytes.NewReader(thumbData)), encOpt)
+	if err != nil {
+		return fmt.Errorf("error encrypting fallback thumbnail: %w", err)
+	}
+	thumbSize := int64(len(thumbData))
+	if encOpt.Type != None && encOpt.Password != "" {
+		thumbSize = EncryptedContentSize(thumbSize, encOpt.Type)
+	}
+	md, unlock := im.metaDrive()
+	defer unlock()
+	if err := md.Upload(targetThumbPath, io.NopCloser(reader), thumbSize, time.Now()); err != nil {
+		return fmt.Errorf("error uploading fallback thumbnail %s: %w", targetThumbPath, err)
+	}
+	return nil
+}
+
+func (im *ImgManager) UploadThumbnailDirect(thumbData []byte, path string, opts ...OptionFunc) error {
+	var options Options
+	for _, opt := range opts {
+		opt(&options)
+	}
+	return im.saveThumbnailToMeta(thumbData, filepath.Join(defaultThumbnailDir, path), options.EncyptOption)
+}
+
 func (im *ImgManager) UploadLiveVideo(content io.Reader, size int64, name string, date time.Time, opts ...OptionFunc) error {
 	var options Options
 	for _, opt := range opts {
@@ -588,6 +654,7 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 	md, unlockMeta := im.metaDrive()
 	rc, img.Size, err = md.Download(thumbnailPath)
 	unlockMeta()
+	isFallback := false
 	if err != nil {
 		// 只查「副存储 .thumbnail -> 主存储原图」：回退读取主存储原图，防止缩略图缺失导致前端渲染白块
 		d, unlockMain := im.drive()
@@ -597,22 +664,67 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 			return img, fmt.Errorf("error downloading thumbnail: %w", err)
 		}
 		thumbnailPath = path
+		isFallback = true
 	}
 	encType := getPathEncType(path)
+	var contentReader io.Reader
 	if encType != None {
 		detectedType, restoredRc, err := DetectEncryptFormat(rc)
 		if err != nil {
 			return img, fmt.Errorf("error detecting encrypt format: %w", err)
 		}
 		options.EncyptOption.Type = detectedType
-		img.Content, err = DecryptedReaderWraper(restoredRc, options.EncyptOption)
+		decrypted, err := DecryptedReaderWraper(restoredRc, options.EncyptOption)
 		if err != nil {
 			return img, fmt.Errorf("error decrypting thumbnail: %w", err)
 		}
 		img.Size = DecryptedContentSize(img.Size, detectedType)
+		contentReader = decrypted
 	} else {
-		img.Content = rc
+		contentReader = rc
 	}
+
+	if isFallback && !util.IsVideo(path) {
+		// 兜底获取原图时：尝试就地解码并生成 400px 缩略图
+		// 限制最多读取 50MB 原图，避免超大文件造成 OOM
+		rawBytes, readErr := io.ReadAll(io.LimitReader(contentReader, 50*1024*1024))
+		if closer, ok := contentReader.(io.Closer); ok {
+			closer.Close()
+		}
+		if readErr == nil && len(rawBytes) > 0 {
+			thumbBytes, genErr := generateThumbnail(bytes.NewReader(rawBytes), 400)
+			if genErr == nil && len(thumbBytes) > 0 {
+				img.Content = io.NopCloser(bytes.NewReader(thumbBytes))
+				img.Size = int64(len(thumbBytes))
+				img.ContentType = "image/jpeg"
+				img.Path = filepath.Join(defaultThumbnailDir, path)
+				img.IsFallback = false
+
+				// 顺手异步将生成的缩略图上传到副存储 .thumbnail/ 文件夹，彻底消除后续访问的兜底开销
+				go func(tData []byte, tPath string, enc EncryptOption) {
+					if err := im.saveThumbnailToMeta(tData, tPath, enc); err != nil {
+						im.logger.Printf("[WARN] Failed to auto-backfill fallback thumbnail to %s: %v", tPath, err)
+					} else {
+						im.logger.Printf("[INFO] Successfully auto-backfilled fallback thumbnail to %s", tPath)
+					}
+				}(thumbBytes, filepath.Join(defaultThumbnailDir, path), options.EncyptOption)
+
+				return img, nil
+			}
+		}
+		// 若解码或生成失败（如非标准图片或 HEIC 等特殊格式），回退流式返回原图
+		contentReader = io.NopCloser(bytes.NewReader(rawBytes))
+		img.IsFallback = true
+	} else if isFallback {
+		img.IsFallback = true
+	}
+
+	if closer, ok := contentReader.(io.ReadCloser); ok {
+		img.Content = closer
+	} else {
+		img.Content = io.NopCloser(contentReader)
+	}
+
 	img.Path = thumbnailPath
 	if filepath.Ext(path) == ".aes" {
 		img.ContentType = mime.TypeByExtension(filepath.Ext(strings.TrimSuffix(path, ".aes")))

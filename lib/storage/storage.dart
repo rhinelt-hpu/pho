@@ -490,15 +490,39 @@ class RemoteImage {
     bool succeeded = false;
     while (retryCount < maxRetries && !succeeded) {
       try {
+        await checkServer();
+        var urlPath = path;
+        if (urlPath[0] == '/') {
+          urlPath = urlPath.substring(1);
+        }
+        final url = '$httpBaseUrl/thumbnail/$urlPath';
+        final request = http.Request('GET', Uri.parse(url));
+        if (settingModel.enableEncrypt) {
+          request.headers['Image-Encrypt-Type'] =
+              encryptionTypeName(settingModel.encryptionType);
+          request.headers['Image-Encrypt-Password'] =
+              settingModel.encryptionPassword;
+        }
+        final response = await httpClient.send(request);
+        if (response.statusCode != 200) {
+          final errMsg = await response.stream.bytesToString();
+          throw Exception(
+              "get [$urlPath] thumbnail failed: [${response.reasonPhrase}] $errMsg");
+        }
+        final isFallback = response.headers['x-thumbnail-fallback'] == 'true';
         var currentData = BytesBuilder();
-        var dataStream = thumbnailStream();
-        await for (var d in dataStream) {
+        await for (var d in response.stream) {
           currentData.add(d);
         }
         thumbnailData = currentData.takeBytes();
         succeeded = true;
         // 异步落盘，下次浏览直接 0 网络耗时
         ThumbnailCache.put(path, thumbnailData!);
+
+        // 若服务端返回的是兜底原图（说明服务端无法就地解码/特殊格式），客户端借助 native 解码器异步压缩补传缩略图
+        if (isFallback && thumbnailData != null && thumbnailData!.isNotEmpty) {
+          unawaited(_backfillFallbackThumbnail(urlPath, thumbnailData!));
+        }
       } catch (e) {
         logger.addLog("get $path thumbnail failed: $e");
         retryCount++;
@@ -511,6 +535,32 @@ class RemoteImage {
       thumbnailData = data.buffer.asUint8List();
     }
     return thumbnailData!;
+  }
+
+  Future<void> _backfillFallbackThumbnail(String relPath, Uint8List rawBytes) async {
+    try {
+      final thumbBytes = await FlutterImageCompress.compressWithList(
+        rawBytes,
+        minWidth: 200,
+        minHeight: 200,
+        quality: 85,
+      );
+      if (thumbBytes.isEmpty) return;
+
+      final url = '$httpBaseUrl/thumbnail_direct/$relPath';
+      final headers = <String, String>{};
+      if (settingModel.enableEncrypt) {
+        headers['Image-Encrypt-Type'] =
+            encryptionTypeName(settingModel.encryptionType);
+        headers['Image-Encrypt-Password'] = settingModel.encryptionPassword;
+      }
+      final resp = await http.post(Uri.parse(url), headers: headers, body: thumbBytes);
+      if (resp.statusCode == 200) {
+        logger.addLog("auto-backfilled thumbnail for $relPath");
+      }
+    } catch (e) {
+      logger.addLog("failed to backfill thumbnail for $relPath: $e");
+    }
   }
 
   Stream<Uint8List> dataStream({

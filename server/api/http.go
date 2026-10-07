@@ -79,7 +79,9 @@ func (a *api) httpHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		a.httpDownload(w, r)
 	case http.MethodPost:
-		if strings.HasPrefix(r.URL.Path, "/thumbnail/") {
+		if strings.HasPrefix(r.URL.Path, "/thumbnail_direct/") {
+			a.httpUploadThumbnailDirect(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/thumbnail/") {
 			a.httpUploadThumbnail(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/live/") {
 			a.httpUploadLiveVideo(w, r)
@@ -185,6 +187,44 @@ func (a *api) httpUploadThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body.Close()
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *api) httpUploadThumbnailDirect(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/thumbnail_direct/")
+	cleaned, err := sanitizePath(path)
+	if err != nil {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	if r.ContentLength == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	enctype := getEncryptType(r.Header.Get(HeaderEncryptType))
+	encPassword := r.Header.Get(HeaderEncryptPassword)
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		w.Write([]byte(err.Error()))
+		return
+	}
+	r.Body.Close()
+	err = a.im.UploadThumbnailDirect(data, cleaned, imgmanager.WithEncrypt(imgmanager.EncryptOption{
+		Type:     enctype,
+		Password: encPassword,
+	}))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -353,6 +393,9 @@ func (a *api) httpDownload(w http.ResponseWriter, r *http.Request) {
 			Type:     enctype,
 			Password: encPassword,
 		}))
+		if img != nil && img.IsFallback {
+			w.Header().Set("X-Thumbnail-Fallback", "true")
+		}
 	case downloadTypeLiveVideo:
 		img, err = a.im.GetLiveVideoOffset(path, 0, imgmanager.WithEncrypt(imgmanager.EncryptOption{
 			Type:     enctype,

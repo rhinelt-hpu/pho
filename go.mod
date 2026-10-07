@@ -7,6 +7,7 @@ toolchain go1.25.4
 require (
 	github.com/fregie/PrintVersion v0.1.0
 	golang.org/x/crypto v0.54.0
+	golang.org/x/image v0.44.0
 	golang.org/x/mobile v0.0.0-20260709172247-6129f5bee9d5
 	google.golang.org/grpc v1.63.0
 	google.golang.org/protobuf v1.33.0

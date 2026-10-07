@@ -2,7 +2,13 @@ package imgmanager
 
 import (
 	"bytes"
+	"image"
+	"image/color"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"io"
+	"log"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -542,5 +548,90 @@ func TestDualDriveRoutingAndRebuild(t *testing.T) {
 	im.SetMetaDrive(nil)
 	if im.HasDedicatedMetaDrive() {
 		t.Fatalf("expected HasDedicatedMetaDrive() == false after SetMetaDrive(nil)")
+	}
+}
+
+func TestThumbnailFallbackAutoGenerationAndBackfill(t *testing.T) {
+	mainDrive := newMockDrive()
+	metaDrive := newMockDrive()
+
+	im := &ImgManager{
+		dri:           mainDrive,
+		metaDri:       metaDrive,
+		localCacheDir: t.TempDir(),
+		logger:        log.New(io.Discard, "", 0),
+	}
+
+	// 1. 创建一张真实的 800x600 红色测试 JPEG 图片
+	src := image.NewRGBA(image.Rect(0, 0, 800, 600))
+	for y := 0; y < 600; y++ {
+		for x := 0; x < 800; x++ {
+			src.Set(x, y, color.RGBA{R: 255, G: 0, B: 0, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, src, nil); err != nil {
+		t.Fatalf("encode jpeg failed: %v", err)
+	}
+	rawJpeg := buf.Bytes()
+
+	// 2. 将原图存入主存储，副存储中无任何对应缩略图
+	origPath := "相机备份/2026/10/test.jpg"
+	if err := mainDrive.Upload(origPath, io.NopCloser(bytes.NewReader(rawJpeg)), int64(len(rawJpeg)), time.Now()); err != nil {
+		t.Fatalf("upload to mainDrive failed: %v", err)
+	}
+
+	thumbPath := filepath.Join(defaultThumbnailDir, origPath)
+	if exist, _ := metaDrive.IsExist(thumbPath); exist {
+		t.Fatalf("thumbnail should not exist before test")
+	}
+
+	// 3. 请求缩略图：触发兜底回退读取主存储原图 -> 服务端就地生成 400px 缩略图并返回
+	thumbImg, err := im.GetThumbnail(origPath)
+	if err != nil {
+		t.Fatalf("GetThumbnail failed: %v", err)
+	}
+	if thumbImg.IsFallback {
+		t.Fatalf("expected IsFallback == false when thumbnail was successfully generated")
+	}
+	gotThumb, err := io.ReadAll(thumbImg.Content)
+	thumbImg.Content.Close()
+	if err != nil {
+		t.Fatalf("read thumb failed: %v", err)
+	}
+
+	// 验证返回的缩略图尺寸确已被等比压缩到 400x300
+	decoded, format, err := image.Decode(bytes.NewReader(gotThumb))
+	if err != nil {
+		t.Fatalf("decode returned thumbnail failed: %v", err)
+	}
+	if format != "jpeg" {
+		t.Fatalf("expected format jpeg, got %s", format)
+	}
+	bounds := decoded.Bounds()
+	if bounds.Dx() != 400 || bounds.Dy() != 300 {
+		t.Fatalf("expected thumbnail bounds 400x300, got %dx%d", bounds.Dx(), bounds.Dy())
+	}
+
+	// 4. 等待异步后台回填完成，验证副存储中已自动生成了该缩略图
+	var backfilled bool
+	for i := 0; i < 20; i++ {
+		if exist, _ := metaDrive.IsExist(thumbPath); exist {
+			backfilled = true
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !backfilled {
+		t.Fatalf("expected fallback thumbnail to be automatically backfilled to metaDrive at %s", thumbPath)
+	}
+
+	// 5. 验证直接上传缩略图 UploadThumbnailDirect
+	directData := []byte("manual-thumbnail-bytes")
+	if err := im.UploadThumbnailDirect(directData, "custom/path.jpg"); err != nil {
+		t.Fatalf("UploadThumbnailDirect failed: %v", err)
+	}
+	if exist, _ := metaDrive.IsExist(filepath.Join(defaultThumbnailDir, "custom/path.jpg")); !exist {
+		t.Fatalf("expected custom/path.jpg in metaDrive thumbnail directory")
 	}
 }
