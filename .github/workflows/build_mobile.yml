@@ -1,4 +1,4 @@
-name: Build Multi-Platform Releases (Android, iOS, Windows)
+name: Build Android APK & iOS IPA
 
 permissions:
   contents: write
@@ -21,7 +21,6 @@ on:
           - all
           - android
           - ios
-          - windows
       ios_bundle_id:
         description: 'Custom iOS Bundle Identifier (Optional, e.g. com.yourname.pho)'
         required: false
@@ -195,112 +194,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: pho-ios-unsigned.ipa
-          generate_release_notes: true
-
-  # =============================================================
-  # Windows Build Job (Windows Runner)
-  # =============================================================
-  build-windows:
-    name: Build Windows App (x64 Release)
-    runs-on: windows-latest
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows' }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.x'
-          cache: false
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.5'
-          channel: 'stable'
-          cache: true
-
-      - name: Set up Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          version: '29.x'
-
-      - name: Set up MinGW (for Go CGO DLL build)
-        uses: egor-tensin/setup-mingw@v3
-        with:
-          platform: x64
-
-      - name: Install Protoc plugins
-        shell: bash
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1.0
-          dart pub global activate protoc_plugin 21.1.2
-          echo "$HOME/go/bin" >> $GITHUB_PATH
-          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
-
-      - name: Generate Protobuf stubs
-        shell: bash
-        run: |
-          protoc -I. --go_out . --go_opt paths=source_relative \
-            --go-grpc_out . --go-grpc_opt paths=source_relative \
-            --dart_out=grpc:lib \
-            proto/*.proto
-
-      - name: Build Go Embedded Server (Windows C-Shared DLL & LIB)
-        shell: bash
-        run: |
-          mkdir -p windows/lib
-          CGO_ENABLED=1 go build -o windows/lib/run.dll -buildmode=c-shared ./server/clib
-          # 清除 MSVC 不兼容的 complex.h 定义
-          sed -i '/#include <complex.h>/d' windows/lib/run.h
-          sed -i '/typedef _Fcomplex GoComplex64;/d' windows/lib/run.h
-          sed -i '/typedef _Dcomplex GoComplex128;/d' windows/lib/run.h
-          # 自动生成 .def 导出表定义文件
-          cat << 'EOF' > windows/lib/run.def
-          LIBRARY run.dll
-          EXPORTS
-              RunGrpcServer
-          EOF
-          # 生成 MSVC 链接器识别的 run.lib 导入库
-          dlltool -d windows/lib/run.def -l windows/lib/run.lib -D run.dll
-          ls -la windows/lib/
-
-      - name: Enable Windows Desktop in Flutter
-        run: |
-          flutter config --enable-windows-desktop
-
-      - name: Fetch Flutter dependencies
-        run: |
-          flutter pub get
-
-      - name: Build Windows Release App
-        run: |
-          flutter build windows --release
-
-      - name: Package Windows Release (ZIP)
-        shell: pwsh
-        run: |
-          $releaseDir = "build\windows\x64\runner\Release"
-          if (-not (Test-Path $releaseDir)) {
-            $releaseDir = "build\windows\runner\Release"
-          }
-          Write-Host "Packaging from: $releaseDir"
-          Compress-Archive -Path "$releaseDir\*" -DestinationPath "pho-windows-x64.zip" -Force
-          Get-Item pho-windows-x64.zip | Select-Object Name, Length
-
-      - name: Upload Windows Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pho-windows-x64-zip
-          path: pho-windows-x64.zip
-          retention-days: 14
-
-      - name: Publish Windows ZIP to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: pho-windows-x64.zip
           generate_release_notes: true
