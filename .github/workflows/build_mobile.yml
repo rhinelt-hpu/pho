@@ -258,8 +258,14 @@ jobs:
           sed -i '/#include <complex.h>/d' windows/lib/run.h
           sed -i '/typedef _Fcomplex GoComplex64;/d' windows/lib/run.h
           sed -i '/typedef _Dcomplex GoComplex128;/d' windows/lib/run.h
+          # 自动生成 .def 导出表定义文件
+          cat << 'EOF' > windows/lib/run.def
+          LIBRARY run.dll
+          EXPORTS
+              RunGrpcServer
+          EOF
           # 生成 MSVC 链接器识别的 run.lib 导入库
-          dlltool -d windows/lib/run.def -l windows/lib/run.lib
+          dlltool -d windows/lib/run.def -l windows/lib/run.lib -D run.dll
           ls -la windows/lib/
 
       - name: Enable Windows Desktop in Flutter

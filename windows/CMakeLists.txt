@@ -106,4 +106,6 @@ install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
 target_link_libraries(${BINARY_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/run.lib")
+target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+link_directories("${CMAKE_CURRENT_SOURCE_DIR}/lib")
