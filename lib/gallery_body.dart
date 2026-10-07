@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:img_syncer/design_tokens.dart';
@@ -149,6 +150,9 @@ class GalleryBodyState extends State<GalleryBody>
   void _handlePointerDown(PointerDownEvent event) {
     _pointerPositions[event.pointer] = event.position;
     if (_pointerPositions.length == 2) {
+      if (_isDragSelecting) {
+        _onPhotoLongPressEnd(null);
+      }
       final points = _pointerPositions.values.toList();
       _pinchStartDistance = (points[0] - points[1]).distance;
       _hasTriggeredThisPinch = false;
@@ -194,6 +198,134 @@ class GalleryBodyState extends State<GalleryBody>
   final Map<int, bool> _selectedIndices = {};
   @visibleForTesting
   Map<int, bool> get selectedIndices => _selectedIndices;
+
+  int? _dragSelectStartIndex;
+  int? _dragSelectLastIndex;
+  bool _isDragSelecting = false;
+  Offset? _currentDragGlobalPosition;
+  Timer? _autoScrollTimer;
+  double _autoScrollVelocity = 0.0;
+
+  void _onPhotoLongPressStart(int index, LongPressStartDetails details) {
+    if (_viewMode != GalleryViewMode.day) return;
+    if (_pointerPositions.length > 1) return;
+
+    _isDragSelecting = true;
+    _dragSelectStartIndex = index;
+    _dragSelectLastIndex = index;
+    _currentDragGlobalPosition = details.globalPosition;
+
+    HapticFeedback.mediumImpact();
+    if (!stateModel.isSelectionMode) {
+      stateModel.setSelectionMode(true);
+    }
+    _selectedIndices[index] = true;
+    updateSelection();
+  }
+
+  void _onPhotoLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    if (!_isDragSelecting || _dragSelectStartIndex == null) return;
+    if (_pointerPositions.length > 1) {
+      _onPhotoLongPressEnd(null);
+      return;
+    }
+    _currentDragGlobalPosition = details.globalPosition;
+    _hitTestAndSelect(details.globalPosition);
+    _checkAutoScroll(details.globalPosition);
+  }
+
+  void _onPhotoLongPressEnd(LongPressEndDetails? details) {
+    _isDragSelecting = false;
+    _dragSelectStartIndex = null;
+    _dragSelectLastIndex = null;
+    _currentDragGlobalPosition = null;
+    _stopAutoScroll();
+  }
+
+  void _hitTestAndSelect(Offset globalPos) {
+    if (_dragSelectStartIndex == null) return;
+    final hitResult = HitTestResult();
+    WidgetsBinding.instance.hitTest(hitResult, globalPos);
+    int? hitIndex;
+    for (final entry in hitResult.path) {
+      if (entry.target is RenderMetaData) {
+        final meta = (entry.target as RenderMetaData).metaData;
+        if (meta is int) {
+          hitIndex = meta;
+          break;
+        }
+      }
+    }
+
+    if (hitIndex != null && hitIndex != _dragSelectLastIndex) {
+      final start = _dragSelectStartIndex! < hitIndex
+          ? _dragSelectStartIndex!
+          : hitIndex;
+      final end = _dragSelectStartIndex! > hitIndex
+          ? _dragSelectStartIndex!
+          : hitIndex;
+      bool hasNewSelection = false;
+      for (int j = start; j <= end; j++) {
+        if (!(_selectedIndices[j] ?? false)) {
+          _selectedIndices[j] = true;
+          hasNewSelection = true;
+        }
+      }
+      _dragSelectLastIndex = hitIndex;
+      if (hasNewSelection) {
+        HapticFeedback.selectionClick();
+        updateSelection();
+      }
+    }
+  }
+
+  void _checkAutoScroll(Offset globalPos) {
+    if (!mounted || !_scrollController.hasClients) return;
+    final screenHeight = MediaQuery.of(context).size.height;
+    const topThreshold = 140.0;
+    final bottomThreshold = screenHeight - 110.0;
+
+    if (globalPos.dy < topThreshold) {
+      final ratio =
+          ((topThreshold - globalPos.dy) / topThreshold).clamp(0.0, 1.0);
+      _autoScrollVelocity = -6.0 - (ratio * 16.0);
+      _startAutoScroll();
+    } else if (globalPos.dy > bottomThreshold) {
+      final ratio =
+          ((globalPos.dy - bottomThreshold) / 110.0).clamp(0.0, 1.0);
+      _autoScrollVelocity = 6.0 + (ratio * 16.0);
+      _startAutoScroll();
+    } else {
+      _stopAutoScroll();
+    }
+  }
+
+  void _startAutoScroll() {
+    if (_autoScrollTimer != null && _autoScrollTimer!.isActive) return;
+    _autoScrollTimer =
+        Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!_isDragSelecting || !mounted || !_scrollController.hasClients) {
+        _stopAutoScroll();
+        return;
+      }
+      final currentOffset = _scrollController.offset;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final newOffset =
+          (currentOffset + _autoScrollVelocity).clamp(0.0, maxScroll);
+      if (newOffset != currentOffset) {
+        _scrollController.jumpTo(newOffset);
+        if (_currentDragGlobalPosition != null) {
+          _hitTestAndSelect(_currentDragGlobalPosition!);
+        }
+      }
+    });
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _autoScrollVelocity = 0.0;
+  }
 
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey =
       GlobalKey<RefreshIndicatorState>();
@@ -301,6 +433,7 @@ class GalleryBodyState extends State<GalleryBody>
 
   @override
   void dispose() {
+    _stopAutoScroll();
     settingModel.removeListener(_onSettingChanged);
     stateModel.removeListener(_onStateModelChanged);
     super.dispose();
@@ -1400,13 +1533,14 @@ class GalleryBodyState extends State<GalleryBody>
               }
             }
           },
-          onLongPress: () async {
-            if (_viewMode == GalleryViewMode.day && !stateModel.isSelectionMode) {
-              HapticFeedback.lightImpact();
-              toggleSelection(i);
-            }
-          },
-          child: Stack(
+          onLongPressStart: (details) => _onPhotoLongPressStart(i, details),
+          onLongPressMoveUpdate: _onPhotoLongPressMoveUpdate,
+          onLongPressEnd: _onPhotoLongPressEnd,
+          onLongPressCancel: () => _onPhotoLongPressEnd(null),
+          child: MetaData(
+            metaData: i,
+            behavior: HitTestBehavior.translucent,
+            child: Stack(
             children: [
               // image
               Container(
@@ -1605,7 +1739,7 @@ class GalleryBodyState extends State<GalleryBody>
                 ),
               ],
             ],
-          ));
+          )));
       currentChildren.add(child);
       if (currentChildren.length % currentColumns == 1) {
         currentScrollOffset += imgHeight + 2;
