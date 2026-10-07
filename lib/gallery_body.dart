@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:img_syncer/design_tokens.dart';
@@ -58,7 +59,7 @@ class LocateInfo {
 }
 
 class GalleryBodyState extends State<GalleryBody>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
   bool _showToTopBtn = false;
   @override
   bool get wantKeepAlive => true;
@@ -203,7 +204,8 @@ class GalleryBodyState extends State<GalleryBody>
   int? _dragSelectLastIndex;
   bool _isDragSelecting = false;
   Offset? _currentDragGlobalPosition;
-  Timer? _autoScrollTimer;
+  Ticker? _autoScrollTicker;
+  Duration _lastTickElapsed = Duration.zero;
   double _autoScrollVelocity = 0.0;
 
   void _onPhotoLongPressStart(int index, LongPressStartDetails details) {
@@ -288,12 +290,12 @@ class GalleryBodyState extends State<GalleryBody>
     if (globalPos.dy < topThreshold) {
       final ratio =
           ((topThreshold - globalPos.dy) / topThreshold).clamp(0.0, 1.0);
-      _autoScrollVelocity = -6.0 - (ratio * 16.0);
+      _autoScrollVelocity = -360.0 - (ratio * 840.0);
       _startAutoScroll();
     } else if (globalPos.dy > bottomThreshold) {
       final ratio =
           ((globalPos.dy - bottomThreshold) / 110.0).clamp(0.0, 1.0);
-      _autoScrollVelocity = 6.0 + (ratio * 16.0);
+      _autoScrollVelocity = 360.0 + (ratio * 840.0);
       _startAutoScroll();
     } else {
       _stopAutoScroll();
@@ -301,17 +303,25 @@ class GalleryBodyState extends State<GalleryBody>
   }
 
   void _startAutoScroll() {
-    if (_autoScrollTimer != null && _autoScrollTimer!.isActive) return;
-    _autoScrollTimer =
-        Timer.periodic(const Duration(milliseconds: 16), (timer) {
+    if (_autoScrollTicker != null && _autoScrollTicker!.isActive) return;
+    _lastTickElapsed = Duration.zero;
+    _autoScrollTicker ??= createTicker((elapsed) {
       if (!_isDragSelecting || !mounted || !_scrollController.hasClients) {
         _stopAutoScroll();
         return;
       }
+      if (_lastTickElapsed == Duration.zero) {
+        _lastTickElapsed = elapsed;
+        return;
+      }
+      final dt = (elapsed - _lastTickElapsed).inMicroseconds / 1000000.0;
+      _lastTickElapsed = elapsed;
+      if (dt <= 0 || dt > 0.1) return;
+
       final currentOffset = _scrollController.offset;
       final maxScroll = _scrollController.position.maxScrollExtent;
       final newOffset =
-          (currentOffset + _autoScrollVelocity).clamp(0.0, maxScroll);
+          (currentOffset + _autoScrollVelocity * dt).clamp(0.0, maxScroll);
       if (newOffset != currentOffset) {
         _scrollController.jumpTo(newOffset);
         if (_currentDragGlobalPosition != null) {
@@ -319,11 +329,12 @@ class GalleryBodyState extends State<GalleryBody>
         }
       }
     });
+    _autoScrollTicker!.start();
   }
 
   void _stopAutoScroll() {
-    _autoScrollTimer?.cancel();
-    _autoScrollTimer = null;
+    _autoScrollTicker?.stop();
+    _lastTickElapsed = Duration.zero;
     _autoScrollVelocity = 0.0;
   }
 
@@ -434,6 +445,8 @@ class GalleryBodyState extends State<GalleryBody>
   @override
   void dispose() {
     _stopAutoScroll();
+    _autoScrollTicker?.dispose();
+    _autoScrollTicker = null;
     settingModel.removeListener(_onSettingChanged);
     stateModel.removeListener(_onStateModelChanged);
     super.dispose();
