@@ -656,6 +656,10 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 	unlockMeta()
 	isFallback := false
 	if err != nil {
+		// 视频缩略图缺失时：绝不能回退下载几百兆乃至数 GB 的原视频当作缩略图返回，避免引发客户端内存暴涨(OOM)与网络拥塞
+		if util.IsVideo(path) {
+			return nil, fmt.Errorf("video thumbnail not found: %s", path)
+		}
 		// 只查「副存储 .thumbnail -> 主存储原图」：回退读取主存储原图，防止缩略图缺失导致前端渲染白块
 		d, unlockMain := im.drive()
 		rc, img.Size, err = d.Download(path)

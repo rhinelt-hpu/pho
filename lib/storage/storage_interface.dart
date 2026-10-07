@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:cross_file/cross_file.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:img_syncer/proto/img_syncer.pbgrpc.dart';
@@ -18,4 +19,5 @@ abstract class RemoteStorageClient {
   Future<List<String>> moveAssets(List<String> paths, String targetAlbum);
   Future<SyncManifestResponse> syncManifest();
   Future<void> setLocalCacheDir(String path);
+  Future<bool> uploadThumbnailDirect(String relPath, Uint8List thumbBytes);
 }

@@ -314,11 +314,29 @@ class Asset extends ImageProvider<Asset> {
     }
     _thumbnailDataCompleter = Completer<Uint8List>();
     Uint8List? data;
-    if (hasLocal) {
-      data = await local!
-          .thumbnailDataWithSize(const ThumbnailSize.square(200), quality: 80);
+    if (hasRemote && isVideo() && !hasLocal) {
+      // 深度复用上传流程的视频首帧提取能力：在本地相册中查找对应视频原文件
+      final oName = await originName();
+      for (var localA in assetModel.localAssets) {
+        final lName = await localA.originName();
+        if (lName == oName && localA.local != null) {
+          local = localA.local;
+          hasLocal = true;
+          break;
+        }
+      }
     }
-    if (hasRemote) {
+    if (hasLocal) {
+      final size = isVideo()
+          ? const ThumbnailSize.square(800)
+          : const ThumbnailSize.square(200);
+      data = await local!
+          .thumbnailDataWithSize(size, quality: isVideo() ? 90 : 80);
+      // 若同时为远端视频且提取成功，顺手将高清首帧回填上传至远端副存储，彻底修补远端缺失
+      if (data != null && data.isNotEmpty && hasRemote && isVideo()) {
+        unawaited(storageClient.uploadThumbnailDirect(remote!.path, data));
+      }
+    } else if (hasRemote) {
       data = await remote!.thumbnail();
     }
     if (data == null || data.isEmpty) {

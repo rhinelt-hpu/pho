@@ -15,6 +15,7 @@ import (
 
 	"github.com/fregie/img_syncer/server/drive/webdav"
 	"github.com/fregie/img_syncer/server/imgmanager"
+	"github.com/fregie/img_syncer/server/util"
 )
 
 func parseAlbumHeader(r *http.Request) string {
@@ -403,6 +404,12 @@ func (a *api) httpDownload(w http.ResponseWriter, r *http.Request) {
 		}))
 	}
 	if err != nil {
+		if downloadType == downloadTypeThumbnail && util.IsVideo(path) {
+			w.Header().Set("X-Thumbnail-Missing", "video")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("video thumbnail not found"))
+			return
+		}
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return

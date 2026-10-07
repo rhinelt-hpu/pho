@@ -423,6 +423,29 @@ class RemoteStorage implements RemoteStorageClient {
       throw Exception("setLocalCacheDir failed: ${rsp.message}");
     }
   }
+
+  @override
+  Future<bool> uploadThumbnailDirect(String relPath, Uint8List thumbBytes) async {
+    try {
+      await checkServer();
+      var cleanPath = relPath;
+      if (cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+      }
+      final url = '$httpBaseUrl/thumbnail_direct/$cleanPath';
+      final headers = <String, String>{};
+      if (settingModel.enableEncrypt) {
+        headers['Image-Encrypt-Type'] =
+            encryptionTypeName(settingModel.encryptionType);
+        headers['Image-Encrypt-Password'] = settingModel.encryptionPassword;
+      }
+      final resp = await http.post(Uri.parse(url), headers: headers, body: thumbBytes);
+      return resp.statusCode == 200;
+    } catch (e) {
+      logger.addLog("uploadThumbnailDirect error: $e");
+      return false;
+    }
+  }
 }
 
 class RemoteImage {
@@ -505,6 +528,13 @@ class RemoteImage {
         }
         final response = await httpClient.send(request);
         if (response.statusCode != 200) {
+          // 若为视频且缩略图缺失，优雅降级返回通用占位底图，避免循环重试与抛出异常
+          if (response.headers['x-thumbnail-missing'] == 'video' || isVideo()) {
+            final grayData = await rootBundle.load("assets/images/gray.jpg");
+            thumbnailData = grayData.buffer.asUint8List();
+            succeeded = true;
+            return thumbnailData!;
+          }
           final errMsg = await response.stream.bytesToString();
           throw Exception(
               "get [$urlPath] thumbnail failed: [${response.reasonPhrase}] $errMsg");
