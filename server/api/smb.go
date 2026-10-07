@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	pb "github.com/fregie/img_syncer/proto"
 	"github.com/fregie/img_syncer/server/drive/smb"
@@ -19,11 +20,12 @@ func (a *api) SetDriveSMB(ctx context.Context, req *pb.SetDriveSMBRequest) (rsp 
 	if strings.Index(req.Addr, ":") < 0 {
 		req.Addr = req.Addr + ":445"
 	}
-	_, e := net.Dial("tcp", req.Addr)
+	conn, e := net.DialTimeout("tcp", req.Addr, 5*time.Second)
 	if e != nil {
 		rsp.Success, rsp.Message = false, fmt.Sprintf("connect to %s failed: %s", req.Addr, e.Error())
 		return
 	}
+	_ = conn.Close()
 	s := smb.NewSmbDrive(req.Addr, req.Username, req.Password)
 	if req.Share != "" {
 		e := s.SetShare(req.Share)

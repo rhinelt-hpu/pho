@@ -60,6 +60,9 @@ class MockUIAlbumStorage implements RemoteStorageClient {
 
   @override
   Future<void> setLocalCacheDir(String path) async {}
+
+  @override
+  Future<bool> uploadThumbnailDirect(String path, List<int> jpegBytes) async => true;
 }
 
 Widget createTestApp(Widget home) {

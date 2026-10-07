@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"time"
 
 	pb "github.com/fregie/img_syncer/proto"
 	"github.com/fregie/img_syncer/server/drive/webdav"
@@ -15,7 +16,8 @@ func (a *api) SetDriveWebdav(ctx context.Context, req *pb.SetDriveWebdavRequest)
 		return
 	}
 	d := webdav.NewWebdavDrive(req.Addr, req.Username, req.Password, req.Insecure)
-	// Verify server is reachable with credentials by stat-ing root.
+	// 握手验证阶段设置 6 秒快速探活超时，避免网络不可达/超时时协程阻塞 60 秒
+	d.Cli().SetTimeout(6 * time.Second)
 	_, err := d.Cli().Stat("/")
 	if err != nil {
 		rsp.Success, rsp.Message = false, fmt.Sprintf("connect to %s failed: %s", req.Addr, err.Error())
@@ -28,6 +30,8 @@ func (a *api) SetDriveWebdav(ctx context.Context, req *pb.SetDriveWebdavRequest)
 			return
 		}
 	}
+	// 握手验证通过后，将 Client 超时恢复为正常数据传输超时（60秒）
+	d.Cli().SetTimeout(60 * time.Second)
 	if req.IsMetaDrive {
 		a.im.SetMetaDrive(d)
 	} else {

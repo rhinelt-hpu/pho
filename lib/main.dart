@@ -46,6 +46,17 @@ void main() async {
   // 清除 adaptive_theme 持久化的旧暗色模式，强制浅色
   final prefs = await SharedPreferences.getInstance();
   await prefs.remove('adaptive_theme');
+  final hasOnboarded = prefs.getBool('has_onboarded') ?? false;
+  // 容错：如果用户已经配置了网络存储或相册，说明已经在使用，绝不重复弹出新手引导
+  final hasConfiguredStorage =
+      (prefs.getString('webdav_url')?.isNotEmpty ?? false) ||
+      (prefs.getString('smb_host')?.isNotEmpty ?? false) ||
+      (prefs.getString('nfs_host')?.isNotEmpty ?? false);
+  if (hasConfiguredStorage && !hasOnboarded) {
+    unawaited(prefs.setBool('has_onboarded', true));
+  }
+  final needsOnboarding = !(hasOnboarded || hasConfiguredStorage);
+
   await Global.init();
   runApp(
     MultiProvider(
@@ -54,38 +65,25 @@ void main() async {
         ChangeNotifierProvider(create: (context) => assetModel),
         ChangeNotifierProvider(create: (context) => stateModel),
       ],
-      child: const MyApp(),
+      child: MyApp(needsOnboarding: needsOnboarding),
     ),
   );
 }
 
 class _AppEntryPoint extends StatefulWidget {
-  const _AppEntryPoint();
+  final bool initialNeedsOnboarding;
+  const _AppEntryPoint({super.key, required this.initialNeedsOnboarding});
   @override
   State<_AppEntryPoint> createState() => _AppEntryPointState();
 }
 
 class _AppEntryPointState extends State<_AppEntryPoint> {
-  bool? _needsOnboarding;
+  late bool _needsOnboarding;
 
   @override
   void initState() {
     super.initState();
-    SharedPreferences.getInstance().then((prefs) {
-      if (!mounted) return;
-      final hasOnboarded = prefs.getBool('has_onboarded') ?? false;
-      // 容错：如果用户已经配置了网络存储或相册，说明已经在使用，绝不重复弹出新手引导
-      final hasConfiguredStorage =
-          (prefs.getString('webdav_url')?.isNotEmpty ?? false) ||
-          (prefs.getString('smb_host')?.isNotEmpty ?? false) ||
-          (prefs.getString('nfs_host')?.isNotEmpty ?? false);
-      if (hasConfiguredStorage && !hasOnboarded) {
-        prefs.setBool('has_onboarded', true);
-      }
-      setState(() {
-        _needsOnboarding = !(hasOnboarded || hasConfiguredStorage);
-      });
-    });
+    _needsOnboarding = widget.initialNeedsOnboarding;
   }
 
   void _finishOnboarding() async {
@@ -105,10 +103,7 @@ class _AppEntryPointState extends State<_AppEntryPoint> {
   @override
   Widget build(BuildContext context) {
     initI18n(context);
-    if (_needsOnboarding == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (_needsOnboarding!) {
+    if (_needsOnboarding) {
       return OnboardingRoute(onComplete: _finishOnboarding);
     }
     return const MyHomePage(title: 'PHO');
@@ -116,7 +111,8 @@ class _AppEntryPointState extends State<_AppEntryPoint> {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  final bool needsOnboarding;
+  const MyApp({Key? key, this.needsOnboarding = false}) : super(key: key);
   static const String _title = 'PHO';
   // This widget is the root of your application.
 
@@ -166,7 +162,7 @@ class MyApp extends StatelessWidget {
               return MaterialApp(
                 title: _title,
                 debugShowCheckedModeBanner: false,
-                home: const _AppEntryPoint(),
+                home: _AppEntryPoint(initialNeedsOnboarding: needsOnboarding),
                 theme: theme,
                 darkTheme: darkTheme,
                 themeMode: ThemeMode.light,

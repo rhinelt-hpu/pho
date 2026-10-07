@@ -80,7 +80,7 @@ class Global {
         settingModel.setEncryptionPassword(encPassword);
       }
       await settingModel.loadSettings(prefs);
-      await initDrive();
+      unawaited(initDrive());
       return;
     }
     var enableEncrypt = prefs.getBool("enable_encrypt");
@@ -148,7 +148,7 @@ class Global {
     await settingModel.loadSettings(prefs);
     await assetModel.loadTitleCache();
     await loadUnsynchronizedPhotos();
-    await initDrive();
+    unawaited(initDrive());
     reloadAutoSyncTimer();
   }
 }
@@ -183,7 +183,23 @@ Future<void> checkServer() async {
   }
 }
 
-Future<void> initDrive() async {
+Future<void>? _activeInitDriveFuture;
+
+Future<void> initDrive() {
+  if (_activeInitDriveFuture != null) {
+    return _activeInitDriveFuture!;
+  }
+  final future = _doInitDrive();
+  _activeInitDriveFuture = future;
+  future.whenComplete(() {
+    if (_activeInitDriveFuture == future) {
+      _activeInitDriveFuture = null;
+    }
+  });
+  return future;
+}
+
+Future<void> _doInitDrive() async {
   try {
     final appDir = await getApplicationSupportDirectory();
     final manifestCacheDir = Directory(p.join(appDir.path, 'manifest'));
@@ -200,80 +216,91 @@ Future<void> initDrive() async {
   var drive = prefs.getString("drive");
   drive ??= "SMB";
   bool primaryOk = false;
-  switch (getDrive(drive)) {
-    case Drive.smb:
-      final addr = prefs.getString("addr");
-      final username = prefs.getString("username");
-      final password = prefs.getString("password");
-      final share = prefs.getString("share");
-      final root = prefs.getString("rootPath");
-      if (addr != null &&
-          addr.trim().isNotEmpty &&
-          username != null &&
-          password != null &&
-          share != null &&
-          share.trim().isNotEmpty &&
-          root != null &&
-          root.trim().isNotEmpty) {
-        final rsp = await storage.cli.setDriveSMB(SetDriveSMBRequest(
-          addr: addr,
-          username: username,
-          password: password,
-          share: share,
-          root: root,
-        ));
-        if (rsp.success) {
-          logger.addLog("set drive smb success");
-          primaryOk = true;
-        } else {
-          assetModel.remoteLastError = rsp.message;
+  try {
+    switch (getDrive(drive)) {
+      case Drive.smb:
+        final addr = prefs.getString("addr");
+        final username = prefs.getString("username");
+        final password = prefs.getString("password");
+        final share = prefs.getString("share");
+        final root = prefs.getString("rootPath");
+        if (addr != null &&
+            addr.trim().isNotEmpty &&
+            username != null &&
+            password != null &&
+            share != null &&
+            share.trim().isNotEmpty &&
+            root != null &&
+            root.trim().isNotEmpty) {
+          final rsp = await storage.cli
+              .setDriveSMB(SetDriveSMBRequest(
+                addr: addr,
+                username: username,
+                password: password,
+                share: share,
+                root: root,
+              ))
+              .timeout(const Duration(seconds: 12));
+          if (rsp.success) {
+            logger.addLog("set drive smb success");
+            primaryOk = true;
+          } else {
+            assetModel.remoteLastError = rsp.message;
+          }
         }
-      }
-      break;
-    case Drive.webDav:
-      final url = prefs.getString('webdav_url');
-      final username = prefs.getString('webdav_username');
-      final password = prefs.getString('webdav_password');
-      final root = prefs.getString('webdav_root_path');
-      final insecure = prefs.getBool('webdav_insecure') ?? true;
-      if (url != null &&
-          url.trim().isNotEmpty &&
-          root != null &&
-          root.trim().isNotEmpty) {
-        final rsp = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
-          addr: url,
-          username: username,
-          password: password,
-          root: root,
-          insecure: insecure,
-        ));
-        if (rsp.success) {
-          logger.addLog("set drive webdav success");
-          primaryOk = true;
-        } else {
-          assetModel.remoteLastError = rsp.message;
+        break;
+      case Drive.webDav:
+        final url = prefs.getString('webdav_url');
+        final username = prefs.getString('webdav_username');
+        final password = prefs.getString('webdav_password');
+        final root = prefs.getString('webdav_root_path');
+        final insecure = prefs.getBool('webdav_insecure') ?? true;
+        if (url != null &&
+            url.trim().isNotEmpty &&
+            root != null &&
+            root.trim().isNotEmpty) {
+          final rsp = await storage.cli
+              .setDriveWebdav(SetDriveWebdavRequest(
+                addr: url,
+                username: username,
+                password: password,
+                root: root,
+                insecure: insecure,
+              ))
+              .timeout(const Duration(seconds: 12));
+          if (rsp.success) {
+            logger.addLog("set drive webdav success");
+            primaryOk = true;
+          } else {
+            assetModel.remoteLastError = rsp.message;
+          }
         }
-      }
-      break;
-    case Drive.nfs:
-      final addr = prefs.getString('nfs_url');
-      final root = prefs.getString('nfs_root_path');
-      if (addr != null &&
-          addr.trim().isNotEmpty &&
-          root != null &&
-          root.trim().isNotEmpty) {
-        final rsp = await storage.cli.setDriveNFS(SetDriveNFSRequest(
-          addr: addr,
-          root: root,
-        ));
-        if (rsp.success) {
-          logger.addLog("set drive nfs success");
-          primaryOk = true;
-        } else {
-          assetModel.remoteLastError = rsp.message;
+        break;
+      case Drive.nfs:
+        final addr = prefs.getString('nfs_url');
+        final root = prefs.getString('nfs_root_path');
+        if (addr != null &&
+            addr.trim().isNotEmpty &&
+            root != null &&
+            root.trim().isNotEmpty) {
+          final rsp = await storage.cli
+              .setDriveNFS(SetDriveNFSRequest(
+                addr: addr,
+                root: root,
+              ))
+              .timeout(const Duration(seconds: 12));
+          if (rsp.success) {
+            logger.addLog("set drive nfs success");
+            primaryOk = true;
+          } else {
+            assetModel.remoteLastError = rsp.message;
+          }
         }
-      }
-      break;
+        break;
+    }
+  } catch (e) {
+    logger.addLog("init primary drive failed: $e");
+    assetModel.remoteLastError = e.toString();
   }
 
   if (!primaryOk) {
@@ -284,7 +311,9 @@ Future<void> initDrive() async {
   final metaEnabled = prefs.getBool('meta_drive_enabled') ?? false;
   if (!metaEnabled) {
     try {
-      await storage.cli.clearMetaDrive(ClearMetaDriveRequest());
+      await storage.cli
+          .clearMetaDrive(ClearMetaDriveRequest())
+          .timeout(const Duration(seconds: 3));
     } catch (_) {}
     settingModel.setRemoteStorageSetted(true);
     eventBus.fire(RemoteRefreshEvent(refreshUnSync: false));
@@ -293,81 +322,92 @@ Future<void> initDrive() async {
 
   final metaDriveStr = prefs.getString('meta_drive') ?? 'WebDAV';
   bool metaOk = false;
-  switch (getDrive(metaDriveStr)) {
-    case Drive.smb:
-      final addr = prefs.getString("meta_addr");
-      final username = prefs.getString("meta_username") ?? "";
-      final password = prefs.getString("meta_password") ?? "";
-      final share = prefs.getString("meta_share");
-      final root = prefs.getString("meta_rootPath");
-      if (addr != null &&
-          addr.trim().isNotEmpty &&
-          share != null &&
-          share.trim().isNotEmpty &&
-          root != null &&
-          root.trim().isNotEmpty) {
-        final rsp = await storage.cli.setDriveSMB(SetDriveSMBRequest(
-          addr: addr,
-          username: username,
-          password: password,
-          share: share,
-          root: root,
-          isMetaDrive: true,
-        ));
-        if (rsp.success) {
-          logger.addLog("set meta drive smb success");
-          metaOk = true;
-        } else {
-          assetModel.remoteLastError = rsp.message;
+  try {
+    switch (getDrive(metaDriveStr)) {
+      case Drive.smb:
+        final addr = prefs.getString("meta_addr");
+        final username = prefs.getString("meta_username") ?? "";
+        final password = prefs.getString("meta_password") ?? "";
+        final share = prefs.getString("meta_share");
+        final root = prefs.getString("meta_rootPath");
+        if (addr != null &&
+            addr.trim().isNotEmpty &&
+            share != null &&
+            share.trim().isNotEmpty &&
+            root != null &&
+            root.trim().isNotEmpty) {
+          final rsp = await storage.cli
+              .setDriveSMB(SetDriveSMBRequest(
+                addr: addr,
+                username: username,
+                password: password,
+                share: share,
+                root: root,
+                isMetaDrive: true,
+              ))
+              .timeout(const Duration(seconds: 12));
+          if (rsp.success) {
+            logger.addLog("set meta drive smb success");
+            metaOk = true;
+          } else {
+            assetModel.remoteLastError = rsp.message;
+          }
         }
-      }
-      break;
-    case Drive.webDav:
-      final url = prefs.getString('meta_webdav_url');
-      final username = prefs.getString('meta_webdav_username') ?? "";
-      final password = prefs.getString('meta_webdav_password') ?? "";
-      final root = prefs.getString('meta_webdav_root_path');
-      final insecure = prefs.getBool('meta_webdav_insecure') ?? true;
-      if (url != null &&
-          url.trim().isNotEmpty &&
-          root != null &&
-          root.trim().isNotEmpty) {
-        final rsp = await storage.cli.setDriveWebdav(SetDriveWebdavRequest(
-          addr: url,
-          username: username,
-          password: password,
-          root: root,
-          insecure: insecure,
-          isMetaDrive: true,
-        ));
-        if (rsp.success) {
-          logger.addLog("set meta drive webdav success");
-          metaOk = true;
-        } else {
-          assetModel.remoteLastError = rsp.message;
+        break;
+      case Drive.webDav:
+        final url = prefs.getString('meta_webdav_url');
+        final username = prefs.getString('meta_webdav_username') ?? "";
+        final password = prefs.getString('meta_webdav_password') ?? "";
+        final root = prefs.getString('meta_webdav_root_path');
+        final insecure = prefs.getBool('meta_webdav_insecure') ?? true;
+        if (url != null &&
+            url.trim().isNotEmpty &&
+            root != null &&
+            root.trim().isNotEmpty) {
+          final rsp = await storage.cli
+              .setDriveWebdav(SetDriveWebdavRequest(
+                addr: url,
+                username: username,
+                password: password,
+                root: root,
+                insecure: insecure,
+                isMetaDrive: true,
+              ))
+              .timeout(const Duration(seconds: 12));
+          if (rsp.success) {
+            logger.addLog("set meta drive webdav success");
+            metaOk = true;
+          } else {
+            assetModel.remoteLastError = rsp.message;
+          }
         }
-      }
-      break;
-    case Drive.nfs:
-      final addr = prefs.getString('meta_nfs_url');
-      final root = prefs.getString('meta_nfs_root_path');
-      if (addr != null &&
-          addr.trim().isNotEmpty &&
-          root != null &&
-          root.trim().isNotEmpty) {
-        final rsp = await storage.cli.setDriveNFS(SetDriveNFSRequest(
-          addr: addr,
-          root: root,
-          isMetaDrive: true,
-        ));
-        if (rsp.success) {
-          logger.addLog("set meta drive nfs success");
-          metaOk = true;
-        } else {
-          assetModel.remoteLastError = rsp.message;
+        break;
+      case Drive.nfs:
+        final addr = prefs.getString('meta_nfs_url');
+        final root = prefs.getString('meta_nfs_root_path');
+        if (addr != null &&
+            addr.trim().isNotEmpty &&
+            root != null &&
+            root.trim().isNotEmpty) {
+          final rsp = await storage.cli
+              .setDriveNFS(SetDriveNFSRequest(
+                addr: addr,
+                root: root,
+                isMetaDrive: true,
+              ))
+              .timeout(const Duration(seconds: 12));
+          if (rsp.success) {
+            logger.addLog("set meta drive nfs success");
+            metaOk = true;
+          } else {
+            assetModel.remoteLastError = rsp.message;
+          }
         }
-      }
-      break;
+        break;
+    }
+  } catch (e) {
+    logger.addLog("init meta drive failed: $e");
+    assetModel.remoteLastError = e.toString();
   }
 
   if (metaOk) {
