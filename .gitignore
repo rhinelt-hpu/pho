@@ -47,7 +47,10 @@ output
 baidu_drive_test.go
 debug-info
 ios/Frameworks/RUN.xcframework
-android/app/libs/server.aarserver/server
+android/app/libs/server.aar
+windows/lib/
+linux/lib/run.so
+linux/lib/run.h
 test/results/
 *.aar
 
