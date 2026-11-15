@@ -11,6 +11,7 @@ import 'package:img_syncer/storageform/nfsform.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:img_syncer/state_model.dart';
 import 'package:img_syncer/global.dart';
+import 'package:img_syncer/logger/log_sync.dart';
 
 class SettingStorageRoute extends StatefulWidget {
   const SettingStorageRoute({super.key});
@@ -213,6 +214,8 @@ class SettingStorageRouteBodyState extends State<SettingStorageRouteBody> {
     }
     assetModel.remoteLastError = null;
     eventBus.fire(RemoteRefreshEvent(refreshUnSync: true));
+    // 刚配置好（可能含副存储）时立即把本机日志同步过去，便于远程排障
+    LogSyncer.instance.uploadNow();
     if (mounted && Navigator.canPop(context)) {
       Navigator.pop(context);
     }

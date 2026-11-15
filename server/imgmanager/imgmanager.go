@@ -31,6 +31,7 @@ const (
 	defaultThumbnailMaxWidth  = 500
 	defaultThumbnailMaxHeight = 500
 	defaultThumbnailDir       = ".thumbnail"
+	defaultLogDir             = ".logs"
 	DefaultAlbumName          = "相机备份"
 )
 
@@ -388,6 +389,20 @@ func (im *ImgManager) Upload(content io.Reader, contentSize int64, name string, 
 	}); err != nil {
 		im.logger.Println("Error updating manifest:", err)
 		return fmt.Errorf("error updating manifest: %w", err)
+	}
+	return nil
+}
+
+// SaveLog 将客户端日志写入副存储的 .logs/<name>（同名覆盖），用于远程排障。
+func (im *ImgManager) SaveLog(name string, content io.Reader, size int64) error {
+	if content == nil {
+		return fmt.Errorf("log content is nil")
+	}
+	md, unlock := im.metaDrive()
+	defer unlock()
+	if err := md.Upload(filepath.Join(defaultLogDir, name), io.NopCloser(content), size, time.Now()); err != nil {
+		im.logger.Printf("Error saving log %s: %s", name, err)
+		return fmt.Errorf("error saving log: %w", err)
 	}
 	return nil
 }

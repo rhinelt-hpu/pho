@@ -245,6 +245,19 @@ tap_ui_node("打开调试控制台")
 
 ---
 
+### 4.6 远端日志自动同步（.logs 目录）与冷启动埋点
+
+手机端排查最麻烦的是"需要用户配合抓日志"。为此客户端会把本机运行日志自动落到副存储（元数据存储）的 `.logs/` 目录：
+
+- **文件布局**：`.logs/<deviceId>/<yyyy-MM-dd>.log`，`deviceId` 形如 `ios-a1b2c3`（仅平台 + 随机后缀，不含硬件信息）。
+- **本地落盘**：`lib/logger/logger.dart` 把 `logger.addLog()` 的内容追加到 App 沙箱 `logs/` 目录（2 秒防抖写盘，单文件超 2MB 翻页，保留 3 天）。
+- **自动上传**：`lib/logger/log_sync.dart` 每 10 分钟检查一次，内容有变化才上传（按文件大小 + mtime 判重）；切后台时立即落盘，回前台补传。可用 SharedPreferences `log_sync_enabled`（默认开启）关闭。
+- **手动触发**：App 内【设置 -> 应用信息 -> 调试模式】开启后，可见【自动同步日志到元数据存储】开关与【立即上传日志】。修改存储配置保存成功后也会自动补传一次。
+- **服务端落点**：HTTP `POST /logs/<deviceId>/<date>.log` -> `ImgManager.SaveLog()` -> `metaDrive().Upload(".logs/...")`，与 `.thumbnail` / `.manifest` 同属元数据后端。
+- **冷启动排障**：启动流程会写入 `startup:` 前缀的耗时埋点（如 `startup: firstFrame +123ms`），iPad 上遇到首屏白屏时，先让设备联网跑一次冷启动，再在 NAS 的 `.logs/<device>/` 里看时间线。
+
+---
+
 ## 5. 自动化测试执行
 
 项目包含全面的后端集成测试套件，测试覆盖了 SMB、WebDAV、NFS 的文件读写与断点恢复：

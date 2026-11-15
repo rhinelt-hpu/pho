@@ -446,6 +446,24 @@ class RemoteStorage implements RemoteStorageClient {
       return false;
     }
   }
+
+  /// 上传一段日志到副存储 `.logs/<relPath>`，失败不抛异常（日志同步不能影响业务）
+  Future<bool> uploadLog(String relPath, Uint8List bytes) async {
+    try {
+      await checkServer();
+      var cleanPath = relPath;
+      while (cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+      }
+      final resp = await http
+          .post(Uri.parse('$httpBaseUrl/logs/$cleanPath'), body: bytes)
+          .timeout(const Duration(seconds: 20));
+      return resp.statusCode == 200;
+    } catch (e) {
+      logger.addLog("uploadLog error: $e");
+      return false;
+    }
+  }
 }
 
 class RemoteImage {

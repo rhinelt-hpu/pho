@@ -86,6 +86,8 @@ func (a *api) httpHandler(w http.ResponseWriter, r *http.Request) {
 			a.httpUploadThumbnail(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/live/") {
 			a.httpUploadLiveVideo(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/logs/") {
+			a.httpUploadLog(w, r)
 		} else {
 			a.httpUpload(w, r)
 		}
@@ -260,6 +262,33 @@ func (a *api) httpUploadLiveVideo(w http.ResponseWriter, r *http.Request) {
 		Password: encPassword,
 	}), imgmanager.IsLivePhoto(true), imgmanager.WithAlbum(album))
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		w.Write([]byte(err.Error()))
+		return
+	}
+	r.Body.Close()
+	w.WriteHeader(http.StatusOK)
+}
+
+// httpUploadLog 将客户端日志写入副存储 .logs/<device>/<date>.log，与缩略图、.manifest 同属元数据存储。
+func (a *api) httpUploadLog(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/logs/")
+	cleaned, err := sanitizePath(name)
+	if err != nil {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	if cleaned == "" || r.ContentLength == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	if err := a.im.SaveLog(cleaned, r.Body, r.ContentLength); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)

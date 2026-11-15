@@ -11,6 +11,7 @@ import 'package:img_syncer/setting_storage_route.dart';
 import 'package:img_syncer/filter_setting_route.dart';
 import 'package:img_syncer/global.dart';
 import 'package:img_syncer/logger/logger.dart';
+import 'package:img_syncer/logger/log_sync.dart';
 import 'package:img_syncer/state_model.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -348,6 +349,7 @@ class AboutRoute extends StatefulWidget {
 
 class _AboutRouteState extends State<AboutRoute> {
   String _version = '26.10.1';
+  bool _logSyncEnabled = true;
 
   static const String _latestApkUrl =
       'https://github.com/rhinelt-hpu/pho/releases/latest/download/app-release.apk';
@@ -358,6 +360,9 @@ class _AboutRouteState extends State<AboutRoute> {
   void initState() {
     super.initState();
     _loadVersion();
+    LogSyncer.instance.isEnabled().then((v) {
+      if (mounted) setState(() => _logSyncEnabled = v);
+    });
   }
 
   Future<void> _loadVersion() async {
@@ -518,6 +523,51 @@ class _AboutRouteState extends State<AboutRoute> {
                           duration: const Duration(seconds: 2),
                         ),
                       );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.paddingSmall,
+                      vertical: AppSpacing.xs),
+                  child: SwitchListTile(
+                    secondary: Icon(
+                      Icons.cloud_upload_outlined,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(l10n.logSyncTitle,
+                        style: textTheme.titleLarge),
+                    subtitle: Text(
+                      l10n.logSyncDesc,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    value: _logSyncEnabled,
+                    onChanged: (bool value) async {
+                      setState(() => _logSyncEnabled = value);
+                      await LogSyncer.instance.setEnabled(value);
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.paddingSmall,
+                      vertical: AppSpacing.xs),
+                  child: ListTile(
+                    leading:
+                        Icon(Icons.upload_file, color: colorScheme.primary),
+                    title: Text(l10n.logSyncUploadNow,
+                        style: textTheme.titleLarge
+                            ?.copyWith(color: colorScheme.primary)),
+                    onTap: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      final n = await LogSyncer.instance.uploadNow();
+                      messenger.showSnackBar(SnackBar(
+                        content:
+                            Text(n > 0 ? l10n.logSyncDone : l10n.logSyncFailed),
+                        duration: const Duration(seconds: 2),
+                      ));
                     },
                   ),
                 ),

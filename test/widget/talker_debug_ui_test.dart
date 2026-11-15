@@ -86,8 +86,8 @@ void main() {
     expect(talker.history.length, 0);
     expect(find.text('调试日志已清空'), findsOneWidget);
 
-    // 再次点击开关关闭调试模式
-    await tester.tap(switchFinder);
+    // 再次点击开关关闭调试模式（此时页面已多出日志同步开关，取第一个调试开关）
+    await tester.tap(find.byType(Switch).first);
     await tester.pumpAndSettle();
 
     expect(testSettingModel.debugMode, false);
