@@ -298,8 +298,10 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 
 	// 3. 定向补查：区间扫描在「区间内已有其它 manifest 记录」时会整体命中 manifest 而不下物理盘，
 	// 残留的少量 miss（如 10 张里 1 张）只扫它所在日期的目录，命中后回写 manifest。
+	// 区间物理扫描已经覆盖了 min..max 的所有日期目录（且带回写），无需再定向重复扫一遍；
+	// 只有「区间整体命中 manifest、根本没有下物理盘」时，才需要按 miss 的日期定向补查。
 	targetedHealed := 0
-	if unmatchedCount > 0 && unmatchedCount <= 40 {
+	if unmatchedCount > 0 && unmatchedCount <= 40 && !stats.FallbackScan {
 		remaining := make(map[string]bool, unmatchedCount*2)
 		for encName, id := range nameToID {
 			if targetIDs[id] {

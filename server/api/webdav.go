@@ -9,9 +9,6 @@ import (
 	"github.com/fregie/img_syncer/server/drive/webdav"
 )
 
-// manifestSyncWait 为构造响应 Message 等待 manifest 首次同步完成的上限（超时则返回当前已知状态）
-const manifestSyncWait = 1500 * time.Millisecond
-
 func (a *api) SetDriveWebdav(ctx context.Context, req *pb.SetDriveWebdavRequest) (rsp *pb.SetDriveWebdavResponse, e error) {
 	rsp = &pb.SetDriveWebdavResponse{Success: true}
 	if req.Addr == "" {
@@ -45,30 +42,20 @@ func (a *api) SetDriveWebdav(ctx context.Context, req *pb.SetDriveWebdavRequest)
 	// 握手验证通过后，将 Client 超时恢复为正常数据传输超时（60秒）
 	d.Cli().SetTimeout(60 * time.Second)
 
-	syncSeq := a.im.ManifestSyncSeq()
 	start := time.Now()
 	if req.IsMetaDrive {
 		a.im.SetMetaDrive(d)
 	} else {
 		a.im.SetDrive(d)
 	}
-	// 仅在真正会触发 manifest 同步（已设 root）时等待，最多 manifestSyncWait，
-	// 以便把真实统计回传给客户端日志
-	if req.Root != "" {
-		deadline := time.Now().Add(manifestSyncWait)
-		for a.im.ManifestSyncSeq() == syncSeq && time.Now().Before(deadline) {
-			time.Sleep(20 * time.Millisecond)
-		}
-	}
+	// 不要在这里等 manifest 同步完成，也不要在 Sync 持锁期间调用 Manifest().IsInitialized()：
+	// 远端快照下载可能十几秒，会把驱动配置 RPC 拖到客户端超时（12s）。
+	// 这里只回传「上一次已知的同步摘要」，随后 ListByDate/FilterNotUploaded 的 Message
+	// 会带真实的 source=manifest/records，足以排查问题。
 	info := a.im.LastManifestSync()
 	source := info.Source
-	if source != "local-cache" && source != "remote" {
-		// 同步尚未开始/元数据存储未就绪：按本地缓存是否已加载回退
-		if a.im.Manifest().IsInitialized() {
-			source = "local-cache"
-		} else {
-			source = "remote"
-		}
+	if source == "" {
+		source = "pending"
 	}
 	rsp.Message = fmt.Sprintf("manifest: records=%d watermark=%d source=%s cost=%dms",
 		info.Records, info.Watermark, source, time.Since(start).Milliseconds())
