@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Modify this file to customize your launch splash screen -->
+<!-- 品牌启动背景色 #0A0A3D：与 Flutter 启动页 (_SplashScreen) 和
+     iOS LaunchScreen.storyboard 保持一致，避免两端观感不一致 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF0A0A3D" />
+        </shape>
+    </item>
 </layer-list>

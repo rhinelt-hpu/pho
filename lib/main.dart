@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:img_syncer/desktop/home_page.dart';
 import 'package:img_syncer/event_bus.dart';
 import 'package:img_syncer/global.dart';
@@ -28,7 +26,7 @@ import 'package:img_syncer/onboarding/onboarding_route.dart';
 // ignore: unused_import
 import 'background_sync_entrypoint.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
@@ -43,21 +41,9 @@ void main() async {
     }
     return false;
   };
-  // 清除 adaptive_theme 持久化的旧暗色模式，强制浅色
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.remove('adaptive_theme');
-  final hasOnboarded = prefs.getBool('has_onboarded') ?? false;
-  // 容错：如果用户已经配置了网络存储或相册，说明已经在使用，绝不重复弹出新手引导
-  final hasConfiguredStorage =
-      (prefs.getString('webdav_url')?.isNotEmpty ?? false) ||
-      (prefs.getString('smb_host')?.isNotEmpty ?? false) ||
-      (prefs.getString('nfs_host')?.isNotEmpty ?? false);
-  if (hasConfiguredStorage && !hasOnboarded) {
-    unawaited(prefs.setBool('has_onboarded', true));
-  }
-  final needsOnboarding = !(hasOnboarded || hasConfiguredStorage);
-
-  await Global.init();
+  startupLog('main entry');
+  // 首帧之前不 await 任何东西：立刻 runApp，先渲染品牌启动页
+  // （与原生 LaunchScreen 同视觉），初始化全部推到首帧之后。
   runApp(
     MultiProvider(
       providers: [
@@ -65,14 +51,143 @@ void main() async {
         ChangeNotifierProvider(create: (context) => assetModel),
         ChangeNotifierProvider(create: (context) => stateModel),
       ],
-      child: MyApp(needsOnboarding: needsOnboarding),
+      child: const MyApp(),
     ),
   );
+  startupLog('runApp returned');
+}
+
+/// 启动页背景色：与 ios/Runner/Base.lproj/LaunchScreen.storyboard
+/// 以及 android 的 launch_background.xml 保持一致，原生 → Dart 无跳变。
+const Color splashBackgroundColor = Color(0xFF0A0A3D);
+
+/// 启动页图标边长（pt），与原生 LaunchScreen 的 LaunchLogo 约束一致。
+const double splashLogoSize = 112;
+
+/// 深色启动页上的状态栏/导航栏样式（白字）
+const SystemUiOverlayStyle splashOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light, // Android
+  statusBarBrightness: Brightness.dark, // iOS
+  systemNavigationBarColor: splashBackgroundColor,
+  systemNavigationBarIconBrightness: Brightness.light,
+);
+
+/// 应用主界面的状态栏/导航栏样式
+const SystemUiOverlayStyle appOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent, // 设置状态栏颜色为透明
+  systemNavigationBarColor: Colors.transparent, // 设置导航栏颜色为透明
+  systemNavigationBarDividerColor: Colors.transparent, // 设置导航栏分隔线颜色为透明
+);
+
+/// 品牌启动页：纯色背景 + 居中图标 + 进度指示，无文字（避免 l10n/字体加载）。
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AnnotatedRegion<SystemUiOverlayStyle>(
+      value: splashOverlayStyle,
+      child: ColoredBox(
+        color: splashBackgroundColor,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image(
+                // 1024×1024 原图按 3x 尺寸解码，降低首帧解码开销
+                image: ResizeImage(
+                  AssetImage('assets/icon/pho_icon.png'),
+                  width: 336,
+                  height: 336,
+                ),
+                width: splashLogoSize,
+                height: splashLogoSize,
+              ),
+              SizedBox(height: 28),
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF02FED1),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 首帧（品牌启动页）之后才跑后台初始化，完成后切到 [_AppEntryPoint]。
+class _Bootstrap extends StatefulWidget {
+  const _Bootstrap();
+
+  @override
+  State<_Bootstrap> createState() => _BootstrapState();
+}
+
+class _BootstrapState extends State<_Bootstrap> {
+  bool _ready = false;
+  bool _needsOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      startupLog('firstFrame');
+      unawaited(_bootstrap());
+    });
+  }
+
+  Future<void> _bootstrap() async {
+    var needsOnboarding = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasOnboarded = prefs.getBool('has_onboarded') ?? false;
+      // 容错：如果用户已经配置了网络存储或相册，说明已经在使用，绝不重复弹出新手引导
+      final hasConfiguredStorage =
+          (prefs.getString('webdav_url')?.isNotEmpty ?? false) ||
+              (prefs.getString('smb_host')?.isNotEmpty ?? false) ||
+              (prefs.getString('nfs_host')?.isNotEmpty ?? false);
+      if (hasConfiguredStorage && !hasOnboarded) {
+        unawaited(prefs.setBool('has_onboarded', true));
+      }
+      needsOnboarding = !(hasOnboarded || hasConfiguredStorage);
+      startupLog('prefs loaded');
+      // Go 内核 / 缩略图缓存 / 设置加载等，全部在首帧之后。
+      // 超时只是兜底：Go 内核卡死时也不把用户锁在启动页（启动流程会自己继续跑）
+      await Global.ensureStarted().timeout(const Duration(seconds: 15),
+          onTimeout: () =>
+              startupLog('global init timeout after 15s, enter app anyway'));
+    } catch (e) {
+      // 初始化失败也要进主界面，不能把用户卡在启动页
+      startupLog('bootstrap failed: $e');
+    }
+    if (!mounted) return;
+    // 启动页是深色底（白字状态栏），进主界面前恢复应用自己的浅色状态栏样式
+    SystemChrome.setSystemUIOverlayStyle(appOverlayStyle);
+    setState(() {
+      _needsOnboarding = needsOnboarding;
+      _ready = true;
+    });
+    startupLog('app entry shown');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return const _SplashScreen();
+    }
+    return _AppEntryPoint(initialNeedsOnboarding: _needsOnboarding);
+  }
 }
 
 class _AppEntryPoint extends StatefulWidget {
   final bool initialNeedsOnboarding;
-  const _AppEntryPoint({super.key, required this.initialNeedsOnboarding});
+  const _AppEntryPoint({required this.initialNeedsOnboarding});
   @override
   State<_AppEntryPoint> createState() => _AppEntryPointState();
 }
@@ -111,18 +226,13 @@ class _AppEntryPointState extends State<_AppEntryPoint> {
 }
 
 class MyApp extends StatelessWidget {
-  final bool needsOnboarding;
-  const MyApp({Key? key, this.needsOnboarding = false}) : super(key: key);
+  const MyApp({Key? key}) : super(key: key);
   static const String _title = 'PHO';
   // This widget is the root of your application.
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent, // 设置状态栏颜色为透明
-      systemNavigationBarColor: Colors.transparent, // 设置导航栏颜色为透明
-      systemNavigationBarDividerColor: Colors.transparent, // 设置导航栏分隔线颜色为透明
-    ));
+    SystemChrome.setSystemUIOverlayStyle(appOverlayStyle);
     return DynamicColorBuilder(
       builder: (lightDynamic, darkDynamic) {
         late ColorScheme lightColorScheme;
@@ -158,11 +268,15 @@ class MyApp extends StatelessWidget {
             light: lightTheme,
             dark: darkTheme,
             initial: AdaptiveThemeMode.light,
+            // 始终浅色：以前是在每次启动时 prefs.remove('adaptive_theme') 写盘一次，
+            // 而 adaptive_theme 3.x 实际读的 key 是 'adaptive_theme_preferences'，
+            // overrideMode 才是真正生效且只在必要时落盘的做法。
+            overrideMode: AdaptiveThemeMode.light,
             builder: (theme, darkTheme) {
               return MaterialApp(
                 title: _title,
                 debugShowCheckedModeBanner: false,
-                home: _AppEntryPoint(initialNeedsOnboarding: needsOnboarding),
+                home: const _Bootstrap(),
                 theme: theme,
                 darkTheme: darkTheme,
                 themeMode: ThemeMode.light,

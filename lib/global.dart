@@ -1,4 +1,3 @@
-import 'package:img_syncer/setting_storage_route.dart';
 import 'package:img_syncer/proto/img_syncer.pbgrpc.dart';
 import 'package:img_syncer/run_server.dart';
 import 'package:img_syncer/sync_timer.dart';
@@ -16,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:img_syncer/cache/thumbnail_cache.dart';
+import 'package:img_syncer/logger/log_sync.dart';
 import 'event_bus.dart';
 
 String httpBaseUrl = "http://127.0.0.1:10001";
@@ -26,8 +26,52 @@ bool isDebug = false;
 
 Color? seedColor;
 
+/// 启动耗时埋点的计时原点，首次 [startupLog] 调用时初始化（≈ Dart main 进入时刻）。
+final DateTime startupOrigin = DateTime.now();
+
+/// 启动耗时埋点，统一 `startup:` 前缀，例如 `startup: firstFrame +123ms`。
+/// 只依赖进程内 [DateTime.now]，不需要原生配合；日志会被日志同步功能上传远端。
+void startupLog(String stage) {
+  final elapsed = DateTime.now().difference(startupOrigin).inMilliseconds;
+  logger.addLog('startup: $stage +${elapsed}ms');
+}
+
 class Global {
-  static Future init() async {
+  static Future<void>? _startupFuture;
+
+  /// 可重入启动入口：并发或重复调用共享同一个 Future，Go server 只会启动一次。
+  /// 首帧之后调用；`checkServer()` 也通过它等待启动完成，而不是自己再 runServer。
+  static Future<void> ensureStarted() {
+    final existing = _startupFuture;
+    if (existing != null) {
+      return existing;
+    }
+    final future = _startup();
+    _startupFuture = future;
+    return future;
+  }
+
+  /// 主 isolate 的启动流程是否已被发起（headless 后台 isolate 里恒为 false）
+  static bool get isStarting => _startupFuture != null;
+
+  /// 兼容旧调用点，等价于 [ensureStarted]。
+  static Future<void> init() => ensureStarted();
+
+  /// 启动流程外壳：异常不外抛（首帧已渲染，必须能进入主界面），只记录日志。
+  static Future<void> _startup() async {
+    try {
+      await _initOnce();
+    } catch (e) {
+      logger.addLog("startup: global init failed: $e");
+    } finally {
+      startupLog('global init end');
+      // 首帧已渲染后才走到这里；日志同步内部自己读 prefs，不 await 以免拖慢启动
+      unawaited(LogSyncer.instance.ensureStarted());
+    }
+  }
+
+  static Future<void> _initOnce() async {
+    startupLog('global init start');
     assert(() {
       if (!Platform.isIOS) {
         isDebug = true;
@@ -37,7 +81,7 @@ class Global {
     final portsStr = await runServer();
     final ports = portsStr.split(",");
     if (ports.length != 2) {
-      logger.addLog("grpc server start failed");
+      logger.addLog("startup: grpc server start failed: $portsStr");
       return;
     }
     httpBaseUrl = "http://127.0.0.1:${ports[1]}";
@@ -49,7 +93,9 @@ class Global {
       storage = RemoteStorage("192.168.100.213", 50051);
     }
     lastAliveTime = DateTime.now();
+    startupLog('server ready grpc=$grpcPort http=$httpPort');
     await ThumbnailCache.init();
+    startupLog('local caches ready');
 
     final prefs = await SharedPreferences.getInstance();
     if (isDesktop()) {
@@ -112,33 +158,18 @@ class Global {
       settingModel.setGalleryColumCount(galleryColumCount);
     }
 
+    // 相册权限申请与相册枚举不在启动关键路径上做：相册页首帧后
+    // AssetModel.getLocalPhotos() 会自己申请权限，并在 localFolder 为空时
+    // 自动挑选照片最多的相册（Android 首次启动即走这条路径）。
     final localFolder = prefs.getString("localFolder");
-    if (localFolder != null && localFolder != "") {
+    if (localFolder != null && localFolder.isNotEmpty) {
       settingModel.setLocalFolder(localFolder);
-      if (localFolder != "") {
-        eventBus.fire(LocalRefreshEvent(refreshUnSync: false));
-      }
-    } else {
-      await requestPermission(alert: false);
-      if (Platform.isIOS) {
-        settingModel.setLocalFolder("Recents");
-        await prefs.setString("localFolder", "Recents");
-        eventBus.fire(LocalRefreshEvent(refreshUnSync: true));
-      } else {
-        final List<AssetPathEntity> paths =
-            await PhotoManager.getAssetPathList(
-                type: RequestType.common, hasAll: true);
-        final Map<AssetPathEntity, int> assetCountMap = {
-          for (final p in paths) p: await p.assetCountAsync,
-        };
-        paths.sort((a, b) =>
-            (assetCountMap[b] ?? 0).compareTo(assetCountMap[a] ?? 0));
-        if (paths.isNotEmpty) {
-          settingModel.setLocalFolder(paths[0].name);
-          await prefs.setString("localFolder", paths[0].name);
-          eventBus.fire(LocalRefreshEvent(refreshUnSync: true));
-        }
-      }
+      eventBus.fire(LocalRefreshEvent(refreshUnSync: false));
+    } else if (Platform.isIOS) {
+      // iOS 的 Recents 是系统聚合相册，不需要枚举就能定下默认值
+      settingModel.setLocalFolder("Recents");
+      await prefs.setString("localFolder", "Recents");
+      eventBus.fire(LocalRefreshEvent(refreshUnSync: true));
     }
     final lastRefreshUnsyncTime = prefs.getInt("last_refersh_unsync");
     if (lastRefreshUnsyncTime != null) {
@@ -155,6 +186,15 @@ class Global {
 
 DateTime? lastAliveTime;
 Future<void> checkServer() async {
+  if (useRemoteServer) {
+    return;
+  }
+  // Go server 还没起来（或正在启动）时只等同一个启动 Future，绝不再调一次
+  // runServer()：否则会双开内核、并替换掉已连上的 storage/端口。
+  // 后台 headless isolate 不会跑启动流程（isStarting == false），保持原 ping 语义。
+  if (Global.isStarting) {
+    await Global.ensureStarted();
+  }
   if (useRemoteServer) {
     return;
   }
@@ -195,6 +235,7 @@ Future<void> initDrive() {
     if (_activeInitDriveFuture == future) {
       _activeInitDriveFuture = null;
     }
+    startupLog('initDrive end');
   });
   return future;
 }
