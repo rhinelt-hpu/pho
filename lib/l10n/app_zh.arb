@@ -204,6 +204,14 @@
   "resetStats": "重置统计计数",
   "recentLogs": "最近请求流水",
   "refreshStats": "刷新统计",
+  "remoteStatsPrimary": "主存储（云盘）",
+  "remoteStatsMeta": "副存储（元数据）",
+  "remoteStatsPrimaryEmpty": "未使用主存储 WebDAV / 不可用",
+  "remoteStatsMetaEmpty": "未配置副存储 / 不可用",
+  "remoteStatsLegacyHint": "当前服务端仅上报聚合统计（未区分主 / 副存储）",
+  "remoteStatsAggregate": "聚合统计",
+  "statsByMethod": "请求方法分布",
+  "statsByStatus": "响应状态分布",
   "transferring": "正在传输",
   "enableMetaStorage": "启用独立元数据与缩略图存储",
   "enableMetaStorageDesc": "可将元数据 (.manifest) 与缩略图存放到访问速度更快的存储后端",
@@ -218,5 +226,7 @@
   "logSyncDesc": "把本机运行日志上传到副存储的 .logs 目录，便于远程排查问题",
   "logSyncUploadNow": "立即上传日志",
   "logSyncDone": "日志已上传",
-  "logSyncFailed": "日志上传失败"
+  "logSyncFailed": "日志上传失败",
+  "verboseLogTitle": "详细日志（DEBUG）",
+  "verboseLogDesc": "额外落盘 DEBUG 级细节（如每页远端列表耗时），便于排查性能问题"
 }

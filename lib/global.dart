@@ -62,7 +62,7 @@ class Global {
     try {
       await _initOnce();
     } catch (e) {
-      logger.addLog("startup: global init failed: $e");
+      logger.error("startup: global init failed: $e");
     } finally {
       startupLog('global init end');
       // 首帧已渲染后才走到这里；日志同步内部自己读 prefs，不 await 以免拖慢启动
@@ -81,7 +81,7 @@ class Global {
     final portsStr = await runServer();
     final ports = portsStr.split(",");
     if (ports.length != 2) {
-      logger.addLog("startup: grpc server start failed: $portsStr");
+      logger.error("startup: grpc server start failed: $portsStr");
       return;
     }
     httpBaseUrl = "http://127.0.0.1:${ports[1]}";
@@ -206,12 +206,12 @@ Future<void> checkServer() async {
     await storage.cli.ping(PingRequest()).timeout(const Duration(seconds: 3));
     lastAliveTime = DateTime.now();
   } catch (e) {
-    logger.addLog("ping 127.0.0.1:$grpcPort failed: $e");
-    logger.addLog("reboot server");
+    logger.warn("ping 127.0.0.1:$grpcPort failed: $e");
+    logger.info("reboot server");
     final portsStr = await runServer();
     final ports = portsStr.split(",");
     if (ports.length != 2) {
-      logger.addLog("grpc server start failed");
+      logger.error("grpc server start failed");
       return;
     }
     httpBaseUrl = "http://127.0.0.1:${ports[1]}";
@@ -252,12 +252,13 @@ Future<void> _doInitDrive() async {
         // 首个 gRPC 请求可能赶上 Go 内核 gomobile 通道预热，3s 会偶发超时
         .timeout(const Duration(seconds: 10));
   } catch (e) {
-    logger.addLog("setLocalCacheDir: $e");
+    logger.warn("setLocalCacheDir: $e");
   }
   final prefs = await SharedPreferences.getInstance();
   var drive = prefs.getString("drive");
   drive ??= "SMB";
   bool primaryOk = false;
+  final primarySw = Stopwatch()..start();
   try {
     switch (getDrive(drive)) {
       case Drive.smb:
@@ -311,7 +312,12 @@ Future<void> _doInitDrive() async {
               ))
               .timeout(const Duration(seconds: 12));
           if (rsp.success) {
-            logger.addLog("set drive webdav success");
+            logger.info("set drive webdav success");
+            // 服务端在 Message 里回传 manifest 诊断文本，如
+            // `manifest: records=13598 watermark=119 source=local-cache cost=234ms`
+            if (rsp.message.isNotEmpty) {
+              logger.info("drive primary manifest: ${rsp.message}");
+            }
             primaryOk = true;
           } else {
             assetModel.remoteLastError = rsp.message;
@@ -341,9 +347,13 @@ Future<void> _doInitDrive() async {
         break;
     }
   } catch (e) {
-    logger.addLog("init primary drive failed: $e");
+    logger.error("init primary drive failed: $e");
     assetModel.remoteLastError = e.toString();
   }
+  logger.log(
+      primaryOk ? LogLevel.info : LogLevel.warn,
+      'drive primary: ${primaryOk ? "ok" : "err"} '
+      'cost=${primarySw.elapsedMilliseconds}ms');
 
   if (!primaryOk) {
     settingModel.setRemoteStorageSetted(false);
@@ -364,6 +374,7 @@ Future<void> _doInitDrive() async {
 
   final metaDriveStr = prefs.getString('meta_drive') ?? 'WebDAV';
   bool metaOk = false;
+  final metaSw = Stopwatch()..start();
   try {
     switch (getDrive(metaDriveStr)) {
       case Drive.smb:
@@ -417,7 +428,10 @@ Future<void> _doInitDrive() async {
               ))
               .timeout(const Duration(seconds: 12));
           if (rsp.success) {
-            logger.addLog("set meta drive webdav success");
+            logger.info("set meta drive webdav success");
+            if (rsp.message.isNotEmpty) {
+              logger.info("drive meta manifest: ${rsp.message}");
+            }
             metaOk = true;
           } else {
             assetModel.remoteLastError = rsp.message;
@@ -448,9 +462,12 @@ Future<void> _doInitDrive() async {
         break;
     }
   } catch (e) {
-    logger.addLog("init meta drive failed: $e");
+    logger.error("init meta drive failed: $e");
     assetModel.remoteLastError = e.toString();
   }
+  logger.log(
+      metaOk ? LogLevel.info : LogLevel.warn,
+      'drive meta: ${metaOk ? "ok" : "err"} cost=${metaSw.elapsedMilliseconds}ms');
 
   if (metaOk) {
     settingModel.setRemoteStorageSetted(true);

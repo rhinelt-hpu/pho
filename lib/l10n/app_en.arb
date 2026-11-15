@@ -204,6 +204,14 @@
   "resetStats": "Reset Counter",
   "recentLogs": "Recent Request Logs",
   "refreshStats": "Refresh Stats",
+  "remoteStatsPrimary": "Primary storage (cloud)",
+  "remoteStatsMeta": "Metadata storage",
+  "remoteStatsPrimaryEmpty": "Primary WebDAV not in use / unavailable",
+  "remoteStatsMetaEmpty": "Metadata storage not configured / unavailable",
+  "remoteStatsLegacyHint": "This server only reports aggregate stats (no primary/metadata split)",
+  "remoteStatsAggregate": "Aggregate stats",
+  "statsByMethod": "Requests by method",
+  "statsByStatus": "Responses by status",
   "transferring": "Transferring",
   "enableMetaStorage": "Separate Metadata & Thumbnail Storage",
   "enableMetaStorageDesc": "Store metadata (.manifest) and thumbnails on a faster storage backend",
@@ -218,5 +226,7 @@
   "logSyncDesc": "Upload this device's runtime logs to the .logs folder on the metadata drive for remote troubleshooting",
   "logSyncUploadNow": "Upload logs now",
   "logSyncDone": "Logs uploaded",
-  "logSyncFailed": "Failed to upload logs"
+  "logSyncFailed": "Failed to upload logs",
+  "verboseLogTitle": "Verbose logs (DEBUG)",
+  "verboseLogDesc": "Also persist DEBUG-level details such as per-page remote listing timings"
 }

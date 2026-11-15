@@ -1310,6 +1310,54 @@ abstract class AppLocalizations {
   /// **'Refresh Stats'**
   String get refreshStats;
 
+  /// No description provided for @remoteStatsPrimary.
+  ///
+  /// In en, this message translates to:
+  /// **'Primary storage (cloud)'**
+  String get remoteStatsPrimary;
+
+  /// No description provided for @remoteStatsMeta.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata storage'**
+  String get remoteStatsMeta;
+
+  /// No description provided for @remoteStatsPrimaryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Primary WebDAV not in use / unavailable'**
+  String get remoteStatsPrimaryEmpty;
+
+  /// No description provided for @remoteStatsMetaEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata storage not configured / unavailable'**
+  String get remoteStatsMetaEmpty;
+
+  /// No description provided for @remoteStatsLegacyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This server only reports aggregate stats (no primary/metadata split)'**
+  String get remoteStatsLegacyHint;
+
+  /// No description provided for @remoteStatsAggregate.
+  ///
+  /// In en, this message translates to:
+  /// **'Aggregate stats'**
+  String get remoteStatsAggregate;
+
+  /// No description provided for @statsByMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests by method'**
+  String get statsByMethod;
+
+  /// No description provided for @statsByStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Responses by status'**
+  String get statsByStatus;
+
   /// No description provided for @transferring.
   ///
   /// In en, this message translates to:
@@ -1399,6 +1447,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to upload logs'**
   String get logSyncFailed;
+
+  /// No description provided for @verboseLogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Verbose logs (DEBUG)'**
+  String get verboseLogTitle;
+
+  /// No description provided for @verboseLogDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Also persist DEBUG-level details such as per-page remote listing timings'**
+  String get verboseLogDesc;
 }
 
 class _AppLocalizationsDelegate

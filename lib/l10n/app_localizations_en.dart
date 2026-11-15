@@ -651,6 +651,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refreshStats => 'Refresh Stats';
 
   @override
+  String get remoteStatsPrimary => 'Primary storage (cloud)';
+
+  @override
+  String get remoteStatsMeta => 'Metadata storage';
+
+  @override
+  String get remoteStatsPrimaryEmpty =>
+      'Primary WebDAV not in use / unavailable';
+
+  @override
+  String get remoteStatsMetaEmpty =>
+      'Metadata storage not configured / unavailable';
+
+  @override
+  String get remoteStatsLegacyHint =>
+      'This server only reports aggregate stats (no primary/metadata split)';
+
+  @override
+  String get remoteStatsAggregate => 'Aggregate stats';
+
+  @override
+  String get statsByMethod => 'Requests by method';
+
+  @override
+  String get statsByStatus => 'Responses by status';
+
+  @override
   String get transferring => 'Transferring';
 
   @override
@@ -700,4 +727,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logSyncFailed => 'Failed to upload logs';
+
+  @override
+  String get verboseLogTitle => 'Verbose logs (DEBUG)';
+
+  @override
+  String get verboseLogDesc =>
+      'Also persist DEBUG-level details such as per-page remote listing timings';
 }

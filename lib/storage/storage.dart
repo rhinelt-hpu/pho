@@ -158,8 +158,15 @@ class RemoteStorage implements RemoteStorageClient {
     int maxRetries = 3;
     int retryCount = 0;
     bool succeeded = false;
+    final totalSw = Stopwatch()..start();
+    int thumbMs = 0;
+    int origMs = 0;
+    int liveMs = 0;
     while (!succeeded) {
       int uploaded = 0;
+      thumbMs = 0;
+      origMs = 0;
+      liveMs = 0;
       try {
         // upload thumbnail
         final thumbHeaders = {
@@ -175,16 +182,18 @@ class RemoteStorage implements RemoteStorageClient {
         if (encodedAlbum.isNotEmpty) {
           thumbHeaders['Image-Album'] = encodedAlbum;
         }
+        final thumbSw = Stopwatch()..start();
         final thumbRsp = await http.post(
           Uri.parse("$httpBaseUrl/thumbnail/$name"),
           body: thumbnailData,
           headers: thumbHeaders,
         );
+        thumbMs += thumbSw.elapsedMilliseconds;
         stateModel.updateUploadProgress(
             asset.id, uploaded + thumbLen, totalLen);
         if (thumbRsp.statusCode != 200) {
           stateModel.finishUpload(asset.id, false);
-          logger.addLog(
+          logger.warn(
               "upload $name thumbnail failed: ${thumbRsp.statusCode} ${thumbRsp.body}");
           throw Exception(
               "upload thumbnail failed: [${thumbRsp.statusCode}] ${thumbRsp.body}");
@@ -204,6 +213,7 @@ class RemoteStorage implements RemoteStorageClient {
               settingModel.encryptionPassword;
         }
         req.contentLength = await file.length();
+        final origSw = Stopwatch()..start();
         file.openRead().listen((chunk) {
           uploaded += chunk.length;
           stateModel.updateUploadProgress(asset.id, uploaded, totalLen);
@@ -215,6 +225,7 @@ class RemoteStorage implements RemoteStorageClient {
           throw Exception("file read error: $e");
         });
         final response = await req.send();
+        origMs += origSw.elapsedMilliseconds;
         if (response.statusCode != 200) {
           stateModel.finishUpload(asset.id, false);
           final body = await response.stream.bytesToString();
@@ -248,13 +259,19 @@ class RemoteStorage implements RemoteStorageClient {
             req.sink.close();
             throw Exception("file read error: $e");
           });
+          final liveSw = Stopwatch()..start();
           final response = await req.send();
+          liveMs += liveSw.elapsedMilliseconds;
           if (response.statusCode != 200) {
             stateModel.finishUpload(asset.id, false);
             final body = await response.stream.bytesToString();
             throw Exception("upload failed: [${response.statusCode}] $body");
           }
         }
+        logger.info(
+            'upload done: $name size=${(imgLen / 1024).toStringAsFixed(1)}KB '
+            'thumb=${thumbMs}ms orig=${origMs}ms live=${liveMs}ms '
+            'total=${totalSw.elapsedMilliseconds}ms');
         stateModel.finishUpload(asset.id, true);
         succeeded = true;
       } catch (e) {
@@ -264,12 +281,12 @@ class RemoteStorage implements RemoteStorageClient {
           final sizeMB = (totalLen / (1024 * 1024)).toStringAsFixed(1);
           final friendlyError = Exception(
               "文件体积 (${sizeMB}MB) 超过远端 WebDAV 服务器大小限制 (HTTP 413)。请调大远端 Nginx client_max_body_size 配置，或在设置中开启【跳过视频】。");
-          logger.addLog("upload $name failed: $friendlyError");
+          logger.warn("upload $name failed: $friendlyError");
           throw friendlyError;
         }
         retryCount++;
         if (retryCount >= maxRetries) {
-          logger.addLog("upload $name failed: $e");
+          logger.error("upload $name failed: $e");
           rethrow;
         }
       } finally {
@@ -279,7 +296,7 @@ class RemoteStorage implements RemoteStorageClient {
               file.deleteSync();
               liveVideoFile?.deleteSync();
             } catch (e) {
-              logger.addLog("delete file failed: $e");
+              logger.warn("delete file failed: $e");
             }
           });
         }
@@ -313,6 +330,10 @@ class RemoteStorage implements RemoteStorageClient {
         .timeout(const Duration(seconds: 60));
     if (!rsp.success) {
       throw Exception("list images failed: ${rsp.message}");
+    }
+    if (rsp.message.isNotEmpty) {
+      // 服务端诊断文本，如 `source=manifest recs=13598 returned=500 cost=2ms`
+      logger.debug('list msg: ${rsp.message}');
     }
     return rsp.infos
         .map((e) => RemoteImage(cli, e.path.replaceAll('\\', '/'),
@@ -544,6 +565,7 @@ class RemoteImage {
           request.headers['Image-Encrypt-Password'] =
               settingModel.encryptionPassword;
         }
+        final reqSw = Stopwatch()..start();
         final response = await httpClient.send(request);
         if (response.statusCode != 200) {
           // 若为视频且缩略图缺失，优雅降级返回通用占位底图，避免循环重试与抛出异常
@@ -558,12 +580,18 @@ class RemoteImage {
               "get [$urlPath] thumbnail failed: [${response.reasonPhrase}] $errMsg");
         }
         final isFallback = response.headers['x-thumbnail-fallback'] == 'true';
+        final thumbSource = response.headers['x-thumbnail-source'];
         var currentData = BytesBuilder();
         await for (var d in response.stream) {
           currentData.add(d);
         }
         thumbnailData = currentData.takeBytes();
         succeeded = true;
+        if (thumbSource == 'primary') {
+          // 副存储未命中，服务端回退到主存储（云盘）：只在详细日志下记录
+          logger.debug('thumb fallback(primary): $path '
+              'cost=${reqSw.elapsedMilliseconds}ms');
+        }
         // 异步落盘，下次浏览直接 0 网络耗时
         ThumbnailCache.put(path, thumbnailData!);
 
@@ -572,7 +600,7 @@ class RemoteImage {
           unawaited(_backfillFallbackThumbnail(urlPath, thumbnailData!));
         }
       } catch (e) {
-        logger.addLog("get $path thumbnail failed: $e");
+        logger.warn("get $path thumbnail failed: $e");
         retryCount++;
         await Future.delayed(const Duration(milliseconds: 100));
       }

@@ -144,6 +144,26 @@ class SettingModel extends ChangeNotifier {
     } catch (_) {}
   }
 
+  // 3.1 详细日志（DEBUG）开关，落盘 key: log_verbose（默认 false）
+  bool _logVerbose = false;
+  bool get logVerbose => _logVerbose;
+  set logVerbose(bool value) => setLogVerbose(value);
+
+  void setLogVerbose(bool enabled) {
+    if (_logVerbose == enabled) return;
+    _logVerbose = enabled;
+    logger.setVerbose(enabled);
+    notifyListeners();
+    _saveLogVerbose();
+  }
+
+  Future<void> _saveLogVerbose() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('log_verbose', _logVerbose);
+    } catch (_) {}
+  }
+
   /// 兼容旧命名与测试用例 (enableFilter)
   bool get enableFilter => filterSwitch;
   set enableFilter(bool enable) => setFilterSwitch(enable);
@@ -260,6 +280,7 @@ class SettingModel extends ChangeNotifier {
     await _saveFilterSettings();
     await _saveHideSyncedLocal();
     await _saveDebugMode();
+    await _saveLogVerbose();
     await _saveDefaultAlbumName();
   }
 
@@ -284,6 +305,8 @@ class SettingModel extends ChangeNotifier {
       }
       _debugMode = prefs.getBool('debug_mode') ?? false;
       logger.setEnabled(_debugMode);
+      _logVerbose = prefs.getBool('log_verbose') ?? false;
+      logger.setVerbose(_logVerbose);
       defaultAlbumName = prefs.getString('default_album_name') ?? '相机备份';
       final typeMapJson = prefs.getString('filter_type_map');
       if (typeMapJson != null) {
@@ -293,7 +316,7 @@ class SettingModel extends ChangeNotifier {
             filterTypeMap = decoded.map((k, v) => MapEntry(k.toString(), v == true));
           }
         } catch (e) {
-          logger.addLog('Failed to decode filter_type_map: $e');
+          logger.error('Failed to decode filter_type_map: $e');
         }
       }
       notifyListeners();
@@ -482,7 +505,7 @@ class StateModel extends ChangeNotifier {
       return <String>{};
     }
     if (list.length > maxCheckCount) {
-      logger.addLog(
+      logger.info(
           'checkRemoteUploaded: skip ${list.length} assets (>$maxCheckCount)');
       return <String>{};
     }
@@ -497,7 +520,7 @@ class StateModel extends ChangeNotifier {
         collectUploadedIDs(responses, uploadedIDs),
       ]).timeout(const Duration(seconds: 10));
     } catch (e) {
-      logger.addLog('checkRemoteUploaded failed: $e');
+      logger.error('checkRemoteUploaded failed: $e');
       return <String>{};
     } finally {
       if (requests != null && !requests.isClosed) {
@@ -507,7 +530,7 @@ class StateModel extends ChangeNotifier {
     // 只认回传中属于本次请求的 id，避免污染 syncedIDs
     final requestedIds = list.map((a) => a.local!.id).toSet();
     uploadedIDs.retainAll(requestedIds);
-    logger.addLog('checkRemoteUploaded: ${list.length} assets, '
+    logger.info('checkRemoteUploaded: ${list.length} assets, '
         'found ${uploadedIDs.length}, ${sw.elapsedMilliseconds}ms');
     return uploadedIDs;
   }
@@ -588,7 +611,7 @@ class AssetModel extends ChangeNotifier {
       cloudAlbums = list;
       notifyListeners();
     } catch (e) {
-      logger.addLog("refreshCloudAlbums failed: $e");
+      logger.error("refreshCloudAlbums failed: $e");
     }
   }
 
@@ -673,7 +696,7 @@ class AssetModel extends ChangeNotifier {
     }
     _isRefreshingLocal = true;
     try {
-      logger.addLog("refresh local");
+      logger.debug("refresh local");
       if (localGetting != null) {
         if (localGettingNeedBreak == true) {
           return;
@@ -701,7 +724,7 @@ class AssetModel extends ChangeNotifier {
   }
 
   Future<void> refreshRemote(bool refreshSync) async {
-    logger.addLog("refresh remote");
+    logger.debug("refresh remote");
     if (remoteGetting != null) {
       if (remoteGettingNeedBreak == true) {
         return;
@@ -728,7 +751,7 @@ class AssetModel extends ChangeNotifier {
     if (localGetting != null) {
       await localGetting?.future;
     }
-    logger.addLog("get local photos");
+    logger.debug("get local photos");
     final re = await requestPermission();
     if (!re) return false;
     localGetting = Completer<bool>();
@@ -826,7 +849,7 @@ class AssetModel extends ChangeNotifier {
     }
     remoteGetting = Completer<bool>();
     notifyListeners();
-    logger.addLog("start getting remote assets");
+    logger.debug("start getting remote assets");
     try {
       while (remoteHasMore) {
         if (remoteGettingNeedBreak) {
@@ -837,8 +860,12 @@ class AssetModel extends ChangeNotifier {
           return false;
         }
         final offset = remoteAssets.length;
+        final sw = Stopwatch()..start();
         final List<RemoteImage> images =
             await storageClient.listImages("", offset, pageSize, album: currentCloudAlbum);
+        // 每页一条即可，只在 DEBUG（详细日志 / 调试模式）下落盘
+        logger.debug('remote list: offset=$offset got=${images.length} '
+            'cost=${sw.elapsedMilliseconds}ms');
         if (images.length < pageSize) {
           remoteHasMore = false;
         }
@@ -847,7 +874,7 @@ class AssetModel extends ChangeNotifier {
             final asset = Asset(remote: images[i]);
             remoteAssets.add(asset);
           } catch (e) {
-            logger.addLog(e.toString());
+            logger.error(e.toString());
           }
         }
         remoteAssets.sort(Asset.compareByDateDesc);
@@ -917,6 +944,13 @@ Future<void> scanFile(String filePath) async {
   }
 }
 
+/// 一次 FilterNotUploaded 流式调用的累计统计，用于汇总成一条 INFO 日志
+class FilterNotUploadedStats {
+  int uploaded = 0;
+  int notUploaded = 0;
+  String? lastMessage;
+}
+
 Future<void> refreshUnsynchronizedPhotos() async {
   if (assetModel.localGetting != null) {
     await assetModel.localGetting!.future;
@@ -933,17 +967,25 @@ Future<void> refreshUnsynchronizedPhotos() async {
   if (stateModel.refreshingUnsynchronized) {
     return;
   }
-  logger.addLog("refresh unsynchronized photos");
+  logger.debug("refresh unsynchronized photos");
   stateModel.setRefreshingUnsynchronized(true);
   stateModel.updateLastRefreshUnsyncTime(null);
   final requests = StreamController<FilterNotUploadedRequest>();
   final responses = storageClient.cli.filterNotUploaded(requests.stream);
   // W7-T1: 两阶段提交 - 先积累新ID，成功后一次性替换，避免中断时丢失
   final List<String> newSyncedIDs = [];
+  final sw = Stopwatch()..start();
+  final stats = FilterNotUploadedStats();
   await Future.wait([
     sendFilterNotUploadedRequests(requests),
-    receiveResponses(responses, accumulatedIDs: newSyncedIDs),
+    receiveResponses(responses, accumulatedIDs: newSyncedIDs, stats: stats),
   ]);
+  logger.info('filter: uploaded=${stats.uploaded} '
+      'notUploaded=${stats.notUploaded} cost=${sw.elapsedMilliseconds}ms');
+  if (stats.lastMessage != null) {
+    // 服务端诊断文本，如 `manifest_hits=9 fallback_scan=true healed=1 cost=87ms`
+    logger.info('filter msg: ${stats.lastMessage}');
+  }
 
   // 未被中断
   if (!assetModel.refreshUnsynchronizedNeedBreak) {
@@ -992,10 +1034,10 @@ Future<void> sendFilterNotUploadedRequests(
 
 Future<void> receiveResponses(
     Stream<FilterNotUploadedResponse> responses,
-    {List<String>? accumulatedIDs}) async {
+    {List<String>? accumulatedIDs, FilterNotUploadedStats? stats}) async {
   await for (var response in responses) {
     if (!response.success) {
-      logger.addLog('Error: ${response.message}');
+      logger.error('Error: ${response.message}');
       SnackBarManager.showSnackBar("Error: ${response.message}");
       continue;
     }
@@ -1011,7 +1053,14 @@ Future<void> receiveResponses(
     final ids = response.notUploadedIDs.isEmpty
         ? response.notUploaedIDs
         : response.notUploadedIDs;
-    logger.addLog('filter: ${ids.length} not uploaded');
+    if (stats != null) {
+      stats.uploaded += response.uploadedIDs.length;
+      stats.notUploaded += ids.length;
+      if (response.message.isNotEmpty) stats.lastMessage = response.message;
+    }
+    // 每批 100 条就会回一帧，逐帧落盘会刷屏：只在 DEBUG 下写
+    logger.debug('filter batch: uploaded=${response.uploadedIDs.length} '
+        'notUploaded=${ids.length}');
   }
 }
 
@@ -1053,7 +1102,7 @@ Future<void> collectUploadedIDs(
     Stream<FilterNotUploadedResponse> responses, Set<String> out) async {
   await for (var response in responses) {
     if (!response.success) {
-      logger.addLog('Error: ${response.message}');
+      logger.error('Error: ${response.message}');
       continue;
     }
     out.addAll(response.uploadedIDs);

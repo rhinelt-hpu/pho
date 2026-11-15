@@ -627,6 +627,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refreshStats => '刷新统计';
 
   @override
+  String get remoteStatsPrimary => '主存储（云盘）';
+
+  @override
+  String get remoteStatsMeta => '副存储（元数据）';
+
+  @override
+  String get remoteStatsPrimaryEmpty => '未使用主存储 WebDAV / 不可用';
+
+  @override
+  String get remoteStatsMetaEmpty => '未配置副存储 / 不可用';
+
+  @override
+  String get remoteStatsLegacyHint => '当前服务端仅上报聚合统计（未区分主 / 副存储）';
+
+  @override
+  String get remoteStatsAggregate => '聚合统计';
+
+  @override
+  String get statsByMethod => '请求方法分布';
+
+  @override
+  String get statsByStatus => '响应状态分布';
+
+  @override
   String get transferring => '正在传输';
 
   @override
@@ -672,4 +696,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get logSyncFailed => '日志上传失败';
+
+  @override
+  String get verboseLogTitle => '详细日志（DEBUG）';
+
+  @override
+  String get verboseLogDesc => '额外落盘 DEBUG 级细节（如每页远端列表耗时），便于排查性能问题';
 }

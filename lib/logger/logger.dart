@@ -16,6 +16,23 @@ final talker = TalkerFlutter.init(
 
 final logger = LoggerService();
 
+/// 日志级别。落盘前缀分别是 [D]/[I]/[W]/[E]。
+enum LogLevel { debug, info, warn, error }
+
+/// 落盘用的单字符级别标记
+String logLevelTag(LogLevel level) {
+  switch (level) {
+    case LogLevel.debug:
+      return 'D';
+    case LogLevel.info:
+      return 'I';
+    case LogLevel.warn:
+      return 'W';
+    case LogLevel.error:
+      return 'E';
+  }
+}
+
 class LoggerService {
   final List<String> _logs = [];
 
@@ -27,15 +44,63 @@ class LoggerService {
   bool _flushing = false;
   final List<String> _pending = [];
 
+  /// 「详细日志（DEBUG）」开关，来自 SharedPreferences `log_verbose`（默认 false）
+  bool _verbose = false;
+
+  /// 同类日志去重：同一 level+message 在窗口内只落盘一次，被压制的次数下次输出时标记 (xN)
+  static const Duration _dedupWindow = Duration(seconds: 30);
+  LogLevel? _lastLevel;
+  String? _lastMessage;
+  DateTime? _lastAt;
+  int _suppressed = 0;
+
   void setEnabled(bool enabled) {
     talker.configure(settings: talker.settings.copyWith(enabled: enabled));
   }
 
   bool get isEnabled => talker.settings.enabled;
 
-  void addLog(String log) {
+  /// 详细日志开关（DEBUG 是否落盘）
+  bool get verbose => _verbose;
+  void setVerbose(bool verbose) {
+    _verbose = verbose;
+  }
+
+  /// DEBUG 只在「详细日志」或「调试模式」开启时落盘，INFO/WARN/ERROR 永远写
+  bool get _debugEnabled => _verbose || isEnabled;
+
+  void log(LogLevel level, String message) {
+    if (level == LogLevel.debug && !_debugEnabled) return;
+
+    final now = DateTime.now();
+    final sameAsLast = _lastLevel == level && _lastMessage == message;
+    if (sameAsLast &&
+        _lastAt != null &&
+        now.difference(_lastAt!) < _dedupWindow) {
+      _suppressed++;
+      return;
+    }
+    // 只有同一条消息再次出现时才附带被压制的次数
+    final repeat = sameAsLast ? _suppressed : 0;
+    _suppressed = 0;
+    _lastLevel = level;
+    _lastMessage = message;
+    _lastAt = now;
+    _emit(level, repeat > 0 ? '$message (x${repeat + 1})' : message);
+  }
+
+  void debug(String message) => log(LogLevel.debug, message);
+  void info(String message) => log(LogLevel.info, message);
+  void warn(String message) => log(LogLevel.warn, message);
+  void error(String message) => log(LogLevel.error, message);
+
+  /// 兼容旧调用点：等价于 INFO
+  void addLog(String log) => info(log);
+
+  void _emit(LogLevel level, String message) {
     final format = DateFormat("yyyy-MM-dd HH:mm:ss");
-    final logStr = "[${format.format(DateTime.now())}] $log";
+    final logStr =
+        "[${format.format(DateTime.now())}] [${logLevelTag(level)}] $message";
     _logs.add(logStr);
     if (_logs.length > 500) {
       _logs.removeAt(0);
@@ -43,19 +108,35 @@ class LoggerService {
     print(logStr);
     _pending.add(logStr);
     _scheduleFlush();
+    _bridgeToTalker(level, message);
+  }
 
-    if (talker.settings.enabled) {
-      final lower = log.toLowerCase();
-      if (lower.contains('fail') ||
-          lower.contains('error') ||
-          lower.contains('exception') ||
-          lower.contains('fatal')) {
-        talker.error(log);
-      } else if (lower.contains('warn')) {
-        talker.warning(log);
-      } else {
-        talker.info(log);
-      }
+  void _bridgeToTalker(LogLevel level, String message) {
+    if (!talker.settings.enabled) return;
+    switch (level) {
+      case LogLevel.debug:
+        talker.debug(message);
+        break;
+      case LogLevel.warn:
+        talker.warning(message);
+        break;
+      case LogLevel.error:
+        talker.error(message);
+        break;
+      case LogLevel.info:
+        // 旧代码把级别写在文案里（addLog("xxx failed: ...")），继续按文案猜测级别
+        final lower = message.toLowerCase();
+        if (lower.contains('fail') ||
+            lower.contains('error') ||
+            lower.contains('exception') ||
+            lower.contains('fatal')) {
+          talker.error(message);
+        } else if (lower.contains('warn')) {
+          talker.warning(message);
+        } else {
+          talker.info(message);
+        }
+        break;
     }
   }
 
@@ -63,12 +144,16 @@ class LoggerService {
     if (talker.settings.enabled) {
       talker.handle(exception, stackTrace, msg);
     } else {
-      addLog('Exception: $exception${msg != null ? " ($msg)" : ""}');
+      error('Exception: $exception${msg != null ? " ($msg)" : ""}');
     }
   }
 
   void cleanHistory() {
     _logs.clear();
+    _lastLevel = null;
+    _lastMessage = null;
+    _lastAt = null;
+    _suppressed = 0;
     talker.cleanHistory();
   }
 

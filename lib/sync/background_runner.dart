@@ -159,7 +159,7 @@ Future<SyncResult> runSyncOnce({
         failures[localId] = e.toString();
         callbacks?.onAssetFailed?.call(localId, e.toString());
         callbacks?.onProgress?.call(completed, total, failed);
-        logger.addLog('uploadAssetEntity failed: $e');
+        logger.error('uploadAssetEntity failed: $e');
         sem.release();
       }),
     );
@@ -172,11 +172,14 @@ Future<SyncResult> runSyncOnce({
   await stateModel.saveSyncedIDs();
   eventBus.fire(RemoteRefreshEvent(refreshUnSync: refreshUnSync));
 
-  return SyncResult(
+  final result = SyncResult(
     succeeded: completed - failed,
     failed: failed,
     total: total,
     duration: DateTime.now().difference(startTime),
     failures: failures,
   );
+  logger.info('sync done: ok=${result.succeeded} fail=${result.failed} '
+      'total=${result.total} cost=${result.duration.inMilliseconds}ms');
+  return result;
 }

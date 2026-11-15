@@ -532,6 +532,29 @@ class _AboutRouteState extends State<AboutRoute> {
                       vertical: AppSpacing.xs),
                   child: SwitchListTile(
                     secondary: Icon(
+                      Icons.subject,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(l10n.verboseLogTitle,
+                        style: textTheme.titleLarge),
+                    subtitle: Text(
+                      l10n.verboseLogDesc,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    value: settingModel.logVerbose,
+                    onChanged: (bool value) {
+                      settingModel.setLogVerbose(value);
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.paddingSmall,
+                      vertical: AppSpacing.xs),
+                  child: SwitchListTile(
+                    secondary: Icon(
                       Icons.cloud_upload_outlined,
                       color: colorScheme.onSurfaceVariant,
                     ),
