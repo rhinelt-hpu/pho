@@ -750,7 +750,7 @@ class GalleryBodyState extends State<GalleryBody>
 
     // 3. 上传前向远端确认是否已存在（相册切换 / 缓存被清后也要能跳过）
     final remoteUploadedIDs =
-        await stateModel.checkRemoteUploaded(toUpload.map((a) => a.local!));
+        await stateModel.checkRemoteUploaded(toUpload);
     if (remoteUploadedIDs.isNotEmpty) {
       toUpload.removeWhere((a) => remoteUploadedIDs.contains(a.local!.id));
       stateModel.markSynced(remoteUploadedIDs);

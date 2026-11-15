@@ -249,7 +249,8 @@ Future<void> _doInitDrive() async {
     }
     await storage.cli
         .setLocalCacheDir(SetLocalCacheDirRequest(path: manifestCacheDir.path))
-        .timeout(const Duration(seconds: 3));
+        // 首个 gRPC 请求可能赶上 Go 内核 gomobile 通道预热，3s 会偶发超时
+        .timeout(const Duration(seconds: 10));
   } catch (e) {
     logger.addLog("setLocalCacheDir: $e");
   }

@@ -417,7 +417,7 @@ class GalleryViewerRouteState extends State<GalleryViewerRoute>
       return;
     }
     // 先确认远端是否已有：相册切换/清缓存后 syncedIDs 可能不全
-    final exist = await stateModel.checkRemoteUploaded([entity]);
+    final exist = await stateModel.checkRemoteUploaded([asset]);
     if (exist.contains(entity.id)) {
       stateModel.markSynced(exist);
       SnackBarManager.showSnackBar(l10n.skipExistingOnUpload);

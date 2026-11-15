@@ -586,6 +586,10 @@ class RemoteImage {
   }
 
   Future<void> _backfillFallbackThumbnail(String relPath, Uint8List rawBytes) async {
+    // .livp（Live Photo 包）和视频无法用图片编码器压缩，
+    // iOS 上会返回 null 并抛 `type 'Null' is not a subtype of FutureOr<Uint8List>`
+    final lower = relPath.toLowerCase();
+    if (isVideoByPath(lower) || lower.endsWith('.livp')) return;
     try {
       final thumbBytes = await FlutterImageCompress.compressWithList(
         rawBytes,

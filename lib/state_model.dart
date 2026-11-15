@@ -468,16 +468,25 @@ class StateModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 上传前确认远端是否已存在这些照片（仅手动多选上传使用）。
+  /// 上传前确认远端是否已存在这些照片（仅手动多选/单张上传使用）。
   ///
-  /// 只发送传入的 entity；远端未配置、调用异常或超时都返回空集合：
+  /// 只发送传入的资源；远端未配置、调用异常或超时都返回空集合：
   /// 宁可重复上传，也不阻塞用户操作。
-  Future<Set<String>> checkRemoteUploaded(
-      Iterable<AssetEntity> entities) async {
-    final list = entities.toList();
+  /// 超过 [maxCheckCount] 条时直接跳过：大批量本来就不是 syncedIDs 的盲区，
+  /// 逐条建请求反而把等待时间浪费在本地循环上。
+  static const int maxCheckCount = 300;
+
+  Future<Set<String>> checkRemoteUploaded(Iterable<Asset> assets) async {
+    final list = assets.where((a) => a.local != null).toList();
     if (list.isEmpty || !settingModel.isRemoteStorageSetted) {
       return <String>{};
     }
+    if (list.length > maxCheckCount) {
+      logger.addLog(
+          'checkRemoteUploaded: skip ${list.length} assets (>$maxCheckCount)');
+      return <String>{};
+    }
+    final sw = Stopwatch()..start();
     final uploadedIDs = <String>{};
     StreamController<FilterNotUploadedRequest>? requests;
     try {
@@ -496,8 +505,10 @@ class StateModel extends ChangeNotifier {
       }
     }
     // 只认回传中属于本次请求的 id，避免污染 syncedIDs
-    final requestedIds = list.map((e) => e.id).toSet();
+    final requestedIds = list.map((a) => a.local!.id).toSet();
     uploadedIDs.retainAll(requestedIds);
+    logger.addLog('checkRemoteUploaded: ${list.length} assets, '
+        'found ${uploadedIDs.length}, ${sw.elapsedMilliseconds}ms');
     return uploadedIDs;
   }
 
@@ -1018,12 +1029,14 @@ Future<void> loadUnsynchronizedPhotos() async {
 }
 
 /// 把待检查的照片按每批 100 条写入过滤请求流（仅用于 [StateModel.checkRemoteUploaded]）
+/// 名字走 [Asset.name]（有 titleCache），不要用 titleAsync：
+/// iOS 上逐条 PhotoKit 取名字会把 10s 预算全耗在本地。
 Future<void> sendUploadedCheckRequests(
     StreamController<FilterNotUploadedRequest> requests,
-    List<AssetEntity> entities) async {
+    List<Asset> assets) async {
   var photos = List<FilterNotUploadedRequestInfo>.empty(growable: true);
-  for (var entity in entities) {
-    photos.add(await _createFilterNotUploadedRequestInfo(entity));
+  for (var asset in assets) {
+    photos.add(await _createFilterNotUploadedRequestInfo(asset));
     if (photos.length >= 100) {
       requests.add(FilterNotUploadedRequest(photos: photos));
       photos = List<FilterNotUploadedRequestInfo>.empty(growable: true);
@@ -1048,17 +1061,17 @@ Future<void> collectUploadedIDs(
 }
 
 Future<FilterNotUploadedRequestInfo> _createFilterNotUploadedRequestInfo(
-    asset) async {
-  var date = asset.createDateTime;
+    Asset asset) async {
+  final local = asset.local!;
+  var date = local.createDateTime;
   if (date.isBefore(DateTime(1990, 1, 1))) {
-    date = asset.modifiedDateTime;
+    date = local.modifiedDateTime;
   }
   final dateStr =
       formatDate(date, [yyyy, ':', mm, ':', dd, ' ', HH, ':', nn, ':', ss]);
-  var name = await asset.titleAsync;
   return FilterNotUploadedRequestInfo(
-    id: asset.id,
-    name: name,
+    id: local.id,
+    name: await asset.name(),
     date: dateStr,
   );
 }

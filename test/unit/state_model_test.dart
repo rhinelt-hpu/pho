@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:img_syncer/asset.dart';
 import 'package:img_syncer/proto/img_syncer.pbgrpc.dart';
 import 'package:img_syncer/state_model.dart';
 import 'package:img_syncer/storage/storage.dart';
@@ -16,6 +17,8 @@ Stream<T> _mockResponseStream<T>(List<T> items) async* {
     yield item;
   }
 }
+
+Asset _asset(String id) => Asset(local: _entity(id));
 
 AssetEntity _entity(String id) => AssetEntity(
       id: id,
@@ -248,7 +251,7 @@ void main() {
       setStorageForTest(mockStorage);
 
       final result = await state
-          .checkRemoteUploaded([_entity('photo_1'), _entity('photo_2')]);
+          .checkRemoteUploaded([_asset('photo_1'), _asset('photo_2')]);
 
       // 只保留属于本次请求的 id
       expect(result, {'photo_1'});
@@ -265,18 +268,31 @@ void main() {
       setStorageForTest(mockStorage);
 
       await state
-          .checkRemoteUploaded(List.generate(101, (i) => _entity('photo_$i')));
+          .checkRemoteUploaded(List.generate(101, (i) => _asset('photo_$i')));
 
       expect(cli.sentRequests.length, 2);
       expect(cli.sentRequests.first.photos.length, 100);
       expect(cli.sentRequests.last.photos.length, 1);
     });
 
+    test('超过预检上限时直接跳过（不建请求、不阻塞上传）', () async {
+      final cli = FakeImgSyncerClient(['photo_0']);
+      final mockStorage = MockRemoteStorageClient();
+      when(mockStorage.cli).thenReturn(cli);
+      setStorageForTest(mockStorage);
+
+      final result = await state.checkRemoteUploaded(List.generate(
+          StateModel.maxCheckCount + 1, (i) => _asset('photo_$i')));
+
+      expect(result, isEmpty);
+      expect(cli.sentRequests, isEmpty);
+    });
+
     test('远端调用异常时返回空集合（视为不确定，继续上传）', () async {
       // 未 stub cli，调用会抛异常
       setStorageForTest(MockRemoteStorageClient());
 
-      final result = await state.checkRemoteUploaded([_entity('photo_1')]);
+      final result = await state.checkRemoteUploaded([_asset('photo_1')]);
 
       expect(result, isEmpty);
     });
@@ -285,7 +301,7 @@ void main() {
       settingModel.isRemoteStorageSetted = false;
       setStorageForTest(MockRemoteStorageClient());
 
-      final result = await state.checkRemoteUploaded([_entity('photo_1')]);
+      final result = await state.checkRemoteUploaded([_asset('photo_1')]);
 
       expect(result, isEmpty);
     });
