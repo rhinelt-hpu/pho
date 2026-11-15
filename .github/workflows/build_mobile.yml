@@ -117,7 +117,7 @@ jobs:
   # =============================================================
   build-ios:
     name: Build iOS IPA (Sideloading Unsigned)
-    runs-on: macos-14
+    runs-on: macos-15
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'ios' }}
     steps:
       - name: Checkout repository
