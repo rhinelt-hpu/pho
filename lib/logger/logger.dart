@@ -85,8 +85,9 @@ class LoggerService {
     // 只保留最近 3 天，防止无限增长
     final cutoff = DateTime.now().subtract(const Duration(days: 3));
     await for (final f in dir.list()) {
+      // 含翻页备份 <date>.log.1，否则 .1 会永久堆积
       if (f is File &&
-          f.path.endsWith('.log') &&
+          (f.path.endsWith('.log') || f.path.endsWith('.log.1')) &&
           (await f.lastModified()).isBefore(cutoff)) {
         try {
           await f.delete();
