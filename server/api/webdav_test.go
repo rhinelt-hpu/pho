@@ -106,6 +106,47 @@ func (s *DriveWebdavTestSuite) TestUploadDownload() {
 	s.Equal(static.Pic1, data)
 }
 
+// TestUploadLog verifies POST /logs/<device>/<date>.log writes to .logs on the (meta) drive.
+func (s *DriveWebdavTestSuite) TestUploadLog() {
+	ctx := context.Background()
+	rsp, err := s.srv.SetDriveWebdav(ctx, &pb.SetDriveWebdavRequest{
+		Addr:     webdavSrvAddr,
+		Username: webdavUser,
+		Password: webdavPass,
+		Root:     webdavRootPath,
+	})
+	s.Nil(err)
+	s.True(rsp.Success)
+	// 未配置副存储时 metaDrive 自动回退到主存储
+	clearRsp, err := s.srv.ClearMetaDrive(ctx, &pb.ClearMetaDriveRequest{})
+	s.Nil(err)
+	s.True(clearRsp.Success)
+
+	body := []byte("2026-11-15 10:00:00 startup: firstFrame +120ms\n")
+	req, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("http://%s/logs/ios-test/2026-11-15.log", httpAddr), bytes.NewReader(body))
+	s.Nil(err)
+	resp, err := http.DefaultClient.Do(req)
+	s.Nil(err)
+	defer resp.Body.Close()
+	s.Equal(http.StatusOK, resp.StatusCode)
+
+	filePath := "/storage/.logs/ios-test/2026-11-15.log"
+	s.waitFile(filePath, 5*time.Second)
+	data, err := s.cli.Read(filePath)
+	s.Nil(err)
+	s.Equal(body, data)
+
+	// 路径穿越必须被拒绝
+	evilReq, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("http://%s/logs/../evil.log", httpAddr), bytes.NewReader(body))
+	s.Nil(err)
+	evilResp, err := http.DefaultClient.Do(evilReq)
+	s.Nil(err)
+	defer evilResp.Body.Close()
+	s.Equal(http.StatusBadRequest, evilResp.StatusCode)
+}
+
 // TestSetDriveWebdav_NonExistentRoot verifies that setting a non-existent
 // root path on WebDAV returns Success=false.
 func (s *DriveWebdavTestSuite) TestSetDriveWebdav_NonExistentRoot() {
