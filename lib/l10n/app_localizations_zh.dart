@@ -651,4 +651,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String rebuildSuccess(Object count, Object thumbCount) {
     return '重建完成：已索引 $count 张照片，补齐 $thumbCount 张缩略图';
   }
+
+  @override
+  String get hideUploaded => '隐藏已上传';
+
+  @override
+  String get skipExistingOnUpload => '远端已存在，已跳过';
+
+  @override
+  String get logSyncTitle => '自动同步日志到元数据存储';
+
+  @override
+  String get logSyncDesc => '把本机运行日志上传到副存储的 .logs 目录，便于远程排查问题';
+
+  @override
+  String get logSyncUploadNow => '立即上传日志';
+
+  @override
+  String get logSyncDone => '日志已上传';
+
+  @override
+  String get logSyncFailed => '日志上传失败';
 }

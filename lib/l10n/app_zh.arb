@@ -211,5 +211,12 @@
   "rebuildMetaAndThumbnails": "重建元数据与缩略图",
   "rebuildMetaAndThumbnailsDesc": "扫描主存储重建远端元数据索引，并从本地相册补齐缩略图",
   "rebuildingMetaAndThumbnails": "正在重建元数据与缩略图...",
-  "rebuildSuccess": "重建完成：已索引 {count} 张照片，补齐 {thumbCount} 张缩略图"
+  "rebuildSuccess": "重建完成：已索引 {count} 张照片，补齐 {thumbCount} 张缩略图",
+  "hideUploaded": "隐藏已上传",
+  "skipExistingOnUpload": "远端已存在，已跳过",
+  "logSyncTitle": "自动同步日志到元数据存储",
+  "logSyncDesc": "把本机运行日志上传到副存储的 .logs 目录，便于远程排查问题",
+  "logSyncUploadNow": "立即上传日志",
+  "logSyncDone": "日志已上传",
+  "logSyncFailed": "日志上传失败"
 }

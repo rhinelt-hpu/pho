@@ -423,6 +423,12 @@ class GalleryBodyState extends State<GalleryBody>
         columCount = settingModel.galleryColumCount;
       });
     }
+    if (_hideSyncedLocalApplied != settingModel.hideSyncedLocal) {
+      _hideSyncedLocalApplied = settingModel.hideSyncedLocal;
+      // 列表内容变了，_selectedIndices 的索引不再有效，先清空多选再重建
+      clearSelection();
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -439,6 +445,16 @@ class GalleryBodyState extends State<GalleryBody>
   void _onStateModelChanged() {
     if (!stateModel.isSelectionMode && _selectedIndices.isNotEmpty) {
       clearSelection();
+      return;
+    }
+    // 「隐藏已上传」开启时，后台同步/上传成功会让展示列表变短，
+    // _selectedIndices 是展示列表的下标，必须先清空多选避免误操作。
+    if (settingModel.hideSyncedLocal && stateModel.isSelectionMode) {
+      final count = stateModel.syncedIDs.length;
+      if (count != _hideSyncedCountRendered) {
+        _hideSyncedCountRendered = count;
+        clearSelection();
+      }
     }
   }
 
@@ -463,6 +479,21 @@ class GalleryBodyState extends State<GalleryBody>
   }
 
   bool _isRefreshing = false;
+
+  /// 当前已应用的「隐藏已上传」开关值，用于在 setting 变化时检测切换
+  bool _hideSyncedLocalApplied = settingModel.hideSyncedLocal;
+  /// 上一次渲染时的已同步 ID 数量：隐藏列表在上传完成时会变短，索引会错位
+  int _hideSyncedCountRendered = stateModel.syncedIDs.length;
+
+  /// 按「隐藏已上传」开关过滤展示列表。
+  /// contentBuilder 与各 selection 操作必须用同一份列表，否则索引会错位。
+  List<Asset> _applySyncedFilter(List<Asset> source) {
+    if (!widget.useLocal || !settingModel.hideSyncedLocal) return source;
+    return source
+        .where((a) => a.local == null || !stateModel.isSynced(a.local!.id))
+        .toList();
+  }
+
   Future<void> refresh() async {
     if (stateModel.isDownloading() || stateModel.isUploading()) {
       return;
@@ -531,9 +562,9 @@ class GalleryBodyState extends State<GalleryBody>
             onPressed: () {
               var toDelete = <Asset>[];
               try {
-                final all = widget.useLocal
+                final all = _applySyncedFilter(widget.useLocal
                     ? assetModel.localAssets
-                    : assetModel.remoteAssets;
+                    : assetModel.remoteAssets);
                 _selectedIndices.forEach((key, value) async {
                   if (value) {
                     toDelete.add(all[key]);
@@ -587,8 +618,8 @@ class GalleryBodyState extends State<GalleryBody>
     if (!stateModel.isSelectionMode) {
       return;
     }
-    final all =
-        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets;
+    final all = _applySyncedFilter(
+        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets);
     final assets = <Asset>[];
     _selectedIndices.forEach((key, isSelected) {
       if (isSelected) {
@@ -612,8 +643,8 @@ class GalleryBodyState extends State<GalleryBody>
       SnackBarManager.showSnackBar(l10n.setLocalFirst);
       return;
     }
-    final all =
-        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets;
+    final all = _applySyncedFilter(
+        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets);
     final assets = <Asset>[];
     _selectedIndices.forEach((key, isSelected) {
       if (isSelected) {
@@ -683,8 +714,8 @@ class GalleryBodyState extends State<GalleryBody>
       SnackBarManager.showSnackBar(l10n.storageNotSetted);
       return;
     }
-    final all =
-        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets;
+    final all = _applySyncedFilter(
+        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets);
     final assets = <Asset>[];
     _selectedIndices.forEach((key, isSelected) {
       if (isSelected && key < all.length) {
@@ -713,15 +744,27 @@ class GalleryBodyState extends State<GalleryBody>
       toUpload.add(asset);
     }
     if (toUpload.isEmpty) {
-      SnackBarManager.showSnackBar(l10n.uploaded);
+      SnackBarManager.showSnackBar(l10n.skipExistingOnUpload);
       return;
     }
 
-    // 3. 将所有待上传项预先登记入传输队列 (修复 Bug 2: 队列显示)
+    // 3. 上传前向远端确认是否已存在（相册切换 / 缓存被清后也要能跳过）
+    final remoteUploadedIDs =
+        await stateModel.checkRemoteUploaded(toUpload.map((a) => a.local!));
+    if (remoteUploadedIDs.isNotEmpty) {
+      toUpload.removeWhere((a) => remoteUploadedIDs.contains(a.local!.id));
+      stateModel.markSynced(remoteUploadedIDs);
+    }
+    if (toUpload.isEmpty) {
+      SnackBarManager.showSnackBar(l10n.skipExistingOnUpload);
+      return;
+    }
+
+    // 4. 将所有待上传项预先登记入传输队列 (修复 Bug 2: 队列显示)
     final assetIds = toUpload.map((a) => a.local!.id).toList();
     stateModel.enqueueUploads(assetIds);
 
-    // 4. 按设置的并发数受控上传 (修复 Bug 2: 并发控制)
+    // 5. 按设置的并发数受控上传 (修复 Bug 2: 并发控制)
     await keepScreenOn(true);
     int succeeded = 0;
     int failed = 0;
@@ -766,8 +809,8 @@ class GalleryBodyState extends State<GalleryBody>
   }
 
   void _moveSelectedToAlbum() {
-    final all =
-        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets;
+    final all = _applySyncedFilter(
+        widget.useLocal ? assetModel.localAssets : assetModel.remoteAssets);
     final assets = <Asset>[];
     _selectedIndices.forEach((key, isSelected) {
       if (isSelected && key < all.length) {
@@ -893,6 +936,15 @@ class GalleryBodyState extends State<GalleryBody>
                   ? LocalAlbumSheet.show(context)
                   : CloudAlbumSheet.show(context),
             ),
+            if (widget.useLocal)
+              IconButton(
+                icon: Icon(settingModel.hideSyncedLocal
+                    ? Icons.cloud_done
+                    : Icons.cloud_done_outlined),
+                tooltip: l10n.hideUploaded,
+                onPressed: () => settingModel
+                    .setHideSyncedLocal(!settingModel.hideSyncedLocal),
+              ),
             MenuAnchor(
               builder: (BuildContext context, MenuController controller,
                   Widget? child) {
@@ -917,6 +969,15 @@ class GalleryBodyState extends State<GalleryBody>
                         child: Text(l10n.cloudAlbums),
                         onPressed: () => CloudAlbumSheet.show(context),
                       ),
+                if (widget.useLocal)
+                  MenuItemButton(
+                    leadingIcon: settingModel.hideSyncedLocal
+                        ? const Icon(Icons.check)
+                        : null,
+                    child: Text(l10n.hideUploaded),
+                    onPressed: () => settingModel
+                        .setHideSyncedLocal(!settingModel.hideSyncedLocal),
+                  ),
                 if (!widget.useLocal)
                   MenuItemButton(
                     child: Text(l10n.storageSetting),
@@ -1282,7 +1343,9 @@ class GalleryBodyState extends State<GalleryBody>
     final localeCode = Localizations.localeOf(context).languageCode;
     Color textColor = colorScheme.onSurfaceVariant;
     _dateLocateMap = {};
-    final all = widget.useLocal ? model.localAssets : model.remoteAssets;
+    final source = widget.useLocal ? model.localAssets : model.remoteAssets;
+    final all = _applySyncedFilter(source);
+    _hideSyncedCountRendered = stateModel.syncedIDs.length;
     var children = <Widget>[];
     final currentColumns = effectiveColumnCount;
     double totalwidth;
@@ -1540,6 +1603,7 @@ class GalleryBodyState extends State<GalleryBody>
                         GalleryViewerRoute(
                       useLocal: widget.useLocal,
                       originIndex: i,
+                      assets: all,
                     ),
                   ),
                 );
@@ -1651,7 +1715,7 @@ class GalleryBodyState extends State<GalleryBody>
                             ));
                       }
                       var icon = Icons.cloud_off_outlined;
-                      if (stateModel.syncedIDs.contains(all[i].local!.id)) {
+                      if (stateModel.isSynced(all[i].local!.id)) {
                         icon = Icons.cloud_done_outlined;
                       }
                       return Positioned(

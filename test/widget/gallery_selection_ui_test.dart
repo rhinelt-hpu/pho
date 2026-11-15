@@ -13,10 +13,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mockito/mockito.dart';
 import 'package:img_syncer/storage/storage_interface.dart';
 import 'package:img_syncer/storage/storage.dart';
+import 'package:img_syncer/proto/img_syncer.pbgrpc.dart';
+
+import '../unit/mocks/test_doubles.dart';
 
 class MockRemoteStorageClient extends Mock implements RemoteStorageClient {
+  /// 上传前会调 `cli.filterNotUploaded` 做远端预检：给个不报音的假客户端，
+  /// 避免走到异常日志分支（LoggerService 会留下 2s 计时器）。
   @override
-  Future<void> uploadAssetEntity(AssetEntity? asset, {String? album = ""}) async =>
+  ImgSyncerClient get cli => FakeImgSyncerClient(const []);
+
+  @override
+  Future<void> uploadAssetEntity(AssetEntity? asset,
+          {String? album = ""}) async =>
       super.noSuchMethod(
         Invocation.method(#uploadAssetEntity, [asset], {#album: album}),
         returnValue: Future<void>.value(),
@@ -46,8 +55,10 @@ class _MockAsset extends Asset {
             typeInt: isVideo ? 2 : 1,
             width: 100,
             height: 100,
-            createDateSecond: DateTime(2026, 1, 1).millisecondsSinceEpoch ~/ 1000,
-            modifiedDateSecond: DateTime(2026, 1, 1).millisecondsSinceEpoch ~/ 1000,
+            createDateSecond:
+                DateTime(2026, 1, 1).millisecondsSinceEpoch ~/ 1000,
+            modifiedDateSecond:
+                DateTime(2026, 1, 1).millisecondsSinceEpoch ~/ 1000,
             title: 'photo_$id.jpg',
           ),
           remote: null,
@@ -88,7 +99,11 @@ void main() {
     assetModel = AssetModel();
     stateModel = StateModel();
     global.l10n = await AppLocalizations.delegate.load(const Locale('zh'));
+    // 上传前的远端预检会读取标题（photo_manager 平台通道），测试里桩掉
+    mockPhotoManagerChannel();
   });
+
+  tearDown(resetPhotoManagerChannel);
 
   testWidgets('长按触发多选模式：非 LivePhoto 亦能清晰渲染选中/未选中勾选框与高亮边框', (tester) async {
     // 注入两张普通照片（isLivePhoto = false）
@@ -238,8 +253,9 @@ void main() {
     expect(stateModel.isSelectionMode, isTrue);
     expect(state.selectedIndices.length, 3);
 
-    // 触发批量上传
+    // 触发批量上传（上传前有远端预检，需多等几拍让异步流程走完）
     state.uploadSelected();
+    await tester.pump();
     await tester.pump();
 
     // 验证 Bug 1: 立即自动退出多选模式
@@ -303,6 +319,7 @@ void main() {
 
     state.uploadSelected();
     await tester.pump();
+    await tester.pump();
 
     // 仅未上传的 photo_2 被加入上传队列，已上传的 photo_1 / photo_3 被跳过
     expect(stateModel.uploadProgress.containsKey('photo_1'), isFalse);
@@ -313,9 +330,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    verifyNever(mockStorage.uploadAssetEntity(asset1.local, album: anyNamed('album')));
-    verify(mockStorage.uploadAssetEntity(asset2.local, album: anyNamed('album'))).called(1);
-    verifyNever(mockStorage.uploadAssetEntity(asset3.local, album: anyNamed('album')));
+    verifyNever(
+        mockStorage.uploadAssetEntity(asset1.local, album: anyNamed('album')));
+    verify(mockStorage.uploadAssetEntity(asset2.local,
+            album: anyNamed('album')))
+        .called(1);
+    verifyNever(
+        mockStorage.uploadAssetEntity(asset3.local, album: anyNamed('album')));
 
     setStorageForTest(storage);
   });

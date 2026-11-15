@@ -1357,6 +1357,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rebuild complete: indexed {count} photos, backfilled {thumbCount} thumbnails'**
   String rebuildSuccess(Object count, Object thumbCount);
+
+  /// No description provided for @hideUploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide uploaded'**
+  String get hideUploaded;
+
+  /// No description provided for @skipExistingOnUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Already on remote, skipped'**
+  String get skipExistingOnUpload;
+
+  /// No description provided for @logSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-sync logs to metadata storage'**
+  String get logSyncTitle;
+
+  /// No description provided for @logSyncDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload this device\'s runtime logs to the .logs folder on the metadata drive for remote troubleshooting'**
+  String get logSyncDesc;
+
+  /// No description provided for @logSyncUploadNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload logs now'**
+  String get logSyncUploadNow;
+
+  /// No description provided for @logSyncDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Logs uploaded'**
+  String get logSyncDone;
+
+  /// No description provided for @logSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to upload logs'**
+  String get logSyncFailed;
 }
 
 class _AppLocalizationsDelegate

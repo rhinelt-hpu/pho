@@ -63,7 +63,8 @@ class SettingModel extends ChangeNotifier {
     if (localFolder == folder && folder != "Recents") return;
     localFolder = folder;
     localFolderAbsPath = null;
-    stateModel.setSyncedPhotos([]);
+    // 注意：不要清空 stateModel.syncedIDs。syncedIDs 里是 photo_manager 的全局
+    // AssetEntity.id，与当前选中的相册无关，切换相册后依然有效。
     notifyListeners();
   }
 
@@ -190,6 +191,23 @@ class SettingModel extends ChangeNotifier {
     _saveFilterSettings();
   }
 
+  // 4. 本地相册视图：隐藏已上传（仅本地相册生效）
+  bool hideSyncedLocal = false;
+
+  void setHideSyncedLocal(bool hide) {
+    if (hideSyncedLocal == hide) return;
+    hideSyncedLocal = hide;
+    notifyListeners();
+    _saveHideSyncedLocal();
+  }
+
+  Future<void> _saveHideSyncedLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hide_synced_local', hideSyncedLocal);
+    } catch (_) {}
+  }
+
   void resetFilters() {
     filterSwitch = false;
     filterNoVideo = false;
@@ -240,6 +258,7 @@ class SettingModel extends ChangeNotifier {
   Future<void> saveSettings() async {
     await _saveParallelCount();
     await _saveFilterSettings();
+    await _saveHideSyncedLocal();
     await _saveDebugMode();
     await _saveDefaultAlbumName();
   }
@@ -254,6 +273,7 @@ class SettingModel extends ChangeNotifier {
       filterSwitch = prefs.getBool('filter_switch') ?? false;
       filterNoVideo = prefs.getBool('filter_no_video') ?? false;
       filterNoImage = prefs.getBool('filter_no_image') ?? false;
+      hideSyncedLocal = prefs.getBool('hide_synced_local') ?? false;
       final afterMs = prefs.getInt('filter_after');
       if (afterMs != null) {
         filterAfter = DateTime.fromMillisecondsSinceEpoch(afterMs);
@@ -290,6 +310,12 @@ class StateModel extends ChangeNotifier {
   bool _isSelectionMode = false;
   bool refreshingUnsynchronized = false;
   List<String> syncedIDs = [];
+
+  /// [syncedIDs] 的 Set 镜像，用于 O(1) 查询（已上传 ID 可能有几万条）
+  final Set<String> _syncedIdSet = {};
+
+  /// 是否已上传过（仅查 [_syncedIdSet]，不走 List.contains）
+  bool isSynced(String id) => _syncedIdSet.contains(id);
   DateTime? lastRefreshUnsyncTime;
 
   Map<String, transmitState> uploadProgress = {};
@@ -350,7 +376,7 @@ class StateModel extends ChangeNotifier {
   void finishUpload(String id, bool success) {
     uploadProgress.remove(id);
     if (success) {
-      if (!syncedIDs.contains(id)) {
+      if (_syncedIdSet.add(id)) {
         syncedIDs.add(id);
       }
       saveSyncedIDsDebounced();
@@ -415,13 +441,64 @@ class StateModel extends ChangeNotifier {
   void removeSyncedPhotos(List<String> ids) {
     for (var id in ids) {
       syncedIDs.remove(id);
+      _syncedIdSet.remove(id);
     }
     notifyListeners();
   }
 
   void setSyncedPhotos(List<String> ids) {
     syncedIDs = ids;
+    _syncedIdSet
+      ..clear()
+      ..addAll(ids);
     notifyListeners();
+  }
+
+  /// 追加标记为已同步（去重），并防抖持久化
+  void markSynced(Iterable<String> ids) {
+    var changed = false;
+    for (final id in ids) {
+      if (_syncedIdSet.add(id)) {
+        syncedIDs.add(id);
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    saveSyncedIDsDebounced();
+    notifyListeners();
+  }
+
+  /// 上传前确认远端是否已存在这些照片（仅手动多选上传使用）。
+  ///
+  /// 只发送传入的 entity；远端未配置、调用异常或超时都返回空集合：
+  /// 宁可重复上传，也不阻塞用户操作。
+  Future<Set<String>> checkRemoteUploaded(
+      Iterable<AssetEntity> entities) async {
+    final list = entities.toList();
+    if (list.isEmpty || !settingModel.isRemoteStorageSetted) {
+      return <String>{};
+    }
+    final uploadedIDs = <String>{};
+    StreamController<FilterNotUploadedRequest>? requests;
+    try {
+      requests = StreamController<FilterNotUploadedRequest>();
+      final responses = storageClient.cli.filterNotUploaded(requests.stream);
+      await Future.wait([
+        sendUploadedCheckRequests(requests, list),
+        collectUploadedIDs(responses, uploadedIDs),
+      ]).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      logger.addLog('checkRemoteUploaded failed: $e');
+      return <String>{};
+    } finally {
+      if (requests != null && !requests.isClosed) {
+        requests.close();
+      }
+    }
+    // 只认回传中属于本次请求的 id，避免污染 syncedIDs
+    final requestedIds = list.map((e) => e.id).toSet();
+    uploadedIDs.retainAll(requestedIds);
+    return uploadedIDs;
   }
 
   void setRefreshingUnsynchronized(bool refreshing) {
@@ -596,9 +673,8 @@ class AssetModel extends ChangeNotifier {
       if (stateModel.refreshingUnsynchronized) {
         refreshUnsynchronizedNeedBreak = true;
       }
-      if (refreshSync) {
-        stateModel.setSyncedPhotos([]);
-      }
+      // 不再预清空 syncedIDs：refreshUnsynchronizedPhotos() 两阶段提交后会
+      // 用完整结果覆盖；预清空会丢失已知的已上传 ID，导致重复上传。
       localHasMore = true;
       localAssets = [];
       _localAssetIds.clear();
@@ -627,9 +703,7 @@ class AssetModel extends ChangeNotifier {
     }
     remoteHasMore = true;
     remoteAssets = [];
-    if (refreshSync) {
-      stateModel.setSyncedPhotos([]);
-    }
+    // 同 refreshLocal：不预清空 syncedIDs，交由 refreshUnsynchronizedPhotos() 覆盖
     notifyListeners();
     remoteGetting = null;
     remoteGettingNeedBreak = false;
@@ -838,7 +912,9 @@ Future<void> refreshUnsynchronizedPhotos() async {
   }
   await checkServer();
   if (!settingModel.isRemoteStorageSetted) {
-    stateModel.setSyncedPhotos([]);
+    // 不等于「远端没有任何已上传照片」：冷启动时 initDrive() 是异步的，
+    // isRemoteStorageSetted 可能还是 false。这里清空会把持久化的 synced_ids
+    // 在每次启动时抹掉，导致已上传的照片被重新上传。保持已知状态不动。
     return;
   }
   final re = await requestPermission();
@@ -860,8 +936,10 @@ Future<void> refreshUnsynchronizedPhotos() async {
 
   // 未被中断
   if (!assetModel.refreshUnsynchronizedNeedBreak) {
-    // W7-T2: Set 去重后再写入
-    stateModel.setSyncedPhotos(newSyncedIDs.toSet().toList());
+    // W7-T2: newSyncedIDs 只覆盖当前本地相册里的照片，直接替换会把别的相册
+    // 已知的已上传 ID 抹掉（切相册后重复上传），因此与已有集合合并去重。
+    final merged = {...stateModel.syncedIDs, ...newSyncedIDs};
+    stateModel.setSyncedPhotos(merged.toList());
     await stateModel.saveSyncedIDs();
     stateModel.updateLastRefreshUnsyncTime(DateTime.now());
   }
@@ -936,6 +1014,36 @@ Future<void> loadUnsynchronizedPhotos() async {
       newList.add(id);
     }
     stateModel.setSyncedPhotos(newList);
+  }
+}
+
+/// 把待检查的照片按每批 100 条写入过滤请求流（仅用于 [StateModel.checkRemoteUploaded]）
+Future<void> sendUploadedCheckRequests(
+    StreamController<FilterNotUploadedRequest> requests,
+    List<AssetEntity> entities) async {
+  var photos = List<FilterNotUploadedRequestInfo>.empty(growable: true);
+  for (var entity in entities) {
+    photos.add(await _createFilterNotUploadedRequestInfo(entity));
+    if (photos.length >= 100) {
+      requests.add(FilterNotUploadedRequest(photos: photos));
+      photos = List<FilterNotUploadedRequestInfo>.empty(growable: true);
+    }
+  }
+  if (photos.isNotEmpty) {
+    requests.add(FilterNotUploadedRequest(photos: photos));
+  }
+  await requests.close();
+}
+
+/// 收集远端回传的已上传 ID（不写入全局 stateModel.syncedIDs）
+Future<void> collectUploadedIDs(
+    Stream<FilterNotUploadedResponse> responses, Set<String> out) async {
+  await for (var response in responses) {
+    if (!response.success) {
+      logger.addLog('Error: ${response.message}');
+      continue;
+    }
+    out.addAll(response.uploadedIDs);
   }
 }
 

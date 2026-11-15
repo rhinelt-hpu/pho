@@ -211,5 +211,12 @@
   "rebuildMetaAndThumbnails": "Rebuild Metadata & Thumbnails",
   "rebuildMetaAndThumbnailsDesc": "Scan primary storage to rebuild metadata index and backfill thumbnails from local album",
   "rebuildingMetaAndThumbnails": "Rebuilding metadata & thumbnails...",
-  "rebuildSuccess": "Rebuild complete: indexed {count} photos, backfilled {thumbCount} thumbnails"
+  "rebuildSuccess": "Rebuild complete: indexed {count} photos, backfilled {thumbCount} thumbnails",
+  "hideUploaded": "Hide uploaded",
+  "skipExistingOnUpload": "Already on remote, skipped",
+  "logSyncTitle": "Auto-sync logs to metadata storage",
+  "logSyncDesc": "Upload this device's runtime logs to the .logs folder on the metadata drive for remote troubleshooting",
+  "logSyncUploadNow": "Upload logs now",
+  "logSyncDone": "Logs uploaded",
+  "logSyncFailed": "Failed to upload logs"
 }

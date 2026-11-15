@@ -24,9 +24,14 @@ class GalleryViewerRoute extends StatefulWidget {
     Key? key,
     required this.useLocal,
     required this.originIndex,
+    this.assets,
   }) : super(key: key);
   final bool useLocal;
   final int originIndex;
+
+  /// 可选的展示列表（本地相册开启「隐藏已上传」后传入过滤后的同一份列表，
+  /// 保证 originIndex 与列表一致）。为空时使用 AssetModel 中的完整列表。
+  final List<Asset>? assets;
 
   @override
   GalleryViewerRouteState createState() => GalleryViewerRouteState();
@@ -66,7 +71,8 @@ class GalleryViewerRouteState extends State<GalleryViewerRoute>
       initialPage: widget.originIndex,
       keepPage: true,
     );
-    all = widget.useLocal ? _assetModel.localAssets : _assetModel.remoteAssets;
+    all = widget.assets ??
+        (widget.useLocal ? _assetModel.localAssets : _assetModel.remoteAssets);
     // 延迟加载全分辨率数据，避免 Hero 动画期间 HTTP 下载抢占主 isolate 事件循环
     // 延迟 400ms 确保 300ms 的 FadeTransition 动画完成后再启动下载
     Future.delayed(const Duration(milliseconds: 400), () {
@@ -288,16 +294,30 @@ class GalleryViewerRouteState extends State<GalleryViewerRoute>
         actions: <Widget>[
           TextButton(
             onPressed: () {
-              all[currentIndex].delete().then((value) async {
+              final asset = all[currentIndex];
+              asset.delete().then((value) async {
                 try {
-                  if (all[currentIndex].hasLocal) {
-                    _assetModel.removeLocalAsset(all[currentIndex]);
+                  if (asset.hasLocal) {
+                    _assetModel.removeLocalAsset(asset);
                   } else {
-                    _assetModel.removeRemoteAsset(all[currentIndex]);
-                    final id = await findLocalIDByAsset(all[currentIndex]);
+                    _assetModel.removeRemoteAsset(asset);
+                    final id = await findLocalIDByAsset(asset);
                     if (id != null) {
                       stateModel.removeSyncedPhotos([id]);
                       stateModel.saveSyncedIDs();
+                    }
+                  }
+                  // 过滤视图下 all 可能是独立副本，这里同步移除并修正下标，
+                  // 避免删除后 currentIndex 指向错误的照片。
+                  final removedIndex = all.indexOf(asset);
+                  if (removedIndex != -1) {
+                    all.removeAt(removedIndex);
+                    if (all.isEmpty) {
+                      currentIndex = 0;
+                    } else if (currentIndex > removedIndex) {
+                      currentIndex -= 1;
+                    } else if (currentIndex >= all.length) {
+                      currentIndex = all.length - 1;
                     }
                   }
                 } catch (e) {
@@ -392,8 +412,15 @@ class GalleryViewerRouteState extends State<GalleryViewerRoute>
       SnackBarManager.showSnackBar("Asset local is null, unable to upload");
       return;
     }
-    if (stateModel.syncedIDs.contains(entity.id) ||
+    if (stateModel.isSynced(entity.id) ||
         stateModel.uploadProgress.containsKey(entity.id)) {
+      return;
+    }
+    // 先确认远端是否已有：相册切换/清缓存后 syncedIDs 可能不全
+    final exist = await stateModel.checkRemoteUploaded([entity]);
+    if (exist.contains(entity.id)) {
+      stateModel.markSynced(exist);
+      SnackBarManager.showSnackBar(l10n.skipExistingOnUpload);
       return;
     }
     await keepScreenOn(true);

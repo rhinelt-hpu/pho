@@ -678,4 +678,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String rebuildSuccess(Object count, Object thumbCount) {
     return 'Rebuild complete: indexed $count photos, backfilled $thumbCount thumbnails';
   }
+
+  @override
+  String get hideUploaded => 'Hide uploaded';
+
+  @override
+  String get skipExistingOnUpload => 'Already on remote, skipped';
+
+  @override
+  String get logSyncTitle => 'Auto-sync logs to metadata storage';
+
+  @override
+  String get logSyncDesc =>
+      'Upload this device\'s runtime logs to the .logs folder on the metadata drive for remote troubleshooting';
+
+  @override
+  String get logSyncUploadNow => 'Upload logs now';
+
+  @override
+  String get logSyncDone => 'Logs uploaded';
+
+  @override
+  String get logSyncFailed => 'Failed to upload logs';
 }

@@ -168,8 +168,10 @@ void main() {
       expect(prefs.getBool('filter_switch'), isTrue);
       expect(prefs.getBool('filter_no_video'), isTrue);
       expect(prefs.getBool('filter_no_image'), isFalse);
-      expect(prefs.getInt('filter_after'), DateTime(2024, 3, 15).millisecondsSinceEpoch);
-      expect(prefs.getInt('filter_before'), DateTime(2024, 10, 20).millisecondsSinceEpoch);
+      expect(prefs.getInt('filter_after'),
+          DateTime(2024, 3, 15).millisecondsSinceEpoch);
+      expect(prefs.getInt('filter_before'),
+          DateTime(2024, 10, 20).millisecondsSinceEpoch);
       expect(prefs.getString('filter_type_map'), contains('.raw'));
 
       final sm2 = SettingModel();
@@ -181,6 +183,50 @@ void main() {
       expect(sm2.filterAfter, DateTime(2024, 3, 15));
       expect(sm2.filterBefore, DateTime(2024, 10, 20));
       expect(sm2.filterTypeMap['.raw'], isFalse);
+    });
+  });
+
+  group('SettingModel 本地相册「隐藏已上传」(Hide Synced Local)', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('默认关闭，setHideSyncedLocal 会通知监听器', () {
+      final sm = SettingModel();
+      expect(sm.hideSyncedLocal, isFalse);
+
+      var notified = 0;
+      sm.addListener(() => notified++);
+      sm.setHideSyncedLocal(true);
+
+      expect(sm.hideSyncedLocal, isTrue);
+      expect(notified, 1);
+
+      // 值未变化时不重复通知
+      sm.setHideSyncedLocal(true);
+      expect(notified, 1);
+    });
+
+    test('写入 SharedPreferences 并能从 loadSettings 恢复', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final sm = SettingModel();
+      sm.setHideSyncedLocal(true);
+      // setter 内部的异步持久化，等一拍再断言
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(prefs.getBool('hide_synced_local'), isTrue);
+
+      final sm2 = SettingModel();
+      await sm2.loadSettings(prefs);
+      expect(sm2.hideSyncedLocal, isTrue);
+    });
+
+    test('saveSettings 一并持久化开关', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final sm = SettingModel();
+      sm.hideSyncedLocal = true; // 直接改字段后靠 saveSettings 落盘
+      await sm.saveSettings();
+      expect(prefs.getBool('hide_synced_local'), isTrue);
     });
   });
 
