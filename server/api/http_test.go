@@ -40,11 +40,11 @@ func (m *mockDrive) DownloadWithOffset(path string, offset int64) (io.ReadCloser
 	}
 	return io.NopCloser(bytes.NewReader(m.content[offset:])), int64(len(m.content)), nil
 }
-func (m *mockDrive) Delete(path string) error    { return nil }
+func (m *mockDrive) Delete(path string) error                            { return nil }
 func (m *mockDrive) Range(dir string, deal func(fs.FileInfo) bool) error { return nil }
-func (m *mockDrive) Close() error                { return nil }
-func (m *mockDrive) Move(oldPath, newPath string) error { return nil }
-func (m *mockDrive) Mkdir(dir string) error      { return nil }
+func (m *mockDrive) Close() error                                        { return nil }
+func (m *mockDrive) Move(oldPath, newPath string) error                  { return nil }
+func (m *mockDrive) Mkdir(dir string) error                              { return nil }
 
 func newTestAPI() *api {
 	im := imgmanager.NewImgManager(imgmanager.Option{WorkerNum: 1})
@@ -221,6 +221,13 @@ func TestParseAlbumHeader(t *testing.T) {
 	}
 }
 
+// debugRemoteStatsResponse 对应 GET /debug/remote_stats 的固定契约结构
+type debugRemoteStatsResponse struct {
+	Primary   *webdav.RemoteStats `json:"primary"`
+	Meta      *webdav.RemoteStats `json:"meta"`
+	Aggregate webdav.RemoteStats  `json:"aggregate"`
+}
+
 func TestRemoteStatsEndpoint(t *testing.T) {
 	a := newTestAPI()
 	webdav.GlobalStats.Reset()
@@ -236,18 +243,35 @@ func TestRemoteStatsEndpoint(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var stats webdav.RemoteStats
+	var stats debugRemoteStatsResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &stats); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
-	if stats.TotalRequests != 3 {
-		t.Fatalf("expected 3 total requests, got %d", stats.TotalRequests)
+	// 非 WebDAV 驱动（SMB/NFS/mock）时 primary/meta 必须为 null
+	if stats.Primary != nil || stats.Meta != nil {
+		t.Fatalf("expected null primary/meta for non-webdav drives, got %+v/%+v", stats.Primary, stats.Meta)
 	}
-	if stats.RateLimitHits != 1 {
-		t.Fatalf("expected 1 rate limit hit, got %d", stats.RateLimitHits)
+	if stats.Aggregate.TotalRequests != 3 {
+		t.Fatalf("expected 3 total requests, got %d", stats.Aggregate.TotalRequests)
 	}
-	if stats.ByMethod["PROPFIND"] != 2 {
-		t.Fatalf("expected 2 PROPFINDs, got %d", stats.ByMethod["PROPFIND"])
+	if stats.Aggregate.RateLimitHits != 1 {
+		t.Fatalf("expected 1 rate limit hit, got %d", stats.Aggregate.RateLimitHits)
+	}
+	if stats.Aggregate.ByMethod["PROPFIND"] != 2 {
+		t.Fatalf("expected 2 PROPFINDs, got %d", stats.Aggregate.ByMethod["PROPFIND"])
+	}
+	if stats.Aggregate.Role != "aggregate" {
+		t.Fatalf("expected aggregate role, got %q", stats.Aggregate.Role)
+	}
+	// 契约字段必须齐全
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("unmarshal raw error: %v", err)
+	}
+	for _, key := range []string{"primary", "meta", "aggregate"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("missing contract field %q in response: %s", key, w.Body.String())
+		}
 	}
 
 	// Test reset
@@ -261,6 +285,66 @@ func TestRemoteStatsEndpoint(t *testing.T) {
 	snap := webdav.GlobalStats.Snapshot()
 	if snap.TotalRequests != 0 {
 		t.Fatalf("expected 0 requests after reset, got %d", snap.TotalRequests)
+	}
+}
+
+// TestRemoteStatsEndpointWebdavRoles 验证 primary/meta 分别对应主/副 WebDAV 驱动实例，
+// 且 POST reset 同时重置两个实例与全局聚合。
+func TestRemoteStatsEndpointWebdavRoles(t *testing.T) {
+	webdav.GlobalStats.Reset()
+	im := imgmanager.NewImgManager(imgmanager.Option{WorkerNum: 1})
+	defer im.Close()
+
+	primaryDrive := webdav.NewWebdavDrive("http://127.0.0.1:1", "", "", false)
+	metaDrive := webdav.NewWebdavDrive("http://127.0.0.1:2", "", "", false)
+	im.SetDrive(primaryDrive)
+	im.SetMetaDrive(metaDrive)
+
+	primaryDrive.Stats().Record("PROPFIND", "/dav/photo/", 207, 10)
+	primaryDrive.Stats().Record("PUT", "/dav/photo/a.jpg", 201, 30)
+	metaDrive.Stats().Record("GET", "/dav/.thumbnail/photo/a.jpg", 200, 5)
+
+	a := NewApi(im)
+	req := httptest.NewRequest("GET", "/debug/remote_stats", nil)
+	w := httptest.NewRecorder()
+	a.HttpHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var stats debugRemoteStatsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if stats.Primary == nil || stats.Meta == nil {
+		t.Fatalf("expected non-null primary/meta webdav stats, got %+v/%+v", stats.Primary, stats.Meta)
+	}
+	if stats.Primary.Role != "primary" || stats.Primary.TotalRequests != 2 {
+		t.Fatalf("expected primary role with 2 requests, got role=%q total=%d", stats.Primary.Role, stats.Primary.TotalRequests)
+	}
+	if stats.Meta.Role != "meta" || stats.Meta.TotalRequests != 1 {
+		t.Fatalf("expected meta role with 1 request, got role=%q total=%d", stats.Meta.Role, stats.Meta.TotalRequests)
+	}
+	if stats.Aggregate.Role != "aggregate" || stats.Aggregate.TotalRequests != 0 {
+		t.Fatalf("expected aggregate role with 0 aggregated requests, got role=%q total=%d",
+			stats.Aggregate.Role, stats.Aggregate.TotalRequests)
+	}
+
+	// reset 必须同时清空主、副、聚合
+	reqReset := httptest.NewRequest("POST", "/debug/remote_stats/reset", nil)
+	wReset := httptest.NewRecorder()
+	a.HttpHandler().ServeHTTP(wReset, reqReset)
+	if wReset.Code != http.StatusOK {
+		t.Fatalf("reset failed: %d", wReset.Code)
+	}
+	if got := primaryDrive.Stats().Snapshot().TotalRequests; got != 0 {
+		t.Fatalf("expected primary reset, got %d", got)
+	}
+	if got := metaDrive.Stats().Snapshot().TotalRequests; got != 0 {
+		t.Fatalf("expected meta reset, got %d", got)
+	}
+	if got := webdav.GlobalStats.Snapshot().TotalRequests; got != 0 {
+		t.Fatalf("expected aggregate reset, got %d", got)
 	}
 }
 
@@ -323,8 +407,8 @@ func (m *inMemoryDrive) Delete(path string) error {
 
 func (m *inMemoryDrive) Range(dir string, deal func(fs.FileInfo) bool) error { return nil }
 func (m *inMemoryDrive) Close() error                                        { return nil }
-func (m *inMemoryDrive) Move(oldPath, newPath string) error                 { return nil }
-func (m *inMemoryDrive) Mkdir(dir string) error                             { return nil }
+func (m *inMemoryDrive) Move(oldPath, newPath string) error                  { return nil }
+func (m *inMemoryDrive) Mkdir(dir string) error                              { return nil }
 
 func TestHTTPThumbnailFallbackAndBackfill(t *testing.T) {
 	mainDrive := newInMemoryDrive()

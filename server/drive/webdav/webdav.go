@@ -14,16 +14,40 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/fregie/img_syncer/server/util"
 	"github.com/studio-b12/gowebdav"
 )
 
 const (
-	defaultThumbnailDir  = ".thumbnail"
-	defaultManifestDir   = ".manifest"
-	MaxRemoteConcurrency = 16
+	defaultThumbnailDir = ".thumbnail"
+	defaultManifestDir  = ".manifest"
+
+	// DefaultPrimaryConcurrency 主存储默认并发上限（123 云盘等对并发敏感，保持低并发）
+	DefaultPrimaryConcurrency = 4
+	// DefaultMetaConcurrency 副存储默认并发上限（元数据/缩略图通常在本机磁盘，可高并发）
+	DefaultMetaConcurrency = 16
+	// MaxRemoteConcurrency 历史全局限流值，保留作为默认上限（等价于副存储默认值）
+	MaxRemoteConcurrency = DefaultMetaConcurrency
+	// maxAllowedConcurrency 单实例并发硬上限，防止误配置把远端打挂
+	maxAllowedConcurrency = 64
 )
+
+// semaphore 是可整体替换的计数信号量。每次 acquire 持有它拿到的 semaphore 实例，
+// release 时归还到同一实例；因此配置变更（替换 chan）时在途请求不会 panic、
+// 也不会归还到错误的槽位。
+type semaphore struct {
+	ch chan struct{}
+}
+
+func newSemaphore(n int) *semaphore {
+	if n <= 0 {
+		n = DefaultPrimaryConcurrency
+	}
+	return &semaphore{ch: make(chan struct{}, n)}
+}
 
 type Webdav struct {
 	url       string
@@ -33,8 +57,28 @@ type Webdav struct {
 	cli       *gowebdav.Client
 	mkdirLock sync.Mutex // serializes mkdir to avoid race in gowebdav lib
 	knownDirs map[string]bool
-	sem       chan struct{}
-	rt        *retryTransport
+
+	cfgMu          sync.Mutex // 保护 role/maxConcurrency 与 transport 空闲连接配置
+	role           string
+	maxConcurrency int
+	concurrencySet bool // 是否被 SetMaxConcurrency 显式设置过
+	sem            *semaphore
+	rt             *retryTransport
+	stats          *StatsCollector
+}
+
+func defaultConcurrencyForRole(role string) int {
+	if role == RoleMeta {
+		return DefaultMetaConcurrency
+	}
+	return DefaultPrimaryConcurrency
+}
+
+func normalizeRole(role string) string {
+	if strings.EqualFold(strings.TrimSpace(role), RoleMeta) {
+		return RoleMeta
+	}
+	return RolePrimary
 }
 
 type semReleaseReadCloser struct {
@@ -77,23 +121,33 @@ func parseContentRangeTotal(cr string) int64 {
 
 type retryTransport struct {
 	base        http.RoundTripper
-	sem         chan struct{}
+	sem         atomic.Pointer[semaphore]
 	basePath    string
 	lastSizeMap sync.Map
+	stats       *StatsCollector
+	used        atomic.Bool // 是否已有请求发生过（并发上限仅允许在首次请求前调整）
 }
 
 func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.sem != nil {
+	t.used.Store(true)
+	sem := t.sem.Load()
+	if sem != nil {
 		select {
-		case t.sem <- struct{}{}:
+		case sem.ch <- struct{}{}:
 		case <-req.Context().Done():
 			return nil, req.Context().Err()
 		}
 	}
 	releaseSem := func() {
-		if t.sem != nil {
-			<-t.sem
+		if sem != nil {
+			<-sem.ch
 		}
+	}
+	record := func(status int, dur time.Duration) {
+		if t.stats != nil {
+			t.stats.Record(req.Method, req.URL.Path, status, dur.Milliseconds())
+		}
+		GlobalStats.Record(req.Method, req.URL.Path, status, dur.Milliseconds())
 	}
 
 	var resp *http.Response
@@ -103,8 +157,11 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		resp, err = t.base.RoundTrip(req)
 		if err == nil {
 			if resp.StatusCode == http.StatusTooManyRequests {
-				GlobalStats.Record(req.Method, req.URL.Path, resp.StatusCode, time.Since(start).Milliseconds())
-				resp.Body.Close()
+				record(resp.StatusCode, time.Since(start))
+				// 注意：重试期间继续持有本请求已占用的槽位，不重新 acquire，避免重复占用并发额度
+				_ = resp.Body.Close()
+				util.RateLimitedLogf("webdav-429:"+req.URL.Path,
+					"[W] webdav 429 retry: method=%s path=%s attempt=%d", req.Method, req.URL.Path, i+1)
 				time.Sleep(time.Duration(1<<i) * 1000 * time.Millisecond)
 				continue
 			}
@@ -119,7 +176,7 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if resp != nil {
 		statusCode = resp.StatusCode
 	}
-	GlobalStats.Record(req.Method, req.URL.Path, statusCode, time.Since(start).Milliseconds())
+	record(statusCode, time.Since(start))
 	if err != nil || resp == nil || resp.Body == nil {
 		releaseSem()
 		return resp, err
@@ -155,11 +212,12 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
-	sem := make(chan struct{}, MaxRemoteConcurrency)
+	stats := NewStatsCollectorWithRole(50, RolePrimary)
+	sem := newSemaphore(DefaultPrimaryConcurrency)
 	baseTransport := &http.Transport{
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecure},
-		MaxIdleConns:        MaxRemoteConcurrency * 2,
-		MaxIdleConnsPerHost: MaxRemoteConcurrency,
+		MaxIdleConns:        DefaultPrimaryConcurrency * 2,
+		MaxIdleConnsPerHost: DefaultPrimaryConcurrency,
 		IdleConnTimeout:     90 * time.Second,
 	}
 	var basePath string
@@ -168,24 +226,97 @@ func NewWebdavDrive(url, username, password string, insecure bool) *Webdav {
 	}
 	rt := &retryTransport{
 		base:     baseTransport,
-		sem:      sem,
 		basePath: basePath,
+		stats:    stats,
 	}
+	rt.sem.Store(sem)
 	d := &Webdav{
-		url:       url,
-		username:  username,
-		password:  password,
-		cli:       gowebdav.NewClient(url, username, password),
-		knownDirs: make(map[string]bool),
-		sem:       sem,
-		rt:        rt,
+		url:            url,
+		username:       username,
+		password:       password,
+		cli:            gowebdav.NewClient(url, username, password),
+		knownDirs:      make(map[string]bool),
+		role:           RolePrimary,
+		maxConcurrency: DefaultPrimaryConcurrency,
+		sem:            sem,
+		rt:             rt,
+		stats:          stats,
 	}
 	d.cli.SetTransport(rt)
 	if insecure {
-		log.Printf("WARNING: TLS certificate verification disabled for WebDAV at %s, do not use in production", url)
+		log.Printf("[W] WARNING: TLS certificate verification disabled for WebDAV at %s, do not use in production", url)
 	}
 	d.cli.SetTimeout(60 * time.Second)
 	return d
+}
+
+// Role 返回当前驱动角色（primary | meta）
+func (d *Webdav) Role() string {
+	d.cfgMu.Lock()
+	defer d.cfgMu.Unlock()
+	return d.role
+}
+
+// MaxConcurrency 返回当前生效的并发上限
+func (d *Webdav) MaxConcurrency() int {
+	d.cfgMu.Lock()
+	defer d.cfgMu.Unlock()
+	return d.maxConcurrency
+}
+
+// Stats 返回本实例独立的请求统计收集器（区别于全量聚合的 GlobalStats）
+func (d *Webdav) Stats() *StatsCollector {
+	return d.stats
+}
+
+// SetRole 设置驱动角色。主存储默认并发 4，副存储（元数据/缩略图）默认并发 16；
+// 若调用方已显式 SetMaxConcurrency，则角色切换不会覆盖显式并发值。
+func (d *Webdav) SetRole(role string) {
+	role = normalizeRole(role)
+	d.cfgMu.Lock()
+	d.role = role
+	if !d.concurrencySet && !d.rt.used.Load() {
+		d.applyConcurrencyLocked(defaultConcurrencyForRole(role))
+	} else if !d.concurrencySet {
+		util.RateLimitedLogf("webdav-role-change:"+d.url,
+			"[W] webdav role change after first request ignored for concurrency: role=%s", role)
+	}
+	d.cfgMu.Unlock()
+	if d.stats != nil {
+		d.stats.SetRole(role)
+	}
+}
+
+// SetMaxConcurrency 设置本实例的远端并发上限（同时调整 http.Transport 的空闲连接数）。
+// 为避免与 net/http 内部读产生数据竞争，只允许在首次网络请求前调用；
+// n <= 0 或超过硬上限时回退为当前角色的默认值。运行中调用会返回 error 且不改变现有配置。
+func (d *Webdav) SetMaxConcurrency(n int) error {
+	d.cfgMu.Lock()
+	defer d.cfgMu.Unlock()
+	if d.rt.used.Load() {
+		return fmt.Errorf("max concurrency must be set before the first request (current=%d)", d.maxConcurrency)
+	}
+	if n <= 0 || n > maxAllowedConcurrency {
+		n = defaultConcurrencyForRole(d.role)
+	}
+	d.concurrencySet = true
+	d.applyConcurrencyLocked(n)
+	return nil
+}
+
+// applyConcurrencyLocked 重建信号量并同步 transport 空闲连接池配置（调用前需持有 cfgMu 且无在途请求）
+func (d *Webdav) applyConcurrencyLocked(n int) {
+	if n <= 0 {
+		n = DefaultPrimaryConcurrency
+	}
+	sem := newSemaphore(n)
+	d.sem = sem
+	d.rt.sem.Store(sem)
+	if tr, ok := d.rt.base.(*http.Transport); ok {
+		tr.MaxIdleConns = n * 2
+		tr.MaxIdleConnsPerHost = n
+	}
+	d.maxConcurrency = n
 }
 
 func (d *Webdav) Close() error {

@@ -56,6 +56,15 @@ type ManifestManager struct {
 	initialized           bool
 	localPath             string // 本地持久化缓存路径（如 app_data/manifest_cache.json）
 	chunksSinceCompaction int
+	lastSync              SyncInfo
+}
+
+// SyncInfo 是一项 manifest 同步的摘要，用于日志与 gRPC Message 诊断回传
+type SyncInfo struct {
+	SnapshotWatermark int64 // 本次采用的最高快照水位线
+	Chunks            int   // .manifest/ 下检测到的 chunk 数
+	ReplayedChunks    int   // 实际回放的 chunk 数（水位线之后的增量）
+	DownloadedFiles   int   // 实际下载的快照 + chunk 数
 }
 
 func NewManifestManager(deviceID string) *ManifestManager {
@@ -139,6 +148,7 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 	if err != nil || len(entries) == 0 {
 		// 远端暂无 .manifest 目录，保持空即可
 		mm.initialized = true
+		mm.lastSync = SyncInfo{}
 		return nil
 	}
 
@@ -175,6 +185,7 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 	// 2. 加载最高基线快照（仅当远端快照高于本地已同步的水位线时才下载）
 	hasChanges := false
 	startWatermark := mm.maxWatermark
+	downloaded := 0
 	if bestSnapshotName != "" && snapshotWatermark > mm.maxWatermark {
 		rc, _, err := d.Download(filepath.Join(ManifestDir, bestSnapshotName))
 		if err == nil {
@@ -185,6 +196,7 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 				mm.maxWatermark = snap.Watermark
 				startWatermark = snap.Watermark
 				hasChanges = true
+				downloaded++
 			}
 		}
 	} else if snapshotWatermark > startWatermark {
@@ -197,6 +209,7 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 	})
 
 	// 4. 水位线过滤与日志重放：严格跳过 <= startWatermark 的切片！
+	replayed := 0
 	for _, chunk := range chunks {
 		if chunk.watermark <= startWatermark {
 			continue // 绝不重复回放已纳入快照或本地已有的旧切片
@@ -205,12 +218,14 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 		if err != nil {
 			continue // 容错跳过
 		}
+		downloaded++
 		var c ManifestChunk
 		err = json.NewDecoder(rc).Decode(&c)
 		rc.Close()
 		if err != nil {
 			continue
 		}
+		replayed++
 
 		for _, rec := range c.Records {
 			existing, exists := mm.records[rec.Fingerprint]
@@ -227,6 +242,12 @@ func (mm *ManifestManager) Sync(d StorageDrive) error {
 
 	if hasChanges {
 		_ = mm.saveLocalLocked()
+	}
+	mm.lastSync = SyncInfo{
+		SnapshotWatermark: snapshotWatermark,
+		Chunks:            len(chunks),
+		ReplayedChunks:    replayed,
+		DownloadedFiles:   downloaded,
 	}
 
 	// 5. 自动碎片压缩与垃圾回收检查：
@@ -328,7 +349,7 @@ func (mm *ManifestManager) pruneObsoleteFiles(d StorageDrive, watermark int64, h
 		return true
 	})
 	if err != nil && len(deleteSet) == 0 {
-		log.Printf("[WARN] pruneObsoleteFiles Range failed: %v", err)
+		log.Printf("[W] pruneObsoleteFiles Range failed: %v", err)
 		return
 	}
 
@@ -356,13 +377,13 @@ func (mm *ManifestManager) pruneObsoleteFiles(d StorageDrive, watermark int64, h
 			if err := d.Delete(path); err == nil {
 				atomic.AddInt32(&deletedCount, 1)
 			} else {
-				log.Printf("[WARN] Prune %s failed: %v", path, err)
+				log.Printf("[W] Prune %s failed: %v", path, err)
 			}
 		}(p)
 	}
 
 	wg.Wait()
-	log.Printf("[INFO] Manifest GC complete: pruned %d/%d obsolete files in %v (current watermark: %d)",
+	log.Printf("[I] manifest gc: pruned %d/%d obsolete files in %v (watermark: %d)",
 		deletedCount, len(toDelete), time.Since(start), watermark)
 }
 
@@ -427,6 +448,7 @@ func (mm *ManifestManager) Reset() {
 	mm.maxWatermark = 0
 	mm.initialized = false
 	mm.chunksSinceCompaction = 0
+	mm.lastSync = SyncInfo{}
 }
 
 // RebuildWithRecords 使用全量扫描得到的记录重置内存与远端快照，并清理旧碎片
@@ -496,6 +518,13 @@ func (mm *ManifestManager) RebuildWithRecords(d StorageDrive, records []Manifest
 		go mm.pruneObsoleteFiles(d, snap.Watermark, obsoletePaths)
 	}
 	return nil
+}
+
+// LastSyncInfo 返回最近一次 Sync 的摘要（快照水位线 / chunk 数 / 实际下载数）
+func (mm *ManifestManager) LastSyncInfo() SyncInfo {
+	mm.mu.RLock()
+	defer mm.mu.RUnlock()
+	return mm.lastSync
 }
 
 // LookupFingerprint 在内存中快速检索指纹，返回是否存在且未删除

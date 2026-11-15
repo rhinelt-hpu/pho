@@ -61,14 +61,56 @@ func (a *api) HttpHandler() http.Handler {
 	return http.HandlerFunc(a.httpHandler)
 }
 
+// debugRemoteStats 是 GET /debug/remote_stats 的固定契约（客户端按此解析）：
+// primary/meta 为对应驱动是 *webdav.Webdav 时才返回（否则 null），aggregate 为全量聚合。
+type debugRemoteStats struct {
+	Primary   *webdav.RemoteStats `json:"primary"`
+	Meta      *webdav.RemoteStats `json:"meta"`
+	Aggregate webdav.RemoteStats  `json:"aggregate"`
+}
+
+// webdavStatsCollector 返回驱动自带的统计收集器（非 Webdav 驱动返回 nil）
+func webdavStatsCollector(d imgmanager.StorageDrive) *webdav.StatsCollector {
+	if d == nil {
+		return nil
+	}
+	wd, ok := d.(*webdav.Webdav)
+	if !ok || wd == nil {
+		return nil
+	}
+	return wd.Stats()
+}
+
+func webdavStatsSnapshot(d imgmanager.StorageDrive, role string) *webdav.RemoteStats {
+	sc := webdavStatsCollector(d)
+	if sc == nil {
+		return nil
+	}
+	snap := sc.Snapshot()
+	snap.Role = role
+	return &snap
+}
+
 func (a *api) httpHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/debug/remote_stats" && r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
-		stats := webdav.GlobalStats.Snapshot()
-		_ = json.NewEncoder(w).Encode(stats)
+		aggregate := webdav.GlobalStats.Snapshot()
+		aggregate.Role = webdav.RoleAggregate
+		out := debugRemoteStats{
+			Primary:   webdavStatsSnapshot(a.im.Drive(), webdav.RolePrimary),
+			Meta:      webdavStatsSnapshot(a.im.MetaDriveRaw(), webdav.RoleMeta),
+			Aggregate: aggregate,
+		}
+		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
 	if r.URL.Path == "/debug/remote_stats/reset" && (r.Method == http.MethodPost || r.Method == http.MethodGet) {
+		if sc := webdavStatsCollector(a.im.Drive()); sc != nil {
+			sc.Reset()
+		}
+		if sc := webdavStatsCollector(a.im.MetaDriveRaw()); sc != nil {
+			sc.Reset()
+		}
 		webdav.GlobalStats.Reset()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

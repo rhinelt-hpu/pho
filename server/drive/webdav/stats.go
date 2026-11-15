@@ -16,15 +16,17 @@ type AccessLog struct {
 }
 
 type RemoteStats struct {
-	TotalRequests int64             `json:"total_requests"`
-	ByMethod      map[string]int64  `json:"by_method"`
-	ByStatus      map[string]int64  `json:"by_status"`
-	RateLimitHits int64             `json:"rate_limit_hits"`
-	RecentLogs    []AccessLog       `json:"recent_logs"`
+	Role          string           `json:"role"` // primary | meta | aggregate
+	TotalRequests int64            `json:"total_requests"`
+	ByMethod      map[string]int64 `json:"by_method"`
+	ByStatus      map[string]int64 `json:"by_status"`
+	RateLimitHits int64            `json:"rate_limit_hits"`
+	RecentLogs    []AccessLog      `json:"recent_logs"`
 }
 
 type StatsCollector struct {
 	mu            sync.RWMutex
+	role          string
 	totalRequests int64
 	byMethod      map[string]int64
 	byStatus      map[string]int64
@@ -33,15 +35,42 @@ type StatsCollector struct {
 	maxLogs       int
 }
 
-var GlobalStats = NewStatsCollector(50)
+// 驱动角色，用于日志、统计二分类（主存储 / 副存储）与客户端展示
+const (
+	RolePrimary   = "primary"
+	RoleMeta      = "meta"
+	RoleAggregate = "aggregate"
+)
+
+// GlobalStats 保留为全量聚合（所有 Webdav 实例的累计值），供旧接口/旧测试兼容。
+// 每个实例另有自己的 StatsCollector，见 Webdav.Stats()。
+var GlobalStats = NewStatsCollectorWithRole(50, RoleAggregate)
 
 func NewStatsCollector(maxLogs int) *StatsCollector {
+	return NewStatsCollectorWithRole(maxLogs, "")
+}
+
+func NewStatsCollectorWithRole(maxLogs int, role string) *StatsCollector {
 	return &StatsCollector{
+		role:       role,
 		byMethod:   make(map[string]int64),
 		byStatus:   make(map[string]int64),
 		recentLogs: make([]AccessLog, 0, maxLogs),
 		maxLogs:    maxLogs,
 	}
+}
+
+// SetRole 更新统计所属角色（primary | meta | aggregate）
+func (sc *StatsCollector) SetRole(role string) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	sc.role = role
+}
+
+func (sc *StatsCollector) Role() string {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	return sc.role
 }
 
 func (sc *StatsCollector) Record(method, path string, status int, durationMs int64) {
@@ -96,6 +125,7 @@ func (sc *StatsCollector) Snapshot() RemoteStats {
 	copy(logsCopy, sc.recentLogs)
 
 	return RemoteStats{
+		Role:          sc.role,
 		TotalRequests: sc.totalRequests,
 		ByMethod:      methodCopy,
 		ByStatus:      statusCopy,

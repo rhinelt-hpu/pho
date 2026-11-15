@@ -113,6 +113,21 @@ type StorageDrive interface {
 
 ---
 
+## 4.4 主/副存储的并发控制与请求统计
+
+- **每驱动独立并发**（`server/drive/webdav`）：主存储默认 **4** 并发，元数据/缩略图副存储默认 **16**。并发上限在建立连接后的首次网络请求前设定；`SetMaxConcurrency` 拒绝运行中变更，避免与 net/http 内部读竞争。HTTP 流式 GET 在 body Close 前一直持有槽位，PROPFIND/PUT 在响应头返回后释放。
+- **请求计数二分类**：`GET /debug/remote_stats` 返回 `{primary, meta, aggregate}`，供客户端看清「多少请求打到云盘、多少只读元数据」；SMB/NFS 驱动对应分区为 `null`。`POST /debug/remote_stats/reset` 同时清零主/副/聚合。
+
+## 4.5 元数据（manifest）生命周期：本地缓存 + 远端同步 + miss 自愈
+
+- **本地缓存**：`manifest_cache.json`（客户端 `SetLocalCacheDir` 下发路径）在启动时 `LoadLocal`，之后每次 `Sync`/`AppendChunk` 都原子落盘，用于首屏 0 网络初始化。
+- **远端同步**：`.manifest/` 目录 = 唯一最高水位线快照 `snapshot_to_<W>.json` + 水位线 `> W` 的 append-only `chunk_*.json`。`Sync` 只下载高于本地水位线的快照/切片，记录按 `updated_at` 做 LWW。每 20 个切片自动压缩成新快照并清理旧碎片。
+- **按日期组织查询**：manifest 就绪时 `RangeByAlbumAndDateRange` 纯内存响应，0 云盘请求；只有「区间内 0 命中」（外部工具写入/老版本无记录的文件）才回退主存储物理扫描，且**扫描到的新文件会增量回写**（`WithManifestHeal`，单次上限 2000，自动补相册骨架）。
+- **少量 miss 的定向自愈**：`FilterNotUploaded` 在区间扫描仍无法覆盖（同区间已有其它记录会整体命中 manifest）时，只扫描 miss 文件所在日期的目录（根级 + 各相册），上限 40 个指纹 / 6 个日期，命中后同样回写。下次查询直接 O(1) 命中。
+- **安全阀**：副存储未配置时 `SetDrive` 不会在主存储上做 manifest 自举（主存储可能是云盘），必须等 `SetMetaDrive`（启用副存储）或 `ClearMetaDrive`（未启用，manifest 落到主存储）明确目标。
+
+---
+
 ## 5. 加密体系与流媒体 Range 播放
 
 Pho 支持在上传时对文件进行端到端加密，确保即便网络存储设备被物理盗取，照片与视频也不会泄露。

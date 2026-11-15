@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	pb "github.com/fregie/img_syncer/proto"
@@ -51,6 +52,38 @@ type ImgManager struct {
 	wg              sync.WaitGroup
 	logger          *log.Logger
 	opt             Option
+	syncInfoMu      sync.RWMutex
+	syncInfo        ManifestSyncResult
+	syncSeq         atomic.Int64
+}
+
+// ManifestSyncResult 是最近一次 manifest 同步的摘要，用于日志与 gRPC Message 诊断回传
+type ManifestSyncResult struct {
+	Records   int
+	Watermark int64
+	Snapshot  int64
+	Chunks    int
+	Source    string // local-cache | remote | none
+	CostMs    int64
+	At        time.Time
+}
+
+// LastManifestSync 返回最近一次 manifest 同步的摘要
+func (im *ImgManager) LastManifestSync() ManifestSyncResult {
+	im.syncInfoMu.RLock()
+	defer im.syncInfoMu.RUnlock()
+	return im.syncInfo
+}
+
+// ManifestSyncSeq 返回 manifest 同步完成次数序号，调用方可用于等待首次同步完成
+func (im *ImgManager) ManifestSyncSeq() int64 {
+	return im.syncSeq.Load()
+}
+
+func (im *ImgManager) setLastManifestSync(res ManifestSyncResult) {
+	im.syncInfoMu.Lock()
+	im.syncInfo = res
+	im.syncInfoMu.Unlock()
 }
 
 type Option struct {
@@ -135,11 +168,31 @@ func isDriveReady(d StorageDrive) bool {
 }
 
 func (im *ImgManager) syncOrBootstrapManifest(mainD, metaD StorageDrive) {
+	defer im.syncSeq.Add(1)
 	if !isDriveReady(metaD) {
+		im.setLastManifestSync(ManifestSyncResult{Source: "none", At: time.Now()})
 		return
 	}
+	start := time.Now()
+	fromLocalCache := im.manifest.IsInitialized() // 启动时已从本地 manifest_cache.json 加载
 	err := im.manifest.Sync(metaD)
-	log.Printf("[INFO] Manifest sync complete, watermark: %d, records: %d, err: %v", im.manifest.GetMaxWatermark(), im.manifest.RecordCount(), err)
+	si := im.manifest.LastSyncInfo()
+	res := ManifestSyncResult{
+		Records:   im.manifest.RecordCount(),
+		Watermark: im.manifest.GetMaxWatermark(),
+		Snapshot:  si.SnapshotWatermark,
+		Chunks:    si.Chunks,
+		CostMs:    time.Since(start).Milliseconds(),
+		At:        time.Now(),
+	}
+	if fromLocalCache {
+		res.Source = "local-cache"
+	} else {
+		res.Source = "remote"
+	}
+	im.setLastManifestSync(res)
+	log.Printf("[I] manifest sync: records=%d watermark=%d snapshot=%d chunks=%d replayed=%d source=%s cost=%dms err=%v",
+		res.Records, res.Watermark, res.Snapshot, res.Chunks, si.ReplayedChunks, res.Source, res.CostMs, err)
 	// 如果远端没有任何 manifest 记录，且当前 manifest 也为空，执行首次自举（Bootstrap）
 	if err == nil && im.manifest.RecordCount() == 0 && im.manifest.GetMaxWatermark() == 0 && isDriveReady(mainD) {
 		im.bootstrapManifest(mainD, metaD)
@@ -158,11 +211,15 @@ func (im *ImgManager) SetDrive(dri StorageDrive) {
 		return
 	}
 	go im.MigrateLegacyRootFolders()
-	targetMeta := dri
-	if isDriveReady(metaD) {
-		targetMeta = metaD
+	// 副存储尚未配置时不要在主存储上同步/自举 manifest：主存储可能是云盘，
+	// 一次错误的 Bootstrap 会把整个云盘扫一遍并把 .manifest 写到主存储根目录。
+	// 等 SetMetaDrive（启用副存储）或 ClearMetaDrive（未启用）明确目标后再同步。
+	if !isDriveReady(metaD) {
+		im.syncSeq.Add(1)
+		im.setLastManifestSync(ManifestSyncResult{Source: "waiting-meta", At: time.Now()})
+		return
 	}
-	go im.syncOrBootstrapManifest(dri, targetMeta)
+	go im.syncOrBootstrapManifest(dri, metaD)
 }
 
 func (im *ImgManager) SetMetaDrive(dri StorageDrive) {
@@ -268,14 +325,13 @@ func (im *ImgManager) runWorker() {
 					defer unlock()
 					err := d.Delete(act.path)
 					if err != nil {
-						im.logger.Println("Error deleting image:", err)
+						im.logger.Printf("[W] delete image failed: %v", err)
 					}
 				}()
 			}
 		}
 	}
 }
-
 
 type Options struct {
 	EncyptOption EncryptOption
@@ -358,7 +414,7 @@ func (im *ImgManager) Upload(content io.Reader, contentSize int64, name string, 
 	}
 	reader, err := EncryptedReaderWraper(io.NopCloser(content), options.EncyptOption)
 	if err != nil {
-		im.logger.Println("Error encrypting:", err)
+		im.logger.Printf("[W] encrypt failed: %v", err)
 		return fmt.Errorf("error encrypting: %w", err)
 	}
 	if options.EncyptOption.Type != None && options.EncyptOption.Password != "" {
@@ -401,7 +457,7 @@ func (im *ImgManager) SaveLog(name string, content io.Reader, size int64) error 
 	md, unlock := im.metaDrive()
 	defer unlock()
 	if err := md.Upload(filepath.Join(defaultLogDir, name), io.NopCloser(content), size, time.Now()); err != nil {
-		im.logger.Printf("Error saving log %s: %s", name, err)
+		im.logger.Printf("[W] save log failed: name=%s err=%v", name, err)
 		return fmt.Errorf("error saving log: %w", err)
 	}
 	return nil
@@ -418,7 +474,7 @@ func (im *ImgManager) UploadThumbnail(thumbnailContent io.Reader, thumbnailSize 
 	path := im.genPath(name, date, options)
 	reader, err := EncryptedReaderWraper(io.NopCloser(thumbnailContent), options.EncyptOption)
 	if err != nil {
-		im.logger.Println("Error encrypting video:", err)
+		im.logger.Printf("[W] encrypt video failed: %v", err)
 		return fmt.Errorf("error encrypting video: %w", err)
 	}
 	if options.EncyptOption.Type != None && options.EncyptOption.Password != "" {
@@ -429,7 +485,7 @@ func (im *ImgManager) UploadThumbnail(thumbnailContent io.Reader, thumbnailSize 
 	e := md.Upload(filepath.Join(defaultThumbnailDir, path),
 		io.NopCloser(reader), thumbnailSize, date)
 	if e != nil {
-		im.logger.Printf("Error uploading %s: %s", path, e)
+		im.logger.Printf("[W] upload failed: path=%s err=%v", path, e)
 		return fmt.Errorf("error uploading %s thumbnail: %w", path, e)
 	}
 	return nil
@@ -505,7 +561,7 @@ func (im *ImgManager) UploadLiveVideo(content io.Reader, size int64, name string
 	path := im.genPath(name, date, options)
 	reader, err := EncryptedReaderWraper(io.NopCloser(content), options.EncyptOption)
 	if err != nil {
-		im.logger.Println("Error encrypting video:", err)
+		im.logger.Printf("[W] encrypt video failed: %v", err)
 		return fmt.Errorf("error encrypting video: %w", err)
 	}
 	if options.EncyptOption.Type != None && options.EncyptOption.Password != "" {
@@ -515,7 +571,7 @@ func (im *ImgManager) UploadLiveVideo(content io.Reader, size int64, name string
 	defer unlock()
 	e := d.Upload(path, io.NopCloser(reader), size, date)
 	if e != nil {
-		im.logger.Printf("Error uploading %s: %s", path, e)
+		im.logger.Printf("[W] upload failed: path=%s err=%v", path, e)
 		return fmt.Errorf("error uploading %s thumbnail: %w", path, e)
 	}
 	return nil
@@ -658,6 +714,7 @@ func (im *ImgManager) GetOffset(path string, offset int64, opts ...OptionFunc) (
 }
 
 func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, error) {
+	start := time.Now()
 	var options Options
 	for _, opt := range opts {
 		opt(&options)
@@ -673,6 +730,8 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 	if err != nil {
 		// 视频缩略图缺失时：绝不能回退下载几百兆乃至数 GB 的原视频当作缩略图返回，避免引发客户端内存暴涨(OOM)与网络拥塞
 		if util.IsVideo(path) {
+			util.RateLimitedLogf("thumb-missing-video:"+path,
+				"[W] thumb: source=meta-missing-video cost=%dms path=%s", time.Since(start).Milliseconds(), path)
 			return nil, fmt.Errorf("video thumbnail not found: %s", path)
 		}
 		// 只查「副存储 .thumbnail -> 主存储原图」：回退读取主存储原图，防止缩略图缺失导致前端渲染白块
@@ -680,10 +739,19 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 		rc, img.Size, err = d.Download(path)
 		unlockMain()
 		if err != nil {
+			util.RateLimitedLogf("thumb-missing:"+path,
+				"[E] thumb: source=none cost=%dms path=%s err=%v", time.Since(start).Milliseconds(), path, err)
 			return img, fmt.Errorf("error downloading thumbnail: %w", err)
 		}
 		thumbnailPath = path
 		isFallback = true
+		// 只记录回退（高价值诊断，同一路径 30s 去重）
+		util.RateLimitedLogf("thumb-fallback:"+path,
+			"[W] thumb: source=primary-fallback cost=%dms path=%s", time.Since(start).Milliseconds(), path)
+	} else if cost := time.Since(start).Milliseconds(); cost > 1000 {
+		// 只记录慢请求 >1s
+		util.RateLimitedLogf("thumb-slow:"+path,
+			"[W] thumb: source=meta slow cost=%dms path=%s", cost, path)
 	}
 	encType := getPathEncType(path)
 	var contentReader io.Reader
@@ -722,9 +790,9 @@ func (im *ImgManager) GetThumbnail(path string, opts ...OptionFunc) (*Image, err
 				// 顺手异步将生成的缩略图上传到副存储 .thumbnail/ 文件夹，彻底消除后续访问的兜底开销
 				go func(tData []byte, tPath string, enc EncryptOption) {
 					if err := im.saveThumbnailToMeta(tData, tPath, enc); err != nil {
-						im.logger.Printf("[WARN] Failed to auto-backfill fallback thumbnail to %s: %v", tPath, err)
+						im.logger.Printf("[W] Failed to auto-backfill fallback thumbnail to %s: %v", tPath, err)
 					} else {
-						im.logger.Printf("[INFO] Successfully auto-backfilled fallback thumbnail to %s", tPath)
+						im.logger.Printf("[I] Successfully auto-backfilled fallback thumbnail to %s", tPath)
 					}
 				}(thumbBytes, filepath.Join(defaultThumbnailDir, path), options.EncyptOption)
 
@@ -877,7 +945,7 @@ func (im *ImgManager) DeleteSingleImg(path string) error {
 		err := md.Delete(filepath.Join(defaultThumbnailDir, path))
 		unlockMeta()
 		if err != nil {
-			im.logger.Println("Error deleting thumbnail:", err)
+			im.logger.Printf("[W] delete thumbnail failed: %v", err)
 		}
 
 		d, unlock := im.drive()
@@ -886,13 +954,13 @@ func (im *ImgManager) DeleteSingleImg(path string) error {
 			d.Range(filepath.Dir(path), func(info fs.FileInfo) bool {
 				err := d.Delete(filepath.Join(filepath.Dir(path), info.Name()))
 				if err != nil {
-					im.logger.Println("Error deleting live video:", err)
+					im.logger.Printf("[W] delete live video failed: %v", err)
 				}
 				return true
 			})
 			err := d.Delete(filepath.Dir(path))
 			if err != nil {
-				im.logger.Println("Error deleting live video dir:", err)
+				im.logger.Printf("[W] delete live video dir failed: %v", err)
 			}
 		}
 		delErr := d.Delete(path)
@@ -1095,19 +1163,60 @@ func (im *ImgManager) collectDirInfos(d StorageDrive, baseDir string, date time.
 	return im.collectDirInfosRange(d, baseDir, time.Time{}, date)
 }
 
-func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool) error {
-	return im.RangeByAlbumAndDate("", date, f)
+func (im *ImgManager) RangeByDate(date time.Time, f func(info ImgInfo) bool, opts ...RangeOption) error {
+	return im.RangeByAlbumAndDate("", date, f, opts...)
 }
 
-func (im *ImgManager) RangeByDateRange(minDate, maxDate time.Time, f func(info ImgInfo) bool) error {
-	return im.RangeByAlbumAndDateRange("", minDate, maxDate, f)
+func (im *ImgManager) RangeByDateRange(minDate, maxDate time.Time, f func(info ImgInfo) bool, opts ...RangeOption) error {
+	return im.RangeByAlbumAndDateRange("", minDate, maxDate, f, opts...)
 }
 
-func (im *ImgManager) RangeByAlbumAndDate(album string, date time.Time, f func(info ImgInfo) bool) error {
-	return im.RangeByAlbumAndDateRange(album, time.Time{}, date, f)
+func (im *ImgManager) RangeByAlbumAndDate(album string, date time.Time, f func(info ImgInfo) bool, opts ...RangeOption) error {
+	return im.RangeByAlbumAndDateRange(album, time.Time{}, date, f, opts...)
 }
 
-func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate time.Time, f func(info ImgInfo) bool) error {
+// RangeStats 汇总一次区间查询的来源与自愈结果，供 gRPC 层回传客户端日志
+type RangeStats struct {
+	Source       string // manifest | physical
+	Records      int    // manifest 阶段参与筛选的内存记录数
+	Returned     int    // 实际交给回调的文件数
+	FallbackScan bool   // 是否回退到主存储物理扫描
+	Healed       int    // 回写 manifest 的新记录数
+	CostMs       int64
+}
+
+type rangeConfig struct {
+	stats *RangeStats
+	heal  bool
+}
+
+type RangeOption func(*rangeConfig)
+
+// WithRangeStats 收集本次查询的来源与耗时（不回写 manifest）
+func WithRangeStats(stats *RangeStats) RangeOption {
+	return func(c *rangeConfig) { c.stats = stats }
+}
+
+// WithManifestHeal 启用「miss 后主动补元数据」：物理扫描到但 manifest 缺失的文件会被增量回写。
+// stats 可为 nil。
+func WithManifestHeal(stats *RangeStats) RangeOption {
+	return func(c *rangeConfig) {
+		c.stats = stats
+		c.heal = true
+	}
+}
+
+func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate time.Time, f func(info ImgInfo) bool, opts ...RangeOption) error {
+	var cfg rangeConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	stats := cfg.stats
+	start := time.Now()
+	if stats != nil {
+		defer func() { stats.CostMs = time.Since(start).Milliseconds() }()
+	}
+
 	// 1. 如果 Manifest 处于就绪状态，优先基于内存元数据瞬时响应，彻底避免远端多级 PROPFIND
 	if im.manifest != nil && im.manifest.IsInitialized() {
 		records := im.manifest.GetActiveRecords()
@@ -1117,16 +1226,24 @@ func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate ti
 				count++
 				return f(info)
 			})
+			if stats != nil {
+				stats.Records = len(records)
+				stats.Returned = count
+			}
 			// 如果命中记录则直接返回；若未命中则降级检查物理磁盘（兼容外部或老版本直接写入的文件）
 			if err == nil && count > 0 {
-				log.Printf("[INFO] RangeByAlbumAndDateRange HIT MANIFEST: album=%s, returned=%d", album, count)
+				if stats != nil {
+					stats.Source = "manifest"
+				}
+				util.RateLimitedLogf("range-manifest:"+album,
+					"[I] list: source=manifest album=%q returned=%d cost=%dms", album, count, time.Since(start).Milliseconds())
 				return nil
 			}
 		}
 	}
 
+	// 2. 物理扫描（miss 后才走这里）
 	d, unlock := im.drive()
-	defer unlock()
 
 	var allDirInfos []dirInfo
 	if album != "" {
@@ -1154,6 +1271,17 @@ func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate ti
 		}
 	}
 
+	// 物理扫描到的文件（仅用于可选的回写）与访问计数
+	visited := 0
+	var healCands []healCandidate
+	emit := func(info ImgInfo) bool {
+		visited++
+		if cfg.heal {
+			healCands = appendHealCandidate(healCands, info)
+		}
+		return f(info)
+	}
+
 	sort.Sort(dirDesc(allDirInfos))
 	for _, dirInfo := range allDirInfos {
 		goOn := true
@@ -1162,7 +1290,7 @@ func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate ti
 				if strings.HasPrefix(info.Name(), "live_") {
 					d.Range(filepath.Join(dirInfo.dir, info.Name()), func(info2 fs.FileInfo) bool {
 						if !util.IsVideo(info2.Name()) {
-							goOn = f(ImgInfo{
+							goOn = emit(ImgInfo{
 								Path:        filepath.Join(dirInfo.dir, info.Name(), info2.Name()),
 								Size:        info2.Size(),
 								IsLivePhoto: true,
@@ -1173,7 +1301,7 @@ func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate ti
 				}
 				return goOn
 			}
-			goOn = f(ImgInfo{
+			goOn = emit(ImgInfo{
 				Path:        filepath.Join(dirInfo.dir, info.Name()),
 				Size:        info.Size(),
 				IsLivePhoto: false,
@@ -1184,6 +1312,28 @@ func (im *ImgManager) RangeByAlbumAndDateRange(album string, minDate, maxDate ti
 			break
 		}
 	}
+	// 必须先释放主存储读锁，再写副存储 manifest（避免 Go RWMutex 嵌套 RLock 在有写者等待时死锁）
+	unlock()
+
+	if stats != nil {
+		stats.FallbackScan = true
+		stats.Source = "physical"
+		stats.Returned = visited
+	}
+
+	if cfg.heal {
+		healStart := time.Now()
+		added, albums := im.healManifest(healCands)
+		if stats != nil {
+			stats.Healed = added
+		}
+		if visited > 0 || added > 0 {
+			log.Printf("[I] manifest heal: album=%q scanned=%d added=%d albums=%d names=%v cost=%dms",
+				album, visited, added, len(albums), albums, time.Since(healStart).Milliseconds())
+		}
+	}
+	util.RateLimitedLogf("range-physical:"+album,
+		"[W] list: source=physical album=%q returned=%d cost=%dms", album, visited, time.Since(start).Milliseconds())
 	return nil
 }
 
@@ -1333,9 +1483,7 @@ func (im *ImgManager) scanAllRecordsAndAlbums(mainD StorageDrive) ([]ManifestRec
 
 func (im *ImgManager) bootstrapManifest(mainD, metaD StorageDrive) {
 	records, albums := im.scanAllRecordsAndAlbums(mainD)
-	for _, alb := range albums {
-		_ = metaD.Mkdir(filepath.Join(defaultThumbnailDir, alb))
-	}
+	ensureAlbumThumbSkeletons(metaD, albums)
 	if len(records) > 0 {
 		_ = im.manifest.AppendChunk(metaD, records)
 		_ = im.manifest.Compact(metaD)
@@ -1355,9 +1503,7 @@ func (im *ImgManager) RebuildManifest() (int64, int, error) {
 
 	md, unlockMeta := im.metaDrive()
 	defer unlockMeta()
-	for _, alb := range albums {
-		_ = md.Mkdir(filepath.Join(defaultThumbnailDir, alb))
-	}
+	ensureAlbumThumbSkeletons(md, albums)
 	if err := im.manifest.RebuildWithRecords(md, records); err != nil {
 		return 0, 0, err
 	}
@@ -1471,7 +1617,7 @@ func (im *ImgManager) ListAlbums() ([]AlbumInfo, error) {
 				IsDefault: name == defaultName,
 			})
 		}
-		log.Printf("[INFO] ListAlbums HIT MANIFEST: albums=%d", len(result))
+		log.Printf("[I] ListAlbums HIT MANIFEST: albums=%d", len(result))
 		return result, nil
 	}
 
@@ -1723,7 +1869,7 @@ func (im *ImgManager) cleanEmptyDirsUpwards(d StorageDrive, startDir string, del
 
 		exists, err := d.IsExist(curr)
 		if err != nil {
-			im.logger.Printf("cleanEmptyDirsUpwards: check exists %s: %v", curr, err)
+			im.logger.Printf("[W] cleanEmptyDirsUpwards: check exists %s: %v", curr, err)
 			break
 		}
 		if !exists {
@@ -1738,7 +1884,7 @@ func (im *ImgManager) cleanEmptyDirsUpwards(d StorageDrive, startDir string, del
 
 		empty, err := im.isDirEmpty(d, curr)
 		if err != nil {
-			im.logger.Printf("cleanEmptyDirsUpwards: check empty %s: %v", curr, err)
+			im.logger.Printf("[W] cleanEmptyDirsUpwards: check empty %s: %v", curr, err)
 			break
 		}
 		if !empty {
@@ -1747,10 +1893,10 @@ func (im *ImgManager) cleanEmptyDirsUpwards(d StorageDrive, startDir string, del
 		}
 
 		if err := d.Delete(curr); err != nil {
-			im.logger.Printf("cleanEmptyDirsUpwards: delete empty dir %s failed: %v", curr, err)
+			im.logger.Printf("[W] cleanEmptyDirsUpwards: delete empty dir %s failed: %v", curr, err)
 			break
 		}
-		im.logger.Printf("[INFO] Cleaned empty dir after move: %s", curr)
+		im.logger.Printf("[I] Cleaned empty dir after move: %s", curr)
 		if deletedDirs != nil {
 			deletedDirs[curr] = true
 		}
@@ -1804,7 +1950,7 @@ func (im *ImgManager) MoveAssets(paths []string, targetAlbum string) ([]string, 
 		}
 
 		if err := d.Move(cleanedPath, newMainPath); err != nil {
-			im.logger.Printf("MoveAssets: failed to move %s -> %s: %v", cleanedPath, newMainPath, err)
+			im.logger.Printf("[W] MoveAssets: failed to move %s -> %s: %v", cleanedPath, newMainPath, err)
 			continue
 		}
 		newPaths = append(newPaths, newMainPath)

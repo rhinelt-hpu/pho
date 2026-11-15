@@ -245,7 +245,15 @@ tap_ui_node("打开调试控制台")
 
 ---
 
-### 4.6 远端日志自动同步（.logs 目录）与冷启动埋点
+### 4.6 日志分级与关键点
+
+- **格式**：`[yyyy-MM-dd HH:mm:ss] [D|I|W|E] message`，落盘到沙箱 `logs/`（2MB 翻页、保留 3 天），由 `log_sync.dart` 上传到副存储 `.logs/<device>/<date>.log`。
+- **级别**：INFO/WARN/ERROR 始终记录；DEBUG 需要打开「设置 → 应用信息 → 调试模式 → 详细日志（DEBUG）」（`log_verbose`，默认关）。
+- **去重**：同一级别 + 同一消息在 30 秒内只写一次，重复时标记 `(xN)`，避免轮询/多页列表刷屏。
+- **关键点**（都带耗时，便于从远端日志复盘）：`startup:`、`drive primary|meta`、`manifest sync`（记录数/水位线/来源 local-cache|remote）、`filter:`（manifest_hits/fallback_scan/targeted_healed/cost）、`remote list:`（DEBUG）、`upload done:`（thumb/orig/live/total）、`thumb fallback(primary):`（DEBUG）、`sync done:`。
+- **服务端→客户端诊断**：`SetDriveWebdav` / `FilterNotUploaded` / `ListByDate` 的 gRPC `Message` 会携带 manifest/来源/耗时信息，客户端写进同一份日志。
+
+### 4.7 远端日志自动同步（.logs 目录）与冷启动埋点
 
 手机端排查最麻烦的是"需要用户配合抓日志"。为此客户端会把本机运行日志自动落到副存储（元数据存储）的 `.logs/` 目录：
 

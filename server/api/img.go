@@ -13,9 +13,9 @@ import (
 )
 
 type api struct {
-	im                *imgmanager.ImgManager
-	httpPort          int
-	startTime         time.Time
+	im        *imgmanager.ImgManager
+	httpPort  int
+	startTime time.Time
 
 	pb.UnimplementedImgSyncerServer
 }
@@ -46,7 +46,7 @@ func (a *api) SetLocalCacheDir(ctx context.Context, req *pb.SetLocalCacheDirRequ
 		return &pb.SetLocalCacheDirResponse{Success: false, Message: "path cannot be empty"}, nil
 	}
 	a.im.SetLocalCacheDir(req.Path)
-	log.Printf("[INFO] SetLocalCacheDir: %s, loaded records: %d, watermark: %d", req.Path, a.im.Manifest().RecordCount(), a.im.Manifest().GetMaxWatermark())
+	log.Printf("[I] SetLocalCacheDir: %s, loaded records: %d, watermark: %d", req.Path, a.im.Manifest().RecordCount(), a.im.Manifest().GetMaxWatermark())
 	return &pb.SetLocalCacheDirResponse{Success: true}, nil
 }
 
@@ -106,6 +106,7 @@ func (a *api) ListByDate(ctx context.Context, req *pb.ListByDateRequest) (rsp *p
 	rsp.Infos = make([]*pb.FileInfo, 0, req.MaxReturn)
 	offset := req.Offset
 	needReturn := req.MaxReturn
+	var stats imgmanager.RangeStats
 	e = a.im.RangeByAlbumAndDate(req.Album, start, func(info imgmanager.ImgInfo) bool {
 		if offset > 0 {
 			offset--
@@ -118,11 +119,14 @@ func (a *api) ListByDate(ctx context.Context, req *pb.ListByDateRequest) (rsp *p
 		})
 		needReturn--
 		return needReturn > 0
-	})
+	}, imgmanager.WithRangeStats(&stats))
 	if e != nil {
 		rsp.Success, rsp.Message = false, e.Error()
 		return
 	}
+	// 诊断信息回传客户端（客户端仅在 debug 级别记录），成功时 Message 也可非空
+	rsp.Message = fmt.Sprintf("source=%s recs=%d returned=%d cost=%dms",
+		stats.Source, stats.Records, len(rsp.Infos), stats.CostMs)
 	return
 }
 
@@ -212,6 +216,7 @@ func (a *api) MoveAssets(ctx context.Context, req *pb.MoveAssetsRequest) (*pb.Mo
 }
 
 func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) error {
+	filterStart := time.Now()
 	nameToID := make(map[string]string)
 	targetIDs := make(map[string]bool)
 	invalidIDs := make([]string, 0)
@@ -257,6 +262,7 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 
 	uploadedIDs := make([]string, 0)
 	unmatchedCount := len(targetIDs)
+	manifestHits := 0
 
 	// 1. 优先从内存快照清单 (Manifest) 进行 O(1) 瞬时查验，完全避免网络 I/O
 	if a.im.Manifest() != nil && a.im.Manifest().IsInitialized() {
@@ -265,14 +271,18 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 				if _, found := a.im.Manifest().LookupFingerprint(encName); found {
 					targetIDs[id] = false
 					unmatchedCount--
+					manifestHits++
 					uploadedIDs = append(uploadedIDs, id)
 				}
 			}
 		}
 	}
 
-	// 2. 如果还有未命中的，使用反向时间区间剪枝深搜物理目录作为最终 Ground Truth
-	if unmatchedCount > 0 {
+	// 2. 如果还有未命中的，使用反向时间区间剪枝深搜物理目录作为最终 Ground Truth；
+	// 同时启用 manifest 自愈：扫描到但 manifest 缺失的文件会增量回写，下次直接命中
+	var stats imgmanager.RangeStats
+	fallbackScan := unmatchedCount > 0
+	if fallbackScan {
 		a.im.RangeByDateRange(minDate, maxDate, func(info imgmanager.ImgInfo) bool {
 			name := filepath.Base(info.Path)
 			if id, ok := nameToID[name]; ok {
@@ -283,7 +293,28 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 				}
 			}
 			return unmatchedCount > 0
-		})
+		}, imgmanager.WithManifestHeal(&stats))
+	}
+
+	// 3. 定向补查：区间扫描在「区间内已有其它 manifest 记录」时会整体命中 manifest 而不下物理盘，
+	// 残留的少量 miss（如 10 张里 1 张）只扫它所在日期的目录，命中后回写 manifest。
+	targetedHealed := 0
+	if unmatchedCount > 0 && unmatchedCount <= 40 {
+		remaining := make(map[string]bool, unmatchedCount*2)
+		for encName, id := range nameToID {
+			if targetIDs[id] {
+				remaining[encName] = true
+			}
+		}
+		found, healed := a.im.LookupFilesByFingerprints(remaining)
+		targetedHealed = healed
+		for fp := range found {
+			if id, ok := nameToID[fp]; ok && targetIDs[id] {
+				targetIDs[id] = false
+				unmatchedCount--
+				uploadedIDs = append(uploadedIDs, id)
+			}
+		}
 	}
 
 	notUploadedIDs := make([]string, 0, unmatchedCount)
@@ -293,9 +324,15 @@ func (a *api) FilterNotUploaded(stream pb.ImgSyncer_FilterNotUploadedServer) err
 		}
 	}
 
+	costMs := time.Since(filterStart).Milliseconds()
+	message := fmt.Sprintf("manifest_hits=%d fallback_scan=%t targeted_healed=%d healed=%d cost=%dms",
+		manifestHits, fallbackScan, targetedHealed, stats.Healed+targetedHealed, costMs)
+	log.Printf("[I] filter: %s", message)
+
 	return stream.Send(&pb.FilterNotUploadedResponse{
 		Success:        true,
 		IsFinished:     true,
+		Message:        message,
 		NotUploaedIDs:  notUploadedIDs,
 		NotUploadedIDs: notUploadedIDs,
 		UploadedIDs:    uploadedIDs,
